@@ -18,3 +18,4 @@ seed_cadastro_legado.sql
 *.bak_*
 *.bak-*
 .~lock.*
+*.bak*

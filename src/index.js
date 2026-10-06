@@ -15,6 +15,7 @@ const advertenciasCommand = require('../commands/advertencias/advertenciasComman
 const { handleAdvertenciaInteraction, iniciarCronAdvertencias } = require('./advertencias');
 const hierarquia = require('./hierarquia');
 const { popularCacheDeMembros } = require('./popularCache');
+const ponto = require('./ponto');
 
 const client = new Client({
   intents: [
@@ -32,6 +33,7 @@ client.once('ready', async () => {
   await db.initSchema();
   iniciarLembretes(client);
   iniciarCronAdvertencias(client);
+  ponto.init(client).catch((e) => console.error('[ponto] init:', e));
   console.log(`Bot online como ${client.user.tag}`);
 
   try {
@@ -54,7 +56,9 @@ client.on('guildMemberAdd', (member) => {
   iniciarOnboarding(member).catch((err) => console.error('Erro no onboarding:', err));
 });
 
-client.on('interactionCreate', (interaction) => {
+client.on('interactionCreate', async (interaction) => {
+  if (await ponto.handlePontoInteraction(interaction)) return;
+
   if (interaction.isChatInputCommand() && interaction.commandName === 'reuniao') {
     reuniaoCommand.execute(interaction).catch((err) => console.error('Erro no comando /reuniao:', err));
     return;
@@ -82,15 +86,17 @@ client.on('interactionCreate', (interaction) => {
     return;
   }
 
-  handleAdvertenciaInteraction(interaction).then((tratado) => {
-    if (tratado) return;
-    handleResolverLembrete(interaction).then((tratado2) => {
-      if (tratado2) return;
-      handleAprovacaoInteraction(interaction).catch((err) =>
-        console.error('Erro na interação de aprovação:', err)
-      );
-    });
-  });
+  handleAdvertenciaInteraction(interaction)
+    .then((tratado) => {
+      if (tratado) return;
+      handleResolverLembrete(interaction).then((tratado2) => {
+        if (tratado2) return;
+        handleAprovacaoInteraction(interaction).catch((err) =>
+          console.error('Erro na interação de aprovação:', err)
+        );
+      });
+    })
+    .catch((err) => console.error('Erro na interação de advertência:', err));
 });
 
 client.on('guildMemberUpdate', (oldMember, newMember) => {

@@ -124,6 +124,9 @@ async function initSchema() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  // Marca desde quando a advertência está esperando resposta do advertido (reinicia a cada contra-argumento)
+  await pool.query('ALTER TABLE advertencias ADD COLUMN IF NOT EXISTS data_aguardando_desde TIMESTAMPTZ');
+
   await pool.query('CREATE INDEX IF NOT EXISTS idx_advertencias_discord_id ON advertencias (discord_id)');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_advertencias_status ON advertencias (status)');
 
@@ -135,6 +138,18 @@ async function initSchema() {
       status_novo TEXT NOT NULL,
       alterado_por TEXT NOT NULL,
       motivo TEXT,
+      data TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+
+  // Histórico da troca de argumentos (réplica do advertido <-> contra-argumento de quem advertiu)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS advertencias_argumentos (
+      id SERIAL PRIMARY KEY,
+      advertencia_id INT NOT NULL REFERENCES advertencias(id) ON DELETE CASCADE,
+      tipo TEXT NOT NULL CHECK (tipo IN ('replica', 'contra_argumento')),
+      autor_discord_id TEXT NOT NULL,
+      texto TEXT NOT NULL,
       data TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
@@ -367,8 +382,23 @@ async function criarAdvertencia({
   return rows[0];
 }
 
-function registrarReplicaAdvertencia(id, texto) {
-  return pool.query('UPDATE advertencias SET replica_advertido = $2, updated_at = now() WHERE id = $1', [id, texto]);
+async function registrarReplicaAdvertencia(id, texto, discordId = 'desconhecido') {
+  await pool.query('UPDATE advertencias SET replica_advertido = $2, updated_at = now() WHERE id = $1', [id, texto]);
+  await registrarArgumento(id, 'replica', discordId, texto);
+}
+
+function registrarArgumento(advertenciaId, tipo, autorDiscordId, texto) {
+  return pool.query(
+    `INSERT INTO advertencias_argumentos (advertencia_id, tipo, autor_discord_id, texto)
+     VALUES ($1, $2, $3, $4)`,
+    [advertenciaId, tipo, autorDiscordId, texto]
+  );
+}
+
+function listarArgumentos(advertenciaId) {
+  return pool
+    .query('SELECT * FROM advertencias_argumentos WHERE advertencia_id = $1 ORDER BY data ASC, id ASC', [advertenciaId])
+    .then((r) => r.rows);
 }
 
 function registrarDecisaoExpulsao(id, expulsar) {
@@ -381,6 +411,9 @@ async function atualizarStatusAdvertencia(id, statusAnterior, statusNovo, altera
     sets.push('data_resposta = COALESCE(data_resposta, now())');
     sets.push(`data_expiracao = now() + interval '${diasParaExpirar} days'`);
   }
+  if (statusNovo === 'aguardando_aceitacao') {
+    sets.push('data_aguardando_desde = now()');
+  }
   await pool.query(`UPDATE advertencias SET ${sets.join(', ')} WHERE id = $1`, [id, statusNovo]);
   await registrarHistoricoAdvertencia(id, statusAnterior, statusNovo, alteradoPor, motivo);
 }
@@ -390,7 +423,7 @@ function listarAdvertenciasSemRespostaVencidas(diasParaResponder) {
     .query(
       `SELECT * FROM advertencias
        WHERE status = 'aguardando_aceitacao'
-       AND data_abertura < now() - ($1 || ' days')::interval`,
+       AND COALESCE(data_aguardando_desde, data_abertura) < now() - ($1 || ' days')::interval`,
       [String(diasParaResponder)]
     )
     .then((r) => r.rows);
@@ -428,6 +461,8 @@ module.exports = {
   listarTodasAdvertencias,
   criarAdvertencia,
   registrarReplicaAdvertencia,
+  registrarArgumento,
+  listarArgumentos,
   registrarDecisaoExpulsao,
   atualizarStatusAdvertencia,
   listarAdvertenciasSemRespostaVencidas,

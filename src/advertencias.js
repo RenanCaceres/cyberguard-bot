@@ -68,19 +68,16 @@ async function finalizarAbertura(interaction, { membroId, nomeReal, categoriaDec
   return advertencia;
 }
 
-async function enviarNotificacaoAdvertido(client, advertencia) {
-  const embed = new EmbedBuilder()
-    .setTitle('Você recebeu uma advertência formal')
-    .setDescription(
-      `**Título:** ${advertencia.titulo}\n\nSe você não responder em ${DIAS_PARA_RESPONDER} dias, a advertência será marcada como "Sem Resposta".`
-    )
-    .setColor(0xd85a30);
-
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`advertencia_ciente_${advertencia.id}`).setLabel('Ciente').setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`advertencia_naoconcordo_${advertencia.id}`).setLabel('Não concordo').setStyle(ButtonStyle.Danger)
+function botoesAdvertido(advertenciaId) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`advertencia_ciente_${advertenciaId}`).setLabel('Ciente').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`advertencia_naoconcordo_${advertenciaId}`).setLabel('Não concordo').setStyle(ButtonStyle.Danger)
   );
+}
 
+// Tenta DM; se o advertido tiver DM fechada, cai no canal de advertências
+async function enviarAoAdvertido(client, advertencia, embed) {
+  const row = botoesAdvertido(advertencia.id);
   try {
     const usuario = await client.users.fetch(advertencia.discord_id);
     await usuario.send({ embeds: [embed], components: [row] });
@@ -88,6 +85,49 @@ async function enviarNotificacaoAdvertido(client, advertencia) {
     const canal = await client.channels.fetch(CANAL_ADVERTENCIAS_ID);
     await canal.send({ content: `<@${advertencia.discord_id}>`, embeds: [embed], components: [row] });
   }
+}
+
+async function enviarNotificacaoAdvertido(client, advertencia) {
+  const embed = new EmbedBuilder()
+    .setTitle('Você recebeu uma advertência formal')
+    .setDescription(
+      `**Título:** ${advertencia.titulo}\n\nSe você não responder em ${DIAS_PARA_RESPONDER} dias, a advertência será marcada como \"Sem Resposta\".`
+    )
+    .setColor(0xd85a30);
+
+  await enviarAoAdvertido(client, advertencia, embed);
+}
+
+async function enviarContraArgumentoAoAdvertido(client, advertencia, texto) {
+  const embed = new EmbedBuilder()
+    .setTitle(`Contra-argumento — advertência #${advertencia.id}`)
+    .setDescription(
+      `**Título:** ${advertencia.titulo}\n\n**Contra-argumento de quem abriu a advertência:**\n${texto}\n\n` +
+        `Se você não responder em ${DIAS_PARA_RESPONDER} dias, a advertência será marcada como \"Sem Resposta\".`
+    )
+    .setColor(0xef9f27);
+
+  await enviarAoAdvertido(client, advertencia, embed);
+}
+
+// Mensagem de decisão para quem abriu a advertência: Contra-Argumentar / Prosseguir / Perdoar
+async function enviarDecisaoAoAutor(client, advertencia, justificativa) {
+  const argumentos = await db.listarArgumentos(advertencia.id);
+  const rodada = argumentos.filter((a) => a.tipo === 'replica').length;
+
+  const canal = await client.channels.fetch(CANAL_ADVERTENCIAS_ID);
+  const embed = new EmbedBuilder()
+    .setTitle(`Réplica recebida — advertência #${advertencia.id} (rodada ${rodada})`)
+    .setDescription(`**Justificativa do advertido:**\n${justificativa}`)
+    .setColor(0xef9f27);
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`advertencia_contra_${advertencia.id}`).setLabel('Contra-Argumentar').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`advertencia_prosseguir_${advertencia.id}`).setLabel('Prosseguir').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`advertencia_perdoar_${advertencia.id}`).setLabel('Perdoar').setStyle(ButtonStyle.Success)
+  );
+
+  await canal.send({ content: `<@${advertencia.autor_id}>`, embeds: [embed], components: [row] });
 }
 
 // ---------- fluxo via /advertir (slash command, pede nome_real na mão) ----------
@@ -363,7 +403,47 @@ async function handlePainelHistorico(interaction) {
 
 // ---------- ciclo de vida pós-abertura (aceite, réplica, expulsão, prazos) ----------
 
+// Confere se o clique é do advertido e se a advertência ainda espera a resposta dele
+// (evita botões antigos reabrirem uma advertência já decidida)
+async function validarRespostaAdvertido(interaction, id) {
+  const advertencia = await db.getAdvertencia(id);
+  if (!advertencia) {
+    await interaction.reply({ content: 'Advertência não encontrada.', ephemeral: true });
+    return null;
+  }
+  if (interaction.user.id !== advertencia.discord_id) {
+    await interaction.reply({ content: 'Só o advertido pode responder a esta advertência.', ephemeral: true });
+    return null;
+  }
+  if (advertencia.status !== 'aguardando_aceitacao') {
+    await interaction.reply({ content: 'Esta advertência não está mais aguardando a sua resposta.', ephemeral: true });
+    return null;
+  }
+  return advertencia;
+}
+
+// Confere permissão e se a advertência está aguardando decisão de quem abriu (status em_analise)
+async function validarDecisaoAutor(interaction, id) {
+  if (!podeAbrirAdvertencia(interaction.user.id)) {
+    await interaction.reply({ content: 'Só quem abriu a advertência ou o Presidente pode decidir isso.', ephemeral: true });
+    return null;
+  }
+  const advertencia = await db.getAdvertencia(id);
+  if (!advertencia) {
+    await interaction.reply({ content: 'Advertência não encontrada.', ephemeral: true });
+    return null;
+  }
+  if (advertencia.status !== 'em_analise') {
+    await interaction.reply({ content: 'Esta advertência não está mais aguardando a sua decisão.', ephemeral: true });
+    return null;
+  }
+  return advertencia;
+}
+
 async function handleBotaoCienteOuNaoConcordo(interaction, acao, id) {
+  const advertencia = await validarRespostaAdvertido(interaction, id);
+  if (!advertencia) return;
+
   if (acao === 'ciente') {
     await db.atualizarStatusAdvertencia(id, 'aguardando_aceitacao', 'em_vigencia', interaction.user.id, 'Ciência dada pelo advertido', DIAS_PARA_EXPIRAR);
     await interaction.update({
@@ -371,6 +451,17 @@ async function handleBotaoCienteOuNaoConcordo(interaction, acao, id) {
       embeds: [],
       components: [],
     });
+
+    // Se houve troca de argumentos, avisa quem abriu que o advertido aceitou
+    try {
+      const argumentos = await db.listarArgumentos(id);
+      if (argumentos.length > 0) {
+        const canal = await interaction.client.channels.fetch(CANAL_ADVERTENCIAS_ID);
+        await canal.send(`<@${advertencia.autor_id}> o advertido deu ciência à advertência #${id} após a troca de argumentos. Ela entrou em vigência.`);
+      }
+    } catch (err) {
+      console.error('Erro ao avisar autor sobre ciência da advertência:', err);
+    }
     return;
   }
 
@@ -379,43 +470,37 @@ async function handleBotaoCienteOuNaoConcordo(interaction, acao, id) {
     .setCustomId('justificativa')
     .setLabel('Por que você não concorda?')
     .setStyle(TextInputStyle.Paragraph)
+    .setMaxLength(1500)
     .setRequired(true);
   modal.addComponents(new ActionRowBuilder().addComponents(justificativa));
   await interaction.showModal(modal);
 }
 
 async function handleModalReplica(interaction, id) {
+  const advertencia = await validarRespostaAdvertido(interaction, id);
+  if (!advertencia) return;
+
   const justificativa = interaction.fields.getTextInputValue('justificativa');
 
-  await db.registrarReplicaAdvertencia(id, justificativa);
+  await db.registrarReplicaAdvertencia(id, justificativa, interaction.user.id);
   await db.atualizarStatusAdvertencia(id, 'aguardando_aceitacao', 'em_analise', interaction.user.id);
+  await enviarDecisaoAoAutor(interaction.client, advertencia, justificativa);
 
-  const advertencia = await db.getAdvertencia(id);
-  const canal = await interaction.client.channels.fetch(CANAL_ADVERTENCIAS_ID);
-
-  const embed = new EmbedBuilder()
-    .setTitle(`Réplica recebida — advertência #${id}`)
-    .setDescription(`**Justificativa do advertido:**\n${justificativa}`)
-    .setColor(0xef9f27);
-
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`advertencia_perdoar_${id}`).setLabel('Perdoar').setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`advertencia_prosseguir_${id}`).setLabel('Prosseguir').setStyle(ButtonStyle.Danger)
-  );
-
-  await canal.send({ content: `<@${advertencia.autor_id}>`, embeds: [embed], components: [row] });
-  await interaction.reply({ content: 'Sua justificativa foi enviada para análise.', ephemeral: true });
+  const resposta = { content: 'Sua justificativa foi enviada para análise.', embeds: [], components: [] };
+  if (interaction.isFromMessage()) {
+    await interaction.update(resposta); // tira os botões da mensagem original
+  } else {
+    await interaction.reply({ ...resposta, ephemeral: true });
+  }
 }
 
 async function handleDecisaoReplica(interaction, decisao, id) {
-  if (!podeAbrirAdvertencia(interaction.user.id)) {
-    await interaction.reply({ content: 'Só quem abriu a advertência ou o Presidente pode decidir isso.', ephemeral: true });
-    return;
-  }
+  const advertencia = await validarDecisaoAutor(interaction, id);
+  if (!advertencia) return;
 
   if (decisao === 'perdoar') {
     await db.atualizarStatusAdvertencia(id, 'em_analise', 'perdoada', interaction.user.id);
-    await interaction.update({ content: `Advertência #${id} perdoada.`, components: [] });
+    await interaction.update({ content: `Advertência #${id} perdoada.`, embeds: [], components: [] });
     return;
   }
 
@@ -427,7 +512,47 @@ async function handleDecisaoReplica(interaction, decisao, id) {
     'Réplica não aceita — advertência mantida',
     DIAS_PARA_EXPIRAR
   );
-  await interaction.update({ content: `Advertência #${id} mantida em vigência.`, components: [] });
+  await interaction.update({ content: `Advertência #${id} mantida em vigência.`, embeds: [], components: [] });
+}
+
+// Botão "Contra-Argumentar": abre o modal para quem abriu a advertência escrever o argumento
+async function handleBotaoContraArgumentar(interaction, id) {
+  const advertencia = await validarDecisaoAutor(interaction, id);
+  if (!advertencia) return;
+
+  const modal = new ModalBuilder().setCustomId(`advertencia_contra_modal_${id}`).setTitle('Contra-argumento');
+  const argumento = new TextInputBuilder()
+    .setCustomId('argumento')
+    .setLabel('Seu contra-argumento ao advertido')
+    .setStyle(TextInputStyle.Paragraph)
+    .setMaxLength(1500)
+    .setRequired(true);
+  modal.addComponents(new ActionRowBuilder().addComponents(argumento));
+  await interaction.showModal(modal);
+}
+
+// Envia o contra-argumento ao advertido e volta a advertência para "aguardando_aceitacao"
+async function handleModalContraArgumento(interaction, id) {
+  const advertencia = await validarDecisaoAutor(interaction, id);
+  if (!advertencia) return;
+
+  const texto = interaction.fields.getTextInputValue('argumento');
+
+  // Envia primeiro: se falhar, nada é gravado e dá pra tentar de novo
+  await enviarContraArgumentoAoAdvertido(interaction.client, advertencia, texto);
+  await db.registrarArgumento(id, 'contra_argumento', interaction.user.id, texto);
+  await db.atualizarStatusAdvertencia(id, 'em_analise', 'aguardando_aceitacao', interaction.user.id, 'Contra-argumento enviado ao advertido');
+
+  const resposta = {
+    content: `Contra-argumento enviado ao advertido (advertência #${id}). Aguardando a resposta dele.`,
+    embeds: [],
+    components: [],
+  };
+  if (interaction.isFromMessage()) {
+    await interaction.update(resposta);
+  } else {
+    await interaction.reply({ ...resposta, ephemeral: true });
+  }
 }
 
 async function handleDecisaoExpulsao(interaction, decisao, id) {
@@ -459,8 +584,14 @@ async function handleReenviarOuCancelar(interaction, acao, id) {
   }
 
   const advertencia = await db.getAdvertencia(id);
+  const argumentos = await db.listarArgumentos(id);
+  const ultimo = argumentos[argumentos.length - 1];
+  if (ultimo && ultimo.tipo === 'contra_argumento') {
+    await enviarContraArgumentoAoAdvertido(interaction.client, advertencia, ultimo.texto);
+  } else {
+    await enviarNotificacaoAdvertido(interaction.client, advertencia);
+  }
   await db.atualizarStatusAdvertencia(id, 'sem_resposta', 'aguardando_aceitacao', interaction.user.id, 'Reenviada após falta de resposta');
-  await enviarNotificacaoAdvertido(interaction.client, advertencia);
   await interaction.update({ content: `Advertência #${id} reenviada ao advertido.`, components: [] });
 }
 
@@ -476,6 +607,11 @@ async function handleAdvertenciaInteraction(interaction) {
     }
     if (interaction.customId === 'advertencia_painel_modal') {
       await handleModalPainel(interaction);
+      return true;
+    }
+    const contraMatch = interaction.customId.match(/^advertencia_contra_modal_(\d+)$/);
+    if (contraMatch) {
+      await handleModalContraArgumento(interaction, contraMatch[1]);
       return true;
     }
     const replicaMatch = interaction.customId.match(/^advertencia_replica_(\d+)$/);
@@ -522,6 +658,12 @@ async function handleAdvertenciaInteraction(interaction) {
     match = interaction.customId.match(/^advertencia_(ciente|naoconcordo)_(\d+)$/);
     if (match) {
       await handleBotaoCienteOuNaoConcordo(interaction, match[1], match[2]);
+      return true;
+    }
+
+    match = interaction.customId.match(/^advertencia_contra_(\d+)$/);
+    if (match) {
+      await handleBotaoContraArgumentar(interaction, match[1]);
       return true;
     }
 

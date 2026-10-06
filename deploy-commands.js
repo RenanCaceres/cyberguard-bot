@@ -5,6 +5,7 @@ const advertenciaCommand = require('./commands/advertir/advertirCommand');
 const minhasAdvertenciasCommand = require('./commands/minhas-advertencias/minhasAdvertenciasCommand');
 const advertenciasCommand = require('./commands/advertencias/advertenciasCommand');
 const painelAdvertenciasCommand = require('./commands/painel-advertencias/painelAdvertenciasCommand');
+const painelPontoCommand = require('./commands/painel-ponto/painelPontoCommand');
 
 const comandos = [
   reuniaoCommand.data.toJSON(),
@@ -12,6 +13,7 @@ const comandos = [
   minhasAdvertenciasCommand.data.toJSON(),
   advertenciasCommand.data.toJSON(),
   painelAdvertenciasCommand.data.toJSON(),
+  painelPontoCommand.data.toJSON(),
 ];
 
 const rest = new REST({ version: '10' }).setToken(config.discordToken);
