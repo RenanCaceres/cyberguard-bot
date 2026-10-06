@@ -1,0 +1,20 @@
+node_modules/
+.env
+*.log
+logs/
+tmp/
+*.wav
+*.mp3
+*.pcm
+
+# dados pessoais / gerados em runtime
+temp/
+backups-reuniao/
+membros_atuais.csv
+seed_cadastro_legado.sql
+
+# backups manuais e locks do editor
+*.bak
+*.bak_*
+*.bak-*
+.~lock.*
