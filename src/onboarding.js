@@ -158,7 +158,11 @@ async function iniciarOnboarding(member) {
     await dm.send(
       `Olá, ${user.username}! Bem-vindo(a) ao servidor do CyberGuard. ` +
         `Antes de liberar seu acesso à comunidade, preciso confirmar alguns dados com você ` +
-        `pra já deixar o termo de voluntariado quase pronto.`
+        `Irei solicitar alguns dados sensíveis, que serão necessário ` +
+        `pra já deixar o termo de voluntariado quase pronto.
+        ` +
+        `Esses dados apenas os admins do discord terão acesso ` + 
+        `Seus dados estão seguros conosco!`
     );
 
     for (const pergunta of PERGUNTAS) {
