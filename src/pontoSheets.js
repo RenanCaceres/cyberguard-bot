@@ -1,95 +1,155 @@
 'use strict';
-// Envio das horas importadas do KoV Ponto para o Google Sheets.
-// Cada lote é inserido ACIMA dos registros já existentes (logo abaixo do cabeçalho),
-// ordenado do mais antigo para o mais recente. Os dados antigos da planilha ficam abaixo.
-const { GoogleSpreadsheet } = require('google-spreadsheet');
+// Espelha os pontos numa planilha do Google, na aba "Raw Logs do Bot" (layout da planilha antiga).
+// Mantém as 13 colunas originais (A–M) e acrescenta colunas extras à direita. Cada ponto tem um
+// id_ponto ("p<id>"), então fechar, reportar ou ajustar o mesmo ponto atualiza a MESMA linha.
+// Usa a mesma conta de serviço do sheetsService.js (config.googleSheets) e a API REST do Google,
+// sem dependência nova (google-auth-library já vem com o google-spreadsheet).
 const { JWT } = require('google-auth-library');
 const config = require('./config');
 
-const TZ = 'America/Sao_Paulo';
-const CABECALHO_PADRAO = ['Data', 'Nome', 'Discord ID', 'Entrada', 'Saída', 'Duração'];
+const API = 'https://sheets.googleapis.com/v4/spreadsheets';
+const sheetId = () => process.env.PONTO_SHEET_ID;
+const aba = () => process.env.PONTO_SHEET_TAB || 'Raw Logs do Bot';
 
-const norm = (s) =>
-  String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+// Colunas originais (A–M), na ordem que o "Painel Transparente (Horas)" espera.
+const BASE = [
+  'user_id', 'membro', 'horario_inicio', 'notion_link', 'horario_fim', 'link_entrega', 'total_horas',
+  'status', 'nome_tarefa', 'pontos_produtividade', 'id_tarefa_notion', 'ultimo_horario_pausa', 'segundos_em_pausa',
+];
+// Colunas novas, à direita (o painel não olha para elas).
+const EXTRAS = ['id_ponto', 'progresso', 'feito', 'falta', 'origem', 'ajustado_por'];
 
-const fmtData = (d) => new Intl.DateTimeFormat('pt-BR', { timeZone: TZ, day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(d));
-const fmtDataHora = (d) =>
-  new Intl.DateTimeFormat('pt-BR', {
-    timeZone: TZ, day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  }).format(new Date(d)).replace(',', '');
-const fmtDuracao = (seg) => {
-  seg = Math.max(0, Math.round(seg));
-  const h = Math.floor(seg / 3600);
-  const m = Math.floor((seg % 3600) / 60);
-  const s = seg % 60;
-  return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+let auth;
+async function token() {
+  const g = config.googleSheets || {};
+  if (!auth) {
+    auth = new JWT({ email: g.serviceAccountEmail, key: g.privateKey, scopes: ['https://www.googleapis.com/auth/spreadsheets'] });
+  }
+  const t = await auth.getAccessToken();
+  return typeof t === 'string' ? t : t?.token;
+}
+
+async function api(method, path, body) {
+  const res = await fetch(`${API}/${sheetId()}${path}`, {
+    method,
+    headers: { Authorization: `Bearer ${await token()}`, 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) throw new Error(`Sheets ${res.status} ${method} ${path.split('?')[0]}: ${(await res.text()).slice(0, 300)}`);
+  return res.json();
+}
+
+const enc = (range) => encodeURIComponent(`'${aba()}'!${range}`);
+const colLetra = (n) => { // 1 -> A, 27 -> AA
+  let s = '';
+  while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
+  return s;
 };
 
-// Qual valor vai em qual coluna, conforme o nome do cabeçalho (tolerante a variações).
-function valorDaColuna(cabecalho, p) {
-  const h = norm(cabecalho);
-  if (!h) return '';
-  if (h.includes('discord') && h.includes('id')) return p.discord_id;
-  if (h === 'id') return p.discord_id;
-  if (h.includes('entrada') || h.includes('inicio')) return fmtDataHora(p.aberto_em);
-  if (h.includes('saida') || h.includes('termino') || h.includes('fim')) return fmtDataHora(p.fechado_em);
-  if (h.includes('duracao') || h.includes('horas') || h.includes('total') || h.includes('tempo')) return fmtDuracao((new Date(p.fechado_em) - new Date(p.aberto_em)) / 1000);
-  if (h.includes('data')) return fmtData(p.aberto_em);
-  if (h.includes('nome') || h.includes('membro') || h.includes('usuario') || h.includes('voluntario')) return p.nome;
-  return '';
+// Cabeçalho da aba (cacheado). Acrescenta, à direita, só os cabeçalhos que ainda não existem.
+let cabCache = null;
+async function cabecalhos() {
+  if (cabCache && Date.now() - cabCache.em < 10 * 60 * 1000) return cabCache.lista;
+  const r = await api('GET', `/values/${enc('1:1')}`);
+  let lista = (r.values?.[0] ?? []).map((v) => String(v).trim());
+  while (lista.length && lista[lista.length - 1] === '') lista.pop();
+  const faltam = [...BASE, ...EXTRAS].filter((h) => !lista.includes(h));
+  if (faltam.length) {
+    const ini = lista.length + 1;
+    await api('PUT', `/values/${enc(`${colLetra(ini)}1:${colLetra(ini + faltam.length - 1)}1`)}?valueInputOption=RAW`, { values: [faltam] });
+    lista = lista.concat(faltam);
+  }
+  cabCache = { lista, em: Date.now() };
+  return lista;
 }
 
-function configurado() {
-  const c = config.googleSheets;
-  return Boolean((c.pontoSheetId || c.sheetId) && c.serviceAccountEmail && c.privateKey);
+const isoUtc = (d) => (d ? new Date(d).toISOString().replace(/\.\d{3}Z$/, '+00:00') : ''); // igual ao da planilha antiga
+
+// Converte uma linha da tabela `pontos` nos valores da planilha (por nome de coluna).
+function valoresDe(row) {
+  const real = row.tarefa_id && !['pendente', 'importado'].includes(row.tarefa_id);
+  const seg = row.fechado_em ? (new Date(row.fechado_em) - new Date(row.aberto_em)) / 1000 : null;
+  return {
+    user_id: String(row.discord_id),
+    membro: row.nome ?? '',
+    horario_inicio: isoUtc(row.aberto_em),
+    notion_link: real ? `https://www.notion.so/${String(row.tarefa_id).replace(/-/g, '')}` : '',
+    horario_fim: isoUtc(row.fechado_em),
+    link_entrega: '',
+    total_horas: seg == null ? '' : (seg / 3600).toFixed(2), // texto com ponto, como na planilha antiga
+    status: row.fechado_em ? 'Fechado' : 'Aberto',
+    nome_tarefa: row.tarefa_id === 'pendente' ? '' : (row.tarefa_titulo ?? ''),
+    pontos_produtividade: '',
+    id_tarefa_notion: real ? String(row.tarefa_id) : '',
+    ultimo_horario_pausa: '',
+    segundos_em_pausa: '0',
+    id_ponto: `p${row.id}`,
+    progresso: row.progresso ?? '',
+    feito: row.feito ?? '',
+    falta: row.falta ?? '',
+    origem: row.origem ?? 'manual',
+    ajustado_por: row.ajustado_por ?? '',
+  };
 }
 
-async function abrirAba() {
-  const c = config.googleSheets;
-  const auth = new JWT({
-    email: c.serviceAccountEmail,
-    key: c.privateKey,
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-  });
-  const doc = new GoogleSpreadsheet(c.pontoSheetId || c.sheetId, auth);
-  await doc.loadInfo();
-  let sheet = doc.sheetsByTitle[c.pontoAbaNome];
-  if (!sheet) {
-    sheet = await doc.addSheet({ title: c.pontoAbaNome, headerValues: CABECALHO_PADRAO });
-    console.log(`[kov] aba "${c.pontoAbaNome}" criada na planilha.`);
+// Serializa as gravações para dois eventos simultâneos não duplicarem a mesma linha.
+let fila = Promise.resolve();
+const enfileirar = (fn) => { const p = fila.then(fn, fn); fila = p.catch(() => {}); return p; };
+
+async function gravar(row) {
+  const lista = await cabecalhos();
+  const v = valoresDe(row);
+  const linha = lista.map((h) => v[h] ?? '');
+  const colId = colLetra(lista.indexOf('id_ponto') + 1);
+  const ultima = colLetra(lista.length);
+
+  const r = await api('GET', `/values/${enc(`${colId}:${colId}`)}`);
+  const idx = (r.values ?? []).findIndex((c) => c[0] === v.id_ponto);
+  if (idx >= 0) {
+    const n = idx + 1;
+    await api('PUT', `/values/${enc(`A${n}:${ultima}${n}`)}?valueInputOption=RAW`, { values: [linha] });
+    return 'atualizada';
   }
-  return sheet;
+  await api('POST', `/values/${enc('A1')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, { values: [linha] });
+  return 'adicionada';
 }
 
-// Insere os registros (já ordenados do mais antigo ao mais recente) no topo da aba.
-async function inserirNoTopo(registros) {
-  if (!registros.length) return;
-  const sheet = await abrirAba();
-  try {
-    await sheet.loadHeaderRow();
-  } catch {
-    await sheet.setHeaderRow(CABECALHO_PADRAO); // aba vazia
-    await sheet.loadHeaderRow();
-  }
-  const cab = sheet.headerValues;
-  if (!cab.some((h) => registros.length && valorDaColuna(h, registros[0]) !== '')) {
-    throw new Error(`Nenhuma coluna do cabeçalho da aba "${sheet.title}" foi reconhecida (${cab.join(' | ')}).`);
-  }
+// Cria a linha do ponto ou atualiza a que já existe (procura pelo id_ponto).
+function upsertPonto(row) {
+  if (!sheetId()) return Promise.reject(new Error('PONTO_SHEET_ID não configurado'));
+  return enfileirar(() => gravar(row));
+}
 
-  // abre espaço logo abaixo do cabeçalho (linha 2) e preenche
-  await sheet.insertDimension('ROWS', { startIndex: 1, endIndex: 1 + registros.length }, false);
-  await sheet.loadCells({
-    startRowIndex: 1, endRowIndex: 1 + registros.length,
-    startColumnIndex: 0, endColumnIndex: cab.length,
-  });
-  registros.forEach((p, i) => {
-    cab.forEach((h, c) => {
-      const v = valorDaColuna(h, p);
-      if (v !== '') sheet.getCell(1 + i, c).value = v;
+// Insere vários pontos de uma vez no TOPO da aba (logo abaixo do cabeçalho), na ordem recebida
+// (use do mais antigo ao mais recente). Pontos que já existem na aba (mesmo id_ponto) são só atualizados.
+async function inserirNoTopo(rows) {
+  if (!sheetId()) throw new Error('PONTO_SHEET_ID não configurado');
+  return enfileirar(async () => {
+    const lista = await cabecalhos();
+    const colId = colLetra(lista.indexOf('id_ponto') + 1);
+    const ultima = colLetra(lista.length);
+    const r = await api('GET', `/values/${enc(`${colId}:${colId}`)}`);
+    const existentes = new Set((r.values ?? []).map((c) => c[0]));
+
+    const novos = rows.filter((x) => !existentes.has(`p${x.id}`));
+    for (const x of rows.filter((x) => existentes.has(`p${x.id}`))) await gravar(x);
+    if (!novos.length) return;
+
+    const meta = await api('GET', '?fields=sheets.properties(sheetId,title)');
+    const gid = meta.sheets.find((sh) => sh.properties.title === aba())?.properties.sheetId;
+    if (gid == null) throw new Error(`aba "${aba()}" não encontrada`);
+    await api('POST', ':batchUpdate', {
+      requests: [{
+        insertDimension: {
+          range: { sheetId: gid, dimension: 'ROWS', startIndex: 1, endIndex: 1 + novos.length },
+          inheritFromBefore: false,
+        },
+      }],
     });
+    const valores = novos.map((x) => { const v = valoresDe(x); return lista.map((h) => v[h] ?? ''); });
+    await api('PUT', `/values/${enc(`A2:${ultima}${1 + novos.length}`)}?valueInputOption=RAW`, { values: valores });
   });
-  await sheet.saveUpdatedCells();
 }
 
-module.exports = { inserirNoTopo, configurado, fmtDuracao };
+module.exports = { upsertPonto, inserirNoTopo, valoresDe, BASE, EXTRAS };

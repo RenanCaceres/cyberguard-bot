@@ -74,6 +74,10 @@ async function listarTarefasAbertas() {
         titulo: tituloDe(p),
         status: p.properties[c.pStatus]?.status?.name ?? null,
         responsavel: textoDe(p.properties[c.pResponsavel]),
+        // Progresso atual da tarefa no Notion (null se a propriedade não existir ou estiver vazia)
+        progresso: c.pProgresso && typeof p.properties[c.pProgresso]?.number === 'number'
+          ? p.properties[c.pProgresso].number
+          : null,
       });
     }
     cursor = r.has_more ? r.next_cursor : undefined;

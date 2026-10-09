@@ -29,9 +29,6 @@ module.exports = {
   googleSheets: {
     sheetId: process.env.GOOGLE_SHEET_ID || '',
     abaNome: process.env.GOOGLE_SHEET_ABA || 'Respostas ao formulário 1',
-    // Planilha/aba onde ficam as horas de ponto (se vazio, usa a mesma planilha do onboarding)
-    pontoSheetId: process.env.PONTO_SHEET_ID || process.env.GOOGLE_PONTO_SHEET_ID || '',
-    pontoAbaNome: process.env.PONTO_SHEET_ABA || process.env.GOOGLE_PONTO_ABA || 'Pontos',
     serviceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '',
     privateKey: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
   },

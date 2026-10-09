@@ -16,6 +16,7 @@ const { handleAdvertenciaInteraction, iniciarCronAdvertencias } = require('./adv
 const hierarquia = require('./hierarquia');
 const { popularCacheDeMembros } = require('./popularCache');
 const ponto = require('./ponto');
+const kovLogs = require('./kovLogs');
 
 const client = new Client({
   intents: [
@@ -33,7 +34,9 @@ client.once('ready', async () => {
   await db.initSchema();
   iniciarLembretes(client);
   iniciarCronAdvertencias(client);
-  ponto.init(client).catch((e) => console.error('[ponto] init:', e));
+  ponto.init(client)
+    .then(() => kovLogs.init(client))
+    .catch((e) => console.error('[ponto] init:', e));
   console.log(`Bot online como ${client.user.tag}`);
 
   try {
@@ -170,12 +173,8 @@ client.on('guildMemberRemove', async (member) => {
   }
 });
 
-client.on('voiceStateUpdate', (oldState, newState) => {
-  ponto.handleVoiceState(oldState, newState);
-});
-
 client.on('messageCreate', (message) => {
-  ponto.handleKovMessage(client, message);
+  kovLogs.handleMessage(client, message);
   handleMensagemDM(message).catch((err) => console.error('Erro ao processar DM:', err));
 });
 

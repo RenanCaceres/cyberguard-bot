@@ -5,7 +5,8 @@
 // - Grava em `pontos` (entra no ranking/resumo) e envia à planilha, acima dos dados existentes, do mais antigo ao mais recente.
 const config = require('./config');
 const pdb = require('./pontoDb');
-const sheets = require('./pontoSheets');
+let sheets = null;
+try { sheets = require('./pontoSheets'); } catch { /* planilha opcional */ }
 
 const norm = (s) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
@@ -72,12 +73,12 @@ async function importarMensagem(client, message) {
 let fila = Promise.resolve();
 function sincronizarPlanilha() {
   fila = fila.then(async () => {
-    if (!sheets.configurado()) return;
+    if (!sheets || !process.env.PONTO_SHEET_ID) return;
     try {
       const pend = await pdb.kovPendentesPlanilha();
       if (!pend.length) return;
       await sheets.inserirNoTopo(pend);
-      await pdb.marcarSheet(pend.map((p) => p.id));
+      for (const p of pend) await pdb.marcarPlanilha(p.id, true);
       console.log(`[kov] ${pend.length} registro(s) enviados à planilha.`);
     } catch (e) {
       console.error('[kov] falha ao enviar à planilha (tenta de novo no próximo ciclo):', e.message);
