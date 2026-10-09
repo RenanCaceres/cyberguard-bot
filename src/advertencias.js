@@ -15,11 +15,10 @@ const db = require('./db');
 // Ajuste aqui se os prazos, o canal ou os autores autorizados mudarem
 const DIAS_PARA_EXPIRAR = 90;
 const DIAS_PARA_RESPONDER = 7;
-const CANAL_ADVERTENCIAS_ID = '1549583670011101376';
-const AUTORES_PERMITIDOS = [
-  '371773713101619201', // <- seu ID
-  '736695528494202921', // André (Presidente)
-];
+const CANAL_ADVERTENCIAS_ID = process.env.CANAL_ADVERTENCIAS_ID || '1549583670011101376';
+const AUTORES_PERMITIDOS = process.env.AUTORES_ADVERTENCIA_IDS
+  ? process.env.AUTORES_ADVERTENCIA_IDS.split(',').map((id) => id.trim()).filter(Boolean)
+  : ['371773713101619201', '736695528494202921'];
 
 // Guarda o rascunho da advertência entre a escolha (slash ou painel) e o modal
 const pendentes = new Map();

@@ -33,7 +33,7 @@ module.exports = {
     privateKey: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
   },
   kov: {
-    logChannelId: process.env.KOV_LOG_CHANNEL_ID || '1511807274782425329',
+    logChannelId: process.env.KOV_LOG_CHANNEL_ID || '',
     botId: process.env.KOV_BOT_ID || '', // opcional: restringe a um bot específico
   },
   databaseUrl: process.env.DATABASE_URL,

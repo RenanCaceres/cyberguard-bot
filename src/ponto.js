@@ -5,7 +5,7 @@
 
 const {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags,
-  ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle,
+  ModalBuilder, StringSelectMenuBuilder, UserSelectMenuBuilder, TextInputBuilder, TextInputStyle,
 } = require('discord.js');
 const notion = require('./notion');
 const pdb = require('./pontoDb');
@@ -133,14 +133,17 @@ async function enviarPainel(canal) {
       'Entrar na call de ponto abre o ponto automaticamente; sair da call fecha.\n' +
       'Você também pode ver quem está em serviço e o ranking da semana.',
     );
-  const linha = new ActionRowBuilder().addComponents(
+  const linha1 = new ActionRowBuilder().addComponents(
     btn('ponto:abrir', 'Abrir ponto', ButtonStyle.Success, '🟢'),
     btn('ponto:fechar', 'Fechar ponto', ButtonStyle.Danger, '🔴'),
     btn('ponto:lista', 'Lista', ButtonStyle.Secondary, '📋'),
     btn('ponto:ranking', 'Ranking', ButtonStyle.Secondary, '🏆'),
-    btn('ponto:resumo', 'Resumo', ButtonStyle.Primary, '📊'),
   );
-  await canal.send({ embeds: [embed], components: [linha] });
+  const linha2 = new ActionRowBuilder().addComponents(
+    btn('ponto:resumo', 'Resumo (Líderes)', ButtonStyle.Primary, '📊'),
+    btn('ponto:adj_inicio', 'Ajustar ponto (RH)', ButtonStyle.Secondary, '✏️'),
+  );
+  await canal.send({ embeds: [embed], components: [linha1, linha2] });
 }
 
 // ---------- seleção de tarefa ----------
@@ -724,6 +727,52 @@ async function detalhe(interaction, discordId, pagina) {
 }
 
 // ---------- RH: ajustar ponto ----------
+async function iniciarAjustePainel(interaction) {
+  if (!isRH(interaction)) {
+    await interaction.reply({ content: '🔒 Apenas membros do RH podem ajustar pontos.', flags: EPH });
+    return expirar(interaction, 10_000);
+  }
+  const select = new UserSelectMenuBuilder()
+    .setCustomId('ponto:adj_user')
+    .setPlaceholder('Selecione o integrante para ajustar o ponto');
+
+  await interaction.reply({
+    content: '✏️ **Ajuste de Ponto (RH)**\nSelecione abaixo o integrante cujo ponto você deseja ajustar:',
+    components: [new ActionRowBuilder().addComponents(select)],
+    flags: EPH,
+  });
+  return expirar(interaction, 300_000);
+}
+
+async function ajustarUsuarioSelecionado(interaction) {
+  if (!isRH(interaction)) {
+    await interaction.reply({ content: '🔒 Apenas o RH pode ajustar pontos.', flags: EPH });
+    return expirar(interaction, 10_000);
+  }
+  const alvoId = interaction.values[0];
+  const pontos = await pdb.ultimosPontos(alvoId, 25);
+  if (!pontos.length) {
+    return interaction.update({ content: `⚠️ Nenhum ponto fechado encontrado para <@${alvoId}>.`, components: [] });
+  }
+  const select = new StringSelectMenuBuilder()
+    .setCustomId('ponto:adj_sel')
+    .setPlaceholder('Escolha a data e ponto a ajustar')
+    .addOptions(
+      pontos.map((p) => ({
+        label: trunc(
+          `${fmtDataHora(p.aberto_em)} → ${fmtHora(p.fechado_em)} (${fmtDur(segDe(p))})${p.auto_fechado ? ' ⚠️auto' : ''}${p.ajustado_por ? ' ✏️' : ''}`,
+          100,
+        ),
+        value: String(p.id),
+        description: trunc(p.tarefa_titulo, 100),
+      })),
+    );
+  await interaction.update({
+    content: `Pontos de <@${alvoId}> (últimos ${pontos.length}). Selecione a data/ponto para ajustar o horário:\n*⚠️auto = fechado automaticamente · ✏️ = já ajustado.*`,
+    components: [new ActionRowBuilder().addComponents(select)],
+  });
+}
+
 async function ajustarComando(interaction) {
   if (!isRH(interaction)) {
     await interaction.reply({ content: '🔒 Apenas o RH pode ajustar pontos.', flags: EPH });
@@ -814,8 +863,23 @@ async function ajustarModal(interaction, pontoId) {
         { name: 'Motivo', value: trunc(motivo || '—', 1024) },
       ),
   );
+
+  // Notifica o membro por DM sobre o ajuste efetuado pelo RH
+  await enviarDM(
+    interaction.client,
+    row.discord_id,
+    `✏️ **Seu ponto foi ajustado pelo RH.**\n` +
+    `• **Data de abertura:** ${fmtDataHora(row.aberto_em)}\n` +
+    `• **Horário anterior:** ${fmtDataHora(row.fechado_em_antes)}\n` +
+    `• **Novo fechamento:** ${fmtDataHora(row.fechado_em)}\n` +
+    `• **Nova duração:** **${fmtDur(segDe(row))}**\n` +
+    `• **Tarefa:** ${row.tarefa_titulo}\n` +
+    (motivo ? `• **Motivo do ajuste:** ${motivo}\n` : '') +
+    `*Esse ajuste foi registrado no histórico do seu ponto e atualizado na planilha.*`
+  );
+
   return interaction.editReply({
-    content: `✅ Ponto ajustado: fechamento em **${fmtDataHora(row.fechado_em)}** (duração ${fmtDur(segDe(row))}).`,
+    content: `✅ Ponto ajustado: fechamento em **${fmtDataHora(row.fechado_em)}** (duração ${fmtDur(segDe(row))}). Notificação enviada por DM ao membro.`,
     components: [],
   });
 }
@@ -899,7 +963,70 @@ async function handlePontoInteraction(interaction) {
       return true;
     }
 
+    if (interaction.isUserSelectMenu()) {
+      if (id === 'ponto:adj_user') {
+        await ajustarUsuarioSelecionado(interaction);
+        return true;
+      }
+    }
+
     if (interaction.isButton()) {
+      if (id === 'ponto:adj_inicio') {
+        await iniciarAjustePainel(interaction);
+        return true;
+      } else if (id.startsWith('ponto:check_sim:')) {
+        const pontoId = Number(id.split(':')[2]);
+        const p = await pdb.getPorId(pontoId);
+        if (!p || p.discord_id !== interaction.user.id) {
+          await interaction.reply({ content: 'Esse aviso não pertence a você.', flags: EPH });
+          return true;
+        }
+        if (p.fechado_em) {
+          await interaction.update({ content: '⚠️ Este ponto já foi encerrado anteriormente.', components: [] });
+          return true;
+        }
+        await pdb.confirmarAtividade(pontoId);
+        await interaction.update({
+          content: `🟢 **Obrigado pela confirmação!** Seu ponto em **${p.tarefa_titulo}** continua aberto e ativo. Bom trabalho!`,
+          components: [],
+        });
+        return true;
+      } else if (id.startsWith('ponto:check_nao:')) {
+        const pontoId = Number(id.split(':')[2]);
+        const p = await pdb.getPorId(pontoId);
+        if (!p || p.discord_id !== interaction.user.id) {
+          await interaction.reply({ content: 'Esse aviso não pertence a você.', flags: EPH });
+          return true;
+        }
+        if (p.fechado_em) {
+          await interaction.update({ content: '⚠️ Este ponto já foi encerrado anteriormente.', components: [] });
+          return true;
+        }
+        const row = await pdb.fecharPorCheckNao(pontoId, interaction.user.id);
+        if (row) {
+          await sincronizarPlanilha(row);
+          const seg = (new Date(row.fechado_em) - new Date(row.aberto_em)) / 1000;
+          await logar(
+            interaction.client,
+            new EmbedBuilder()
+              .setColor(0xe74c3c)
+              .setTitle('🔴 Ponto fechado (resposta ao aviso de atividade)')
+              .addFields(
+                { name: 'Membro', value: `<@${row.discord_id}> (${row.nome})`, inline: true },
+                { name: 'Tarefa', value: trunc(row.tarefa_titulo, 256), inline: true },
+                { name: 'Duração', value: fmtDur(seg), inline: true },
+              ),
+          );
+          const rowFinal = new ActionRowBuilder().addComponents(
+            btn(`ponto:final:${row.id}`, 'Informar progresso da tarefa', ButtonStyle.Primary, '📝'),
+          );
+          await interaction.update({
+            content: `🔴 **Ponto encerrado agora.** Duração contabilizada: **${fmtDur(seg)}** em **${row.tarefa_titulo}**.\nSe quiser registrar o progresso e o que fez, clique no botão abaixo:`,
+            components: [rowFinal],
+          });
+        }
+        return true;
+      }
       if (id === 'ponto:abrir') await abrirFluxo(interaction);
       else if (id.startsWith('ponto:pag:')) {
         const p = id.split(':'); // ponto:pag:<modo>:<n>  (ou o formato antigo ponto:pag:<n>)
@@ -951,9 +1078,69 @@ async function atualizarRankingAoVivo(client, canalId) {
   await pdb.setMeta('ranking_ao_vivo_msg', nova.id);
 }
 
+// ---------- verificação de atividade periódica (a cada 1 hora) ----------
+async function verificarInatividadePontos(client) {
+  try {
+    const pendentes = await pdb.pontosParaVerificarInatividade();
+    for (const p of pendentes) {
+      if (p.avisos_inatividade >= 3) {
+        // Já enviou 3 avisos e passou mais 1 hora após o 3º aviso sem resposta: encerra o ponto!
+        const fechado = await pdb.encerrarPorInatividade(
+          p.id,
+          'Encerrado automaticamente por inatividade (3 avisos de 1h sem resposta)',
+        );
+        if (fechado) {
+          const seg = (new Date(fechado.fechado_em) - new Date(fechado.aberto_em)) / 1000;
+          await sincronizarPlanilha(fechado);
+          await logar(
+            client,
+            new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setTitle('⚠️ Ponto encerrado por inatividade')
+              .setDescription(
+                `<@${p.discord_id}> (${p.nome}) não respondeu aos 3 avisos de confirmação de atividade. Ponto em **${trunc(p.tarefa_titulo, 200)}** encerrado automaticamente após ${fmtDur(seg)}.`,
+              ),
+          );
+          await enviarDM(
+            client,
+            p.discord_id,
+            `⚠️ Seu ponto em **${p.tarefa_titulo}** foi **encerrado automaticamente** porque você não respondeu aos 3 avisos de verificação de atividade.\n` +
+            `Foram contabilizadas **${fmtDur(seg)}** até o momento do encerramento. Se você ainda estava trabalhando, solicite ajuste ao RH.`,
+          );
+        }
+      } else {
+        const atualizado = await pdb.incrementarAvisoInatividade(p.id);
+        if (atualizado) {
+          const nAviso = atualizado.avisos_inatividade;
+          const rowBotoes = new ActionRowBuilder().addComponents(
+            btn(`ponto:check_sim:${p.id}`, 'Sim, continuo trabalhando', ButtonStyle.Success, '🟢'),
+            btn(`ponto:check_nao:${p.id}`, 'Não, já encerrei', ButtonStyle.Danger, '🔴'),
+          );
+          const avisoTexto = nAviso === 3
+            ? '⚠️ **Atenção: Este é o seu 3º e último aviso.** Se não responder em 1 hora, seu ponto será encerrado automaticamente.'
+            : `(Aviso ${nAviso} de 3 — responda para manter o ponto ativo)`;
+
+          await enviarDM(client, p.discord_id, {
+            content:
+              `⏱️ **Confirmação de Atividade — CyberGuard**\n` +
+              `Você está com o ponto aberto em **${p.tarefa_titulo}** desde ${ts(p.aberto_em, 't')} (${ts(p.aberto_em, 'R')}).\n` +
+              `**Você ainda continua trabalhando?**\n` +
+              `${avisoTexto}`,
+            components: [rowBotoes],
+          });
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[ponto] erro na verificação de inatividade:', e);
+  }
+}
+
 // ---------- agendador (fechamento automático, lembretes e ranking semanal) ----------
 async function tick(client) {
   const { maxHoras, ranking } = cfg();
+
+  await verificarInatividadePontos(client).catch((e) => console.error('[ponto] verificação inatividade:', e.message));
 
   if (maxHoras > 0) {
     const fechados = await pdb.autoFecharExpirados(maxHoras);
@@ -1016,7 +1203,7 @@ async function init(client) {
   reconciliarVoz(client).catch((e) => console.error('[ponto] reconciliar voz:', e));
   const rodar = () => tick(client).catch((e) => console.error('[ponto] agendador:', e));
   setTimeout(rodar, 20_000);
-  setInterval(rodar, 10 * 60 * 1000).unref();
+  setInterval(rodar, 3 * 60 * 1000).unref();
   console.log('[ponto] pronto.');
 }
 

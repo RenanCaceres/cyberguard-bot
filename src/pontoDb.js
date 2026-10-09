@@ -48,6 +48,8 @@ async function init() {
     ALTER TABLE pontos ADD COLUMN IF NOT EXISTS sheet_ok            BOOLEAN;
     ALTER TABLE pontos ADD COLUMN IF NOT EXISTS kov_msg_id          TEXT; -- origem 'kov': id da mensagem do log
     CREATE UNIQUE INDEX IF NOT EXISTS pontos_kov_msg_uniq ON pontos (kov_msg_id) WHERE kov_msg_id IS NOT NULL;
+    ALTER TABLE pontos ADD COLUMN IF NOT EXISTS ultimo_check_em     TIMESTAMPTZ;
+    ALTER TABLE pontos ADD COLUMN IF NOT EXISTS avisos_inatividade  INT NOT NULL DEFAULT 0;
   `);
 }
 
@@ -56,7 +58,71 @@ async function getAberto(discordId) {
   return rows[0] ?? null;
 }
 
+// ---------- verificação de atividade periódica (a cada 1 hora) ----------
+async function pontosParaVerificarInatividade() {
+  const { rows } = await q(`
+    SELECT * FROM pontos
+    WHERE fechado_em IS NULL
+      AND (
+        (ultimo_check_em IS NULL AND aberto_em <= now() - interval '1 hour')
+        OR
+        (ultimo_check_em IS NOT NULL AND ultimo_check_em <= now() - interval '1 hour')
+      )
+    ORDER BY aberto_em ASC
+  `);
+  return rows;
+}
+
+async function incrementarAvisoInatividade(id) {
+  const { rows } = await q(
+    `UPDATE pontos
+        SET ultimo_check_em = now(),
+            avisos_inatividade = avisos_inatividade + 1
+      WHERE id = $1 AND fechado_em IS NULL
+      RETURNING *`,
+    [id],
+  );
+  return rows[0] ?? null;
+}
+
+async function confirmarAtividade(id) {
+  const { rows } = await q(
+    `UPDATE pontos
+        SET ultimo_check_em = now(),
+            avisos_inatividade = 0
+      WHERE id = $1 AND fechado_em IS NULL
+      RETURNING *`,
+    [id],
+  );
+  return rows[0] ?? null;
+}
+
+async function encerrarPorInatividade(id, motivo) {
+  const { rows } = await q(
+    `UPDATE pontos
+        SET fechado_em = now(),
+            auto_fechado = true,
+            ajuste_motivo = $2
+      WHERE id = $1 AND fechado_em IS NULL
+      RETURNING *`,
+    [id, motivo],
+  );
+  return rows[0] ?? null;
+}
+
+async function fecharPorCheckNao(id, discordId) {
+  const { rows } = await q(
+    `UPDATE pontos
+        SET fechado_em = now()
+      WHERE id = $1 AND discord_id = $2 AND fechado_em IS NULL
+      RETURNING *`,
+    [id, discordId],
+  );
+  return rows[0] ?? null;
+}
+
 async function getPorId(id) {
+
   const { rows } = await q('SELECT * FROM pontos WHERE id = $1', [id]);
   return rows[0] ?? null;
 }
@@ -355,4 +421,5 @@ module.exports = {
   ultimosPontos, ajustarFechamento, importarSaldo, ranking, autoFecharExpirados,
   semanaAtual, periodoSemana, getMeta, setMeta,
   importarKov, kovJaImportado, kovPendentesPlanilha,
+  pontosParaVerificarInatividade, incrementarAvisoInatividade, confirmarAtividade, encerrarPorInatividade, fecharPorCheckNao,
 };
