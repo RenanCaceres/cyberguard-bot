@@ -8,15 +8,20 @@ const {
 } = require('discord.js');
 const notion = require('./notion');
 const pdb = require('./pontoDb');
+const kov = require('./kovLogs');
+const { gerarRanking } = require('./rankingRender');
 
 const EPH = MessageFlags.Ephemeral;
+const TAREFA_PENDENTE = 'pendente';
 const POR_PAGINA_SELECT = 25; // limite do Discord para opções de um select
 const POR_PAGINA_HIST = 6;
 
 const cfg = () => ({
   lideres: process.env.PONTO_ROLE_LIDERES_ID,
+  rh: process.env.PONTO_ROLE_RH_ID,
   logs: process.env.PONTO_LOG_CHANNEL_ID,
   ranking: process.env.PONTO_RANKING_CHANNEL_ID,
+  canalVoz: process.env.PONTO_VOICE_CHANNEL_ID, // call que abre/fecha o ponto sozinha
   maxHoras: Number(process.env.PONTO_MAX_HORAS ?? 8), // 0 desativa o fechamento automático
 });
 
@@ -41,10 +46,10 @@ const expirar = (interaction, ms) => {
 };
 
 function isLider(interaction) {
-  const roleId = cfg().lideres;
   const roles = interaction.member?.roles;
-  if (!roleId || !roles) return false;
-  return Array.isArray(roles) ? roles.includes(roleId) : roles.cache.has(roleId);
+  if (!roles) return false;
+  const tem = (id) => Boolean(id) && (Array.isArray(roles) ? roles.includes(id) : roles.cache.has(id));
+  return tem(cfg().lideres) || tem(cfg().rh); // Líderes e RH veem o resumo
 }
 
 const btn = (id, label, style, emoji) => {
@@ -86,13 +91,13 @@ async function enviarPainel(canal) {
 }
 
 // ---------- abrir ponto ----------
-function montarSelecaoTarefas(tarefas, pagina) {
+function montarSelecaoTarefas(tarefas, pagina, suf = '') {
   const totalPag = Math.max(1, Math.ceil(tarefas.length / POR_PAGINA_SELECT));
   pagina = Math.min(Math.max(pagina, 0), totalPag - 1);
   const fatia = tarefas.slice(pagina * POR_PAGINA_SELECT, (pagina + 1) * POR_PAGINA_SELECT);
 
   const select = new StringSelectMenuBuilder()
-    .setCustomId('ponto:tarefa')
+    .setCustomId(`ponto:tarefa${suf}`)
     .setPlaceholder('Escolha a tarefa em que vai trabalhar')
     .addOptions(
       fatia.map((t) => ({
@@ -106,9 +111,9 @@ function montarSelecaoTarefas(tarefas, pagina) {
   if (totalPag > 1) {
     linhas.push(
       new ActionRowBuilder().addComponents(
-        btn(`ponto:pag:${pagina - 1}`, '◀', ButtonStyle.Secondary).setDisabled(pagina === 0),
+        btn(`ponto:pag${suf}:${pagina - 1}`, '◀', ButtonStyle.Secondary).setDisabled(pagina === 0),
         btn('ponto:pag_info', `${pagina + 1}/${totalPag}`, ButtonStyle.Secondary).setDisabled(true),
-        btn(`ponto:pag:${pagina + 1}`, '▶', ButtonStyle.Secondary).setDisabled(pagina >= totalPag - 1),
+        btn(`ponto:pag${suf}:${pagina + 1}`, '▶', ButtonStyle.Secondary).setDisabled(pagina >= totalPag - 1),
       ),
     );
   }
@@ -162,13 +167,16 @@ async function escolherTarefa(interaction) {
     usuario: interaction.user.username,
     tarefaId,
     tarefaTitulo: titulo,
+    canalVozId: cfg().canalVoz ? null : (interaction.member?.voice?.channelId ?? null),
   });
   if (!row) {
     await interaction.update({ content: '⚠️ Você já tem um ponto aberto.', components: [] });
     return expirar(interaction, 10_000);
   }
   await interaction.update({
-    content: `🟢 Ponto aberto às ${ts(row.aberto_em, 't')} para **${titulo}**.\nQuando terminar, clique em **Fechar ponto**.`,
+    content:
+      `🟢 Ponto aberto às ${ts(row.aberto_em, 't')} para **${titulo}**.\nQuando terminar, clique em **Fechar ponto**.` +
+      (row.canal_voz_id ? '\n🎧 Você está em call: se sair dela, o ponto será encerrado automaticamente.' : ''),
     components: [],
   });
   expirar(interaction, 12_000);
@@ -209,7 +217,7 @@ async function fecharFluxo(interaction) {
   return interaction.showModal(modal);
 }
 
-async function fecharModal(interaction) {
+async function fecharModal(interaction, pontoId = null) {
   const bruto = interaction.fields.getTextInputValue('progresso').replace('%', '').trim();
   const feito = interaction.fields.getTextInputValue('feito').trim();
   const falta = interaction.fields.getTextInputValue('falta').trim();
@@ -217,7 +225,7 @@ async function fecharModal(interaction) {
 
   const devolver = (motivo) =>
     interaction.reply({
-      content: `⚠️ ${motivo}\nSeu ponto continua aberto. Seu texto, pra copiar:\n\`\`\`\n${trunc(feito, 700)}\n---\n${trunc(falta, 700)}\n\`\`\``,
+      content: `⚠️ ${motivo}\n${pontoId ? 'Clique de novo em **Informar progresso** para reenviar.' : 'Seu ponto continua aberto.'} Seu texto, pra copiar:\n\`\`\`\n${trunc(feito, 700)}\n---\n${trunc(falta, 700)}\n\`\`\``,
       flags: EPH,
     });
 
@@ -225,23 +233,26 @@ async function fecharModal(interaction) {
   if (progresso < 100 && !falta) return devolver('Com progresso abaixo de 100%, descreva o que falta.').then(() => expirar(interaction, 60_000));
 
   await interaction.deferReply({ flags: EPH });
-  const row = await pdb.fechar(interaction.user.id, { progresso, feito, falta });
+  const row = pontoId
+    ? await pdb.completar(pontoId, interaction.user.id, { progresso, feito, falta })
+    : await pdb.fechar(interaction.user.id, { progresso, feito, falta });
   if (!row) {
-    await interaction.editReply('⚠️ Nenhum ponto aberto (ele pode ter sido encerrado automaticamente).');
+    await interaction.editReply(pontoId ? '⚠️ Este ponto já foi informado.' : '⚠️ Nenhum ponto aberto (ele pode ter sido encerrado automaticamente).');
     return expirar(interaction, 10_000);
   }
   const seg = (new Date(row.fechado_em) - new Date(row.aberto_em)) / 1000;
 
   // As horas já estão salvas no Postgres; o Notion é "best effort".
   let notionOk = true;
+  const semTarefa = row.tarefa_id === TAREFA_PENDENTE;
   try {
-    await notion.atualizarTarefa(row.tarefa_id, progresso);
+    if (!semTarefa) await notion.atualizarTarefa(row.tarefa_id, progresso);
   } catch (e) {
     notionOk = false;
     console.error('[ponto] notion (atualizar):', e.message);
   }
   try {
-    await notion.comentar(
+    if (!semTarefa) await notion.comentar(
       row.tarefa_id,
       `⏱ Ponto de ${row.nome} (@${row.usuario}) — ${fmtDur(seg)} — progresso: ${progresso}%\n` +
       `O que foi feito: ${feito}\nO que falta: ${falta || '—'}`,
@@ -289,22 +300,52 @@ async function lista(interaction) {
   return expirar(interaction, 60_000);
 }
 
-async function embedRanking(semanasAtras) {
+// Ranking ilustrado: imagem (pódio + barras) e, abaixo, o detalhamento por membro (duração e último registro).
+async function embedRanking(client, semanasAtras) {
   const rows = await pdb.ranking(semanasAtras);
+  const per = await pdb.periodoSemana(semanasAtras);
+  const titulo = semanasAtras === 0 ? 'Ranking da semana (parcial)' : 'Ranking da semana passada';
+  const subtitulo = `${per.ini} a ${per.fim}`;
+
+  const guild = await client.guilds.fetch(process.env.GUILD_ID).catch(() => null);
+  const itens = await Promise.all(
+    rows.map(async (r) => {
+      const m = guild ? await guild.members.fetch(r.discord_id).catch(() => null) : null;
+      return {
+        nome: m?.displayName ?? r.nome,
+        seg: r.seg,
+        ultimo: r.ultimo,
+        avatarUrl: m?.displayAvatarURL({ extension: 'png', size: 256 }) ?? null,
+        discordId: r.discord_id,
+      };
+    }),
+  );
+
   const medalhas = ['🥇', '🥈', '🥉'];
-  const desc = rows.length
-    ? rows.map((r, i) => `${medalhas[i] ?? `**${i + 1}.**`} ${r.nome} — **${fmtDur(r.seg)}**`).join('\n')
+  const desc = itens.length
+    ? itens
+        .map(
+          (r, i) =>
+            `${medalhas[i] ?? `**${i + 1}º**`} <@${r.discordId}> — **${fmtDur(r.seg)}**\n` +
+            `⠀⠀🕒 último registro: ${ts(r.ultimo, 'f')}`,
+        )
+        .join('\n')
     : 'Sem pontos registrados nessa semana.';
-  return new EmbedBuilder()
+
+  const imagem = await gerarRanking({ titulo, subtitulo, itens });
+  const embed = new EmbedBuilder()
     .setColor(0xf1c40f)
-    .setTitle(semanasAtras === 0 ? '🏆 Ranking da semana (parcial)' : '🏆 Ranking da semana passada')
-    .setDescription(desc)
-    .setFooter({ text: 'Semana de segunda a domingo (horário de Brasília)' });
+    .setTitle(`🏆 ${titulo}`)
+    .setDescription(trunc(`📅 **Período:** ${per.ini} a ${per.fim}\n\n${desc}`, 4000))
+    .setImage('attachment://ranking.png')
+    .setFooter({ text: 'Semana de segunda a domingo (horário de Brasília) • inclui horas do KoV Ponto' });
+  return { embeds: [embed], files: [{ attachment: imagem, name: 'ranking.png' }] };
 }
 
 async function rankingBotao(interaction) {
-  await interaction.reply({ embeds: [await embedRanking(0)], flags: EPH });
-  return expirar(interaction, 60_000);
+  await interaction.deferReply({ flags: EPH });
+  await interaction.editReply(await embedRanking(interaction.client, 0));
+  return expirar(interaction, 120_000);
 }
 
 // ---------- resumo (só Líderes) ----------
@@ -419,6 +460,8 @@ async function handlePontoInteraction(interaction) {
     if (interaction.isButton()) {
       if (id === 'ponto:abrir') await abrirFluxo(interaction);
       else if (id.startsWith('ponto:pag:')) await paginaTarefas(interaction, Number(id.split(':')[2]));
+      else if (id.startsWith('ponto:pagv:')) await paginaTarefasVoz(interaction, Number(id.split(':')[2]));
+      else if (id.startsWith('ponto:final:')) await finalizarFluxo(interaction, Number(id.split(':')[2]));
       else if (id === 'ponto:fechar') await fecharFluxo(interaction);
       else if (id === 'ponto:lista') await lista(interaction);
       else if (id === 'ponto:ranking') await rankingBotao(interaction);
@@ -430,9 +473,11 @@ async function handlePontoInteraction(interaction) {
       }
     } else if (interaction.isStringSelectMenu()) {
       if (id === 'ponto:tarefa') await escolherTarefa(interaction);
+      else if (id === 'ponto:tarefav') await escolherTarefaVoz(interaction);
       else if (id === 'ponto:aluno') await detalhe(interaction, interaction.values[0], 0);
     } else if (interaction.isModalSubmit()) {
       if (id === 'ponto:fechar_modal') await fecharModal(interaction);
+      else if (id.startsWith('ponto:final_modal:')) await fecharModal(interaction, Number(id.split(':')[2]));
     }
     return true;
   } catch (e) {
@@ -480,7 +525,7 @@ async function tick(client) {
     if (ranking) {
       try {
         const canal = await client.channels.fetch(ranking);
-        await canal.send({ embeds: [await embedRanking(1)] });
+        await canal.send(await embedRanking(client, 1));
       } catch (e) {
         console.error('[ponto] falha ao postar ranking semanal:', e.message);
       }
@@ -489,15 +534,170 @@ async function tick(client) {
   }
 }
 
+// ---------- ponto por voz ----------
+// Entrar na call dedicada (PONTO_VOICE_CHANNEL_ID) abre o ponto e manda DM para escolher a tarefa;
+// sair dela fecha o ponto e manda DM para informar progresso e relato.
+async function paginaTarefasVoz(interaction, pagina) {
+  await interaction.deferUpdate();
+  let tarefas;
+  try {
+    tarefas = await notion.listarTarefasAbertas();
+  } catch (e) {
+    console.error('[ponto] notion (listar):', e.message);
+    return interaction.editReply({ content: '❌ Falha ao consultar o Notion. Tente de novo em instantes.', components: [] });
+  }
+  return interaction.editReply(montarSelecaoTarefas(tarefas, pagina, 'v'));
+}
+
+async function escolherTarefaVoz(interaction) {
+  const tarefaId = interaction.values[0];
+  const titulo = interaction.component?.options?.find((o) => o.value === tarefaId)?.label ?? 'Tarefa';
+  const row = await pdb.definirTarefa(interaction.user.id, tarefaId, titulo);
+  if (!row) {
+    return interaction.update({
+      content: '⚠️ Seu ponto já foi encerrado. Na hora de informar o progresso, descreva em qual tarefa trabalhou.',
+      components: [],
+    });
+  }
+  return interaction.update({
+    content: `✅ Tarefa definida: **${titulo}**.\nQuando terminar, saia da call e eu peço o resumo do que foi feito.`,
+    components: [],
+  });
+}
+
+async function finalizarFluxo(interaction, pontoId) {
+  const campo = (id, label, estilo, obrigatorio, placeholder, max) =>
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId(id).setLabel(label).setStyle(estilo)
+        .setRequired(obrigatorio).setPlaceholder(placeholder).setMaxLength(max),
+    );
+  const modal = new ModalBuilder()
+    .setCustomId(`ponto:final_modal:${pontoId}`)
+    .setTitle('Informar progresso')
+    .addComponents(
+      campo('progresso', 'Progresso da tarefa (0 a 100)', TextInputStyle.Short, true, 'Ex.: 60', 4),
+      campo('feito', 'O que você fez', TextInputStyle.Paragraph, true, 'Resumo breve do que foi feito neste ponto', 800),
+      campo('falta', 'O que falta (obrigatório se < 100%)', TextInputStyle.Paragraph, false, 'O que ainda precisa ser feito', 800),
+    );
+  return interaction.showModal(modal);
+}
+
+async function entrouNaCall(client, user, canalId) {
+  const aberto = await pdb.getAberto(user.id);
+  if (aberto) {
+    await pdb.setCanalVoz(user.id, canalId);
+    return;
+  }
+  const guild = await client.guilds.fetch(process.env.GUILD_ID).catch(() => null);
+  const membro = guild ? await guild.members.fetch(user.id).catch(() => null) : null;
+  const row = await pdb.abrir({
+    discordId: user.id,
+    nome: membro?.displayName ?? user.globalName ?? user.username,
+    usuario: user.username,
+    tarefaId: TAREFA_PENDENTE,
+    tarefaTitulo: 'Aguardando escolha da tarefa',
+    canalVozId: canalId,
+  });
+  if (!row) return;
+
+  await logar(
+    client,
+    new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle('🟢 Ponto aberto (call)')
+      .addFields(
+        { name: 'Membro', value: `<@${row.discord_id}> (${row.nome})`, inline: true },
+        { name: 'Horário', value: ts(row.aberto_em), inline: true },
+      ),
+  );
+
+  try {
+    const tarefas = await notion.listarTarefasAbertas();
+    const base = `🟢 Ponto aberto às ${ts(row.aberto_em, 't')} ao entrar na call.\n`;
+    if (!tarefas.length) {
+      await user.send(base + 'Não há tarefas em aberto no Notion; você informará o trabalho ao sair da call.');
+      return;
+    }
+    const sel = montarSelecaoTarefas(tarefas, 0, 'v');
+    await user.send({ ...sel, content: base + '**Qual tarefa você vai fazer?**\n' + sel.content });
+  } catch (e) {
+    console.error('[ponto] DM de abertura:', e.message);
+    await logar(
+      client,
+      new EmbedBuilder()
+        .setColor(0xe67e22)
+        .setDescription(`⚠️ Não consegui enviar a DM de tarefa para <@${user.id}> (DMs fechadas ou Notion fora). O ponto foi aberto sem tarefa.`),
+    );
+  }
+}
+
+async function saiuDaCall(client, user) {
+  const p = await pdb.fecharPorVoz(user.id);
+  if (!p) return;
+  const seg = (new Date(p.fechado_em) - new Date(p.aberto_em)) / 1000;
+
+  await logar(
+    client,
+    new EmbedBuilder()
+      .setColor(0xe67e22)
+      .setTitle('🔴 Ponto fechado (saiu da call)')
+      .addFields(
+        { name: 'Membro', value: `<@${p.discord_id}> (${p.nome})`, inline: true },
+        { name: 'Tarefa', value: trunc(p.tarefa_titulo, 256), inline: true },
+        { name: 'Duração', value: fmtDur(seg), inline: true },
+      )
+      .setFooter({ text: 'Aguardando o membro informar progresso e relato por DM' }),
+  );
+
+  try {
+    await user.send({
+      content:
+        `🔴 Você saiu da call e seu ponto foi fechado. Duração: **${fmtDur(seg)}** em **${p.tarefa_titulo}**.\n` +
+        'Clique no botão abaixo para informar o progresso e o que foi feito.',
+      components: [
+        new ActionRowBuilder().addComponents(btn(`ponto:final:${p.id}`, 'Informar progresso', ButtonStyle.Primary, '📝')),
+      ],
+    });
+  } catch (e) {
+    console.error('[ponto] DM de fechamento:', e.message);
+    await logar(
+      client,
+      new EmbedBuilder()
+        .setColor(0xe67e22)
+        .setDescription(`⚠️ Não consegui enviar a DM de fechamento para <@${user.id}>. As horas foram salvas, mas o relato está pendente.`),
+    );
+  }
+}
+
+async function handleVoiceState(oldState, newState) {
+  try {
+    const user = newState.member?.user ?? oldState.member?.user;
+    if (!user || user.bot) return;
+    const { canalVoz } = cfg();
+    if (!canalVoz) return; // recurso desligado sem PONTO_VOICE_CHANNEL_ID
+    const antes = oldState.channelId;
+    const depois = newState.channelId;
+    if (antes === depois) return; // mute/deafen/stream etc.
+
+    const client = newState.client;
+    if (depois === canalVoz) await entrouNaCall(client, user, depois);
+    else if (antes === canalVoz) await saiuDaCall(client, user);
+  } catch (e) {
+    console.error('[ponto] voz:', e);
+  }
+}
+
 let iniciado = false;
 async function init(client) {
   if (iniciado) return;
   iniciado = true;
   await pdb.init();
+  kov.init(client).catch((e) => console.error('[kov] init:', e));
   const rodar = () => tick(client).catch((e) => console.error('[ponto] agendador:', e));
   setTimeout(rodar, 20_000);
   setInterval(rodar, 10 * 60 * 1000).unref();
   console.log('[ponto] pronto.');
 }
 
-module.exports = { init, handlePontoInteraction, enviarPainel };
+module.exports = { init, handlePontoInteraction, handleVoiceState, handleKovMessage: (c, m) => kov.handleMessage(c, m), enviarPainel };

@@ -170,7 +170,12 @@ client.on('guildMemberRemove', async (member) => {
   }
 });
 
+client.on('voiceStateUpdate', (oldState, newState) => {
+  ponto.handleVoiceState(oldState, newState);
+});
+
 client.on('messageCreate', (message) => {
+  ponto.handleKovMessage(client, message);
   handleMensagemDM(message).catch((err) => console.error('Erro ao processar DM:', err));
 });
 

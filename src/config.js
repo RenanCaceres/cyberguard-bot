@@ -29,8 +29,15 @@ module.exports = {
   googleSheets: {
     sheetId: process.env.GOOGLE_SHEET_ID || '',
     abaNome: process.env.GOOGLE_SHEET_ABA || 'Respostas ao formulário 1',
+    // Planilha/aba onde ficam as horas de ponto (se vazio, usa a mesma planilha do onboarding)
+    pontoSheetId: process.env.PONTO_SHEET_ID || process.env.GOOGLE_PONTO_SHEET_ID || '',
+    pontoAbaNome: process.env.PONTO_SHEET_ABA || process.env.GOOGLE_PONTO_ABA || 'Pontos',
     serviceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '',
     privateKey: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+  },
+  kov: {
+    logChannelId: process.env.KOV_LOG_CHANNEL_ID || '1511807274782425329',
+    botId: process.env.KOV_BOT_ID || '', // opcional: restringe a um bot específico
   },
   databaseUrl: process.env.DATABASE_URL,
   prazoDias: parseInt(process.env.PRAZO_DIAS || '7', 10),
