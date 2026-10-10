@@ -15,7 +15,7 @@ module.exports = {
 
     const membro = interaction.options.getUser('membro');
     const [advertencias, categorias] = await Promise.all([
-      membro ? db.listarAdvertenciasDoUsuario(membro.id) : db.listarTodasAdvertencias(),
+      membro ? db.listarAdvertenciasDoUsuario(membro.id, { incluirFila: true }) : db.listarTodasAdvertencias(),
       db.getCategoriasAdvertencia(),
     ]);
 

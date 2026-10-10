@@ -38,6 +38,10 @@ async function finalizarAbertura(interaction, { membroId, nomeReal, categoriaDec
     efetiva = categorias.find((c) => c.ordem === declarada.ordem + 1) || categorias.find((c) => c.ordem === 3);
   }
 
+  const pendenteAtual = await db.getAdvertenciaPendenteDoUsuario(membroId);
+  const enfileirada = Boolean(pendenteAtual);
+  const statusInicial = enfileirada ? 'na_fila' : 'aguardando_aceitacao';
+
   const advertencia = await db.criarAdvertencia({
     discordId: membroId,
     nomeReal,
@@ -48,7 +52,22 @@ async function finalizarAbertura(interaction, { membroId, nomeReal, categoriaDec
     categoriaEfetivaId: efetiva.id,
     reincidencia,
     advertenciaReferenciaId: referenciaId,
+    statusInicial,
   });
+
+  if (enfileirada) {
+    const filaMembro = await db.listarFilaAdvertencias(membroId);
+    const posicaoFila = filaMembro.length;
+    try {
+      const canal = await interaction.client.channels.fetch(CANAL_ADVERTENCIAS_ID);
+      await canal.send(
+        `⏳ **Fila de Advertências:** Nova advertência **#${advertencia.id}** (*${titulo}*) aberta por <@${interaction.user.id}> para **${nomeReal}** (<@${membroId}>) foi colocada na **${posicaoFila}ª posição da fila**, pois a advertência **#${pendenteAtual.id}** ainda aguarda resolução.`
+      );
+    } catch (err) {
+      console.error('Erro ao notificar canal sobre advertência na fila:', err);
+    }
+    return { advertencia, enfileirada: true, pendenteAtual, posicaoFila };
+  }
 
   await enviarNotificacaoAdvertido(interaction.client, advertencia);
 
@@ -64,7 +83,89 @@ async function finalizarAbertura(interaction, { membroId, nomeReal, categoriaDec
     });
   }
 
-  return advertencia;
+  return { advertencia, enfileirada: false, pendenteAtual: null, posicaoFila: 0 };
+}
+
+/**
+ * Retira uma advertência da fila, revalida se eventual reincidência continua válida
+ * (caso a anterior tenha sido perdoada/cancelada) e envia ao advertido.
+ */
+async function ativarAdvertenciaDaFila(
+  client,
+  advertencia,
+  alteradoPor = 'sistema',
+  motivo = 'Enviada automaticamente após conclusão da advertência anterior'
+) {
+  let advAtualizada = advertencia;
+  const categorias = await db.getCategoriasAdvertencia();
+  const declarada = categorias.find((c) => c.id === advertencia.categoria_declarada_id);
+
+  if (advertencia.reincidencia) {
+    const emVigencia = await db.getAdvertenciasEstritamenteEmVigencia(
+      advertencia.discord_id,
+      advertencia.categoria_declarada_id
+    );
+    if (emVigencia.length === 0) {
+      advAtualizada = await db.atualizarCategoriaAdvertencia(advertencia.id, {
+        categoriaEfetivaId: advertencia.categoria_declarada_id,
+        reincidencia: false,
+        advertenciaReferenciaId: null,
+      });
+    } else if (
+      !advertencia.advertencia_referencia_id ||
+      !emVigencia.some((a) => a.id === advertencia.advertencia_referencia_id)
+    ) {
+      advAtualizada = await db.atualizarCategoriaAdvertencia(advertencia.id, {
+        categoriaEfetivaId: advertencia.categoria_efetiva_id,
+        reincidencia: true,
+        advertenciaReferenciaId: emVigencia[0].id,
+      });
+    }
+  }
+
+  await db.atualizarStatusAdvertencia(advAtualizada.id, 'na_fila', 'aguardando_aceitacao', alteradoPor, motivo);
+  await enviarNotificacaoAdvertido(client, advAtualizada);
+
+  try {
+    const canal = await client.channels.fetch(CANAL_ADVERTENCIAS_ID);
+    await canal.send(
+      `📤 **Fila de Advertências:** A advertência **#${advAtualizada.id}** (*${advAtualizada.titulo}*) para **${advAtualizada.nome_real}** (<@${advAtualizada.discord_id}>) saiu da fila e foi enviada ao membro (aberta por <@${advAtualizada.autor_id}>).`
+    );
+
+    if (advAtualizada.reincidencia && declarada && declarada.ordem === 3) {
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`advertencia_expulsar_sim_${advAtualizada.id}`).setLabel('Expulsar').setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId(`advertencia_expulsar_nao_${advAtualizada.id}`).setLabel('Não expulsar').setStyle(ButtonStyle.Secondary)
+      );
+      await canal.send({
+        content: `⚠️ ${advAtualizada.nome_real} já teve advertência **Grave** e reincidiu novamente (advertência #${advAtualizada.id}). Decisão:`,
+        components: [row],
+      });
+    }
+  } catch (err) {
+    console.error('Erro ao notificar canal sobre disparo de advertência da fila:', err);
+  }
+
+  return advAtualizada;
+}
+
+/**
+ * Verifica se o membro não tem mais nenhuma advertência travando a fila e,
+ * se houver alguma em 'na_fila', dispara a próxima automaticamente.
+ */
+async function processarFilaAdvertencias(client, discordId) {
+  try {
+    const pendente = await db.getAdvertenciaPendenteDoUsuario(discordId);
+    if (pendente) return null;
+
+    const proxima = await db.obterProximaAdvertenciaNaFila(discordId);
+    if (!proxima) return null;
+
+    return await ativarAdvertenciaDaFila(client, proxima);
+  } catch (err) {
+    console.error('Erro ao processar fila de advertências:', err);
+    return null;
+  }
 }
 
 function botoesAdvertido(advertenciaId) {
@@ -149,15 +250,11 @@ async function iniciarFluxoAdvertencia(interaction) {
     const emVigencia = await db.getAdvertenciasEmVigencia(membro.id, declarada.id);
     if (emVigencia.length === 0) {
       return interaction.reply({
-        content: `Nenhuma advertência "${categoriaNome}" em vigência para ${membro.tag} — não é reincidência válida nessa categoria.`,
+        content: `Nenhuma advertência "${categoriaNome}" em vigência ou em andamento para ${membro.tag} — não é reincidência válida nessa categoria.`,
         ephemeral: true,
       });
     }
     referenciaId = emVigencia[0].id;
-    await interaction.reply({
-      content: `Reincidência confirmada com base em:\n${emVigencia.map((a) => `#${a.id} — ${a.titulo}`).join('\n')}`,
-      ephemeral: true,
-    });
   }
 
   pendentes.set(interaction.user.id, {
@@ -199,7 +296,7 @@ async function handleModalAbertura(interaction) {
     .filter(Boolean)
     .map((link) => ({ tipo: 'link', path: link }));
 
-  const advertencia = await finalizarAbertura(interaction, {
+  const { advertencia, enfileirada, pendenteAtual, posicaoFila } = await finalizarAbertura(interaction, {
     membroId: pendente.membroId,
     nomeReal: pendente.nomeReal,
     categoriaDeclaradaId: pendente.categoriaDeclaradaId,
@@ -209,7 +306,15 @@ async function handleModalAbertura(interaction) {
     evidencias,
   });
 
-  await interaction.reply({ content: `Advertência #${advertencia.id} registrada para ${pendente.nomeReal}.`, ephemeral: true });
+  if (enfileirada) {
+    await interaction.reply({
+      content: `⏳ Advertência **#${advertencia.id}** registrada na **fila** para **${pendente.nomeReal}** (${posicaoFila}ª na fila — aguardando conclusão da advertência #${pendenteAtual.id}). Assim que a atual for finalizada, esta será enviada automaticamente!`,
+      ephemeral: true,
+    });
+    return;
+  }
+
+  await interaction.reply({ content: `✅ Advertência #${advertencia.id} registrada e enviada para ${pendente.nomeReal}.`, ephemeral: true });
 }
 
 // ---------- painel (botões + select menus, sem digitar slash command) ----------
@@ -217,11 +322,14 @@ async function handleModalAbertura(interaction) {
 function montarPainel() {
   const embed = new EmbedBuilder()
     .setTitle('📋 Sistema de Advertências')
-    .setDescription('Use os botões abaixo para abrir uma advertência, ver as suas ou consultar o histórico completo.')
+    .setDescription(
+      'Use os botões abaixo para abrir uma advertência (se o membro já tiver uma pendente de ciência/análise, ela entra automaticamente na **fila**), gerenciar a fila, ver as suas ou consultar o histórico completo.'
+    )
     .setColor(0xd85a30);
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('advertencia_painel_abrir').setLabel('Abrir Advertência').setStyle(ButtonStyle.Danger).setEmoji('⚠️'),
+    new ButtonBuilder().setCustomId('advertencia_painel_fila').setLabel('Fila de Advertências').setStyle(ButtonStyle.Secondary).setEmoji('⏳'),
     new ButtonBuilder().setCustomId('advertencia_painel_minhas').setLabel('Minhas Advertências').setStyle(ButtonStyle.Secondary).setEmoji('📄'),
     new ButtonBuilder().setCustomId('advertencia_painel_historico').setLabel('Ver Histórico').setStyle(ButtonStyle.Primary).setEmoji('📚')
   );
@@ -247,15 +355,25 @@ async function handleSelecaoMembro(interaction) {
   const membro = interaction.users.first();
   const registro = await db.getMembro(membro.id);
   const nomeReal = (registro && registro.nome) || membro.tag;
-  const categorias = await db.getCategoriasAdvertencia();
+  const [categorias, pendenteAtual, filaMembro] = await Promise.all([
+    db.getCategoriasAdvertencia(),
+    db.getAdvertenciaPendenteDoUsuario(membro.id),
+    db.listarFilaAdvertencias(membro.id),
+  ]);
 
   const select = new StringSelectMenuBuilder()
     .setCustomId(`advertencia_painel_select_categoria_${membro.id}`)
     .setPlaceholder('Selecione a categoria')
     .addOptions(categorias.map((c) => ({ label: c.nome, value: String(c.id), description: c.comportamento.slice(0, 100) })));
 
+  const avisoFila = pendenteAtual
+    ? `\n> ⏳ **Atenção:** Este membro já possui a advertência **#${pendenteAtual.id}** pendente (${pendenteAtual.status})${
+        filaMembro.length > 0 ? ` e outras **${filaMembro.length}** na fila` : ''
+      }. A nova advertência será adicionada automaticamente à **fila** para envio assim que a atual for concluída.`
+    : '';
+
   await interaction.update({
-    content: `Advertindo **${nomeReal}** (@${membro.tag}). Selecione a categoria:`,
+    content: `Advertindo **${nomeReal}** (@${membro.tag}).${avisoFila}\nSelecione a categoria:`,
     components: [new ActionRowBuilder().addComponents(select)],
   });
 }
@@ -274,7 +392,7 @@ async function handleSelecaoCategoria(interaction, membroId) {
       .setStyle(ButtonStyle.Secondary)
   );
 
-  await interaction.update({ content: 'É reincidência de uma advertência em vigência na mesma categoria?', components: [row] });
+  await interaction.update({ content: 'É reincidência de uma advertência em vigência (ou em andamento) na mesma categoria?', components: [row] });
 }
 
 async function handleReincidenciaPainel(interaction, resposta, membroId, categoriaId) {
@@ -284,7 +402,7 @@ async function handleReincidenciaPainel(interaction, resposta, membroId, categor
     const emVigencia = await db.getAdvertenciasEmVigencia(membroId, categoriaId);
     if (emVigencia.length === 0) {
       await interaction.update({
-        content: 'Nenhuma advertência em vigência nessa categoria — não é reincidência válida. Fluxo cancelado.',
+        content: 'Nenhuma advertência em vigência ou em andamento nessa categoria — não é reincidência válida. Fluxo cancelado.',
         components: [],
       });
       return;
@@ -325,7 +443,7 @@ async function handleModalPainel(interaction) {
     nomeReal = usuario.tag;
   }
 
-  const advertencia = await finalizarAbertura(interaction, {
+  const { advertencia, enfileirada, pendenteAtual, posicaoFila } = await finalizarAbertura(interaction, {
     membroId: pendente.membroId,
     nomeReal,
     categoriaDeclaradaId: pendente.categoriaDeclaradaId,
@@ -335,7 +453,117 @@ async function handleModalPainel(interaction) {
     evidencias,
   });
 
-  await interaction.reply({ content: `Advertência #${advertencia.id} registrada para ${nomeReal}.`, ephemeral: true });
+  if (enfileirada) {
+    await interaction.reply({
+      content: `⏳ Advertência **#${advertencia.id}** registrada na **fila** para **${nomeReal}** (${posicaoFila}ª na fila — aguardando conclusão da advertência #${pendenteAtual.id}). Assim que a atual for finalizada, esta será enviada automaticamente!`,
+      ephemeral: true,
+    });
+    return;
+  }
+
+  await interaction.reply({ content: `✅ Advertência #${advertencia.id} registrada e enviada para ${nomeReal}.`, ephemeral: true });
+}
+
+async function handlePainelFila(interaction) {
+  if (!podeAbrirAdvertencia(interaction.user.id)) {
+    return interaction.reply({ content: 'Você não tem permissão para visualizar ou gerenciar a fila de advertências.', ephemeral: true });
+  }
+
+  const [fila, categorias] = await Promise.all([db.listarFilaAdvertencias(), db.getCategoriasAdvertencia()]);
+
+  if (fila.length === 0) {
+    return interaction.reply({ content: '⏳ Nenhuma advertência na fila de espera no momento.', ephemeral: true });
+  }
+
+  const nomeCategoria = (id) => categorias.find((c) => c.id === id)?.nome || '—';
+  const embed = new EmbedBuilder()
+    .setTitle('⏳ Fila de Advertências Pendentes')
+    .setDescription(
+      'As advertências abaixo aguardam a conclusão da advertência atual de cada membro para serem enviadas automaticamente. Você também pode selecionar uma abaixo para forçar o envio imediato ou cancelá-la.'
+    )
+    .setColor(0xef9f27);
+
+  const contadorPorMembro = new Map();
+  for (const adv of fila.slice(0, 25)) {
+    const pos = (contadorPorMembro.get(adv.discord_id) || 0) + 1;
+    contadorPorMembro.set(adv.discord_id, pos);
+    embed.addFields({
+      name: `#${adv.id} — ${adv.titulo} (${pos}ª na fila do membro)`,
+      value:
+        `Advertido: **${adv.nome_real}** (<@${adv.discord_id}>)\n` +
+        `Aberta por: <@${adv.autor_id}>\n` +
+        `Categoria: ${nomeCategoria(adv.categoria_efetiva_id)}${adv.reincidencia ? ' (reincidência)' : ''}\n` +
+        `Criada em: ${new Date(adv.data_abertura).toLocaleDateString('pt-BR')}`,
+    });
+  }
+
+  const select = new StringSelectMenuBuilder()
+    .setCustomId('advertencia_fila_select')
+    .setPlaceholder('Selecione uma advertência da fila para gerenciar')
+    .addOptions(
+      fila.slice(0, 25).map((adv) => ({
+        label: `#${adv.id} — ${adv.nome_real}`.slice(0, 100),
+        value: String(adv.id),
+        description: `${adv.titulo} (${nomeCategoria(adv.categoria_efetiva_id)})`.slice(0, 100),
+      }))
+    );
+
+  await interaction.reply({
+    embeds: [embed],
+    components: [new ActionRowBuilder().addComponents(select)],
+    ephemeral: true,
+  });
+}
+
+async function handleFilaSelect(interaction) {
+  if (!podeAbrirAdvertencia(interaction.user.id)) {
+    return interaction.reply({ content: 'Você não tem permissão para gerenciar a fila.', ephemeral: true });
+  }
+
+  const id = Number(interaction.values[0]);
+  const advertencia = await db.getAdvertencia(id);
+  if (!advertencia || advertencia.status !== 'na_fila') {
+    return interaction.update({ content: 'Esta advertência não está mais na fila.', embeds: [], components: [] });
+  }
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`advertencia_fila_enviar_${advertencia.id}`)
+      .setLabel('Enviar Agora')
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji('🚀'),
+    new ButtonBuilder()
+      .setCustomId(`advertencia_fila_cancelar_${advertencia.id}`)
+      .setLabel('Cancelar da Fila')
+      .setStyle(ButtonStyle.Danger)
+      .setEmoji('🗑️')
+  );
+
+  await interaction.update({
+    content: `Gerenciando advertência na fila **#${advertencia.id}** (*${advertencia.titulo}*) para **${advertencia.nome_real}**:`,
+    embeds: [],
+    components: [row],
+  });
+}
+
+async function handleFilaAcao(interaction, acao, id) {
+  if (!podeAbrirAdvertencia(interaction.user.id)) {
+    return interaction.reply({ content: 'Você não tem permissão para gerenciar a fila.', ephemeral: true });
+  }
+
+  const advertencia = await db.getAdvertencia(id);
+  if (!advertencia || advertencia.status !== 'na_fila') {
+    return interaction.update({ content: 'Esta advertência não está mais na fila.', components: [] });
+  }
+
+  if (acao === 'cancelar') {
+    await db.atualizarStatusAdvertencia(id, 'na_fila', 'cancelada', interaction.user.id, 'Cancelada enquanto estava na fila');
+    await interaction.update({ content: `🗑️ Advertência #${id} removida da fila e cancelada.`, components: [] });
+    return;
+  }
+
+  await ativarAdvertenciaDaFila(interaction.client, advertencia, interaction.user.id, 'Envio imediato forçado manualmente pela liderança');
+  await interaction.update({ content: `🚀 Advertência #${id} retirada da fila e enviada agora para **${advertencia.nome_real}**.`, components: [] });
 }
 
 async function handlePainelMinhasAdvertencias(interaction) {
@@ -461,6 +689,8 @@ async function handleBotaoCienteOuNaoConcordo(interaction, acao, id) {
     } catch (err) {
       console.error('Erro ao avisar autor sobre ciência da advertência:', err);
     }
+
+    await processarFilaAdvertencias(interaction.client, advertencia.discord_id);
     return;
   }
 
@@ -500,6 +730,7 @@ async function handleDecisaoReplica(interaction, decisao, id) {
   if (decisao === 'perdoar') {
     await db.atualizarStatusAdvertencia(id, 'em_analise', 'perdoada', interaction.user.id);
     await interaction.update({ content: `Advertência #${id} perdoada.`, embeds: [], components: [] });
+    await processarFilaAdvertencias(interaction.client, advertencia.discord_id);
     return;
   }
 
@@ -512,6 +743,7 @@ async function handleDecisaoReplica(interaction, decisao, id) {
     DIAS_PARA_EXPIRAR
   );
   await interaction.update({ content: `Advertência #${id} mantida em vigência.`, embeds: [], components: [] });
+  await processarFilaAdvertencias(interaction.client, advertencia.discord_id);
 }
 
 // Botão "Contra-Argumentar": abre o modal para quem abriu a advertência escrever o argumento
@@ -576,13 +808,19 @@ async function handleReenviarOuCancelar(interaction, acao, id) {
     return;
   }
 
-  if (acao === 'cancelar') {
-    await db.atualizarStatusAdvertencia(id, 'sem_resposta', 'cancelada', interaction.user.id, 'Cancelada após falta de resposta');
-    await interaction.update({ content: `Advertência #${id} cancelada.`, components: [] });
+  const advertencia = await db.getAdvertencia(id);
+  if (!advertencia) {
+    await interaction.reply({ content: 'Advertência não encontrada.', ephemeral: true });
     return;
   }
 
-  const advertencia = await db.getAdvertencia(id);
+  if (acao === 'cancelar') {
+    await db.atualizarStatusAdvertencia(id, 'sem_resposta', 'cancelada', interaction.user.id, 'Cancelada após falta de resposta');
+    await interaction.update({ content: `Advertência #${id} cancelada.`, components: [] });
+    await processarFilaAdvertencias(interaction.client, advertencia.discord_id);
+    return;
+  }
+
   const argumentos = await db.listarArgumentos(id);
   const ultimo = argumentos[argumentos.length - 1];
   if (ultimo && ultimo.tipo === 'contra_argumento') {
@@ -627,6 +865,10 @@ async function handleAdvertenciaInteraction(interaction) {
   }
 
   if (interaction.isStringSelectMenu()) {
+    if (interaction.customId === 'advertencia_fila_select') {
+      await handleFilaSelect(interaction);
+      return true;
+    }
     const catMatch = interaction.customId.match(/^advertencia_painel_select_categoria_(\d+)$/);
     if (catMatch) {
       await handleSelecaoCategoria(interaction, catMatch[1]);
@@ -639,6 +881,10 @@ async function handleAdvertenciaInteraction(interaction) {
       await iniciarPainelAbrirAdvertencia(interaction);
       return true;
     }
+    if (interaction.customId === 'advertencia_painel_fila') {
+      await handlePainelFila(interaction);
+      return true;
+    }
     if (interaction.customId === 'advertencia_painel_minhas') {
       await handlePainelMinhasAdvertencias(interaction);
       return true;
@@ -648,7 +894,13 @@ async function handleAdvertenciaInteraction(interaction) {
       return true;
     }
 
-    let match = interaction.customId.match(/^advertencia_painel_reincidencia_(sim|nao)_(\d+)_(\d+)$/);
+    let match = interaction.customId.match(/^advertencia_fila_(enviar|cancelar)_(\d+)$/);
+    if (match) {
+      await handleFilaAcao(interaction, match[1], Number(match[2]));
+      return true;
+    }
+
+    match = interaction.customId.match(/^advertencia_painel_reincidencia_(sim|nao)_(\d+)_(\d+)$/);
     if (match) {
       await handleReincidenciaPainel(interaction, match[1], match[2], match[3]);
       return true;

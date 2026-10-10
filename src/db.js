@@ -113,7 +113,7 @@ async function initSchema() {
       advertencia_referencia_id INT REFERENCES advertencias(id),
       status TEXT NOT NULL DEFAULT 'aguardando_aceitacao'
         CHECK (status IN (
-          'aguardando_aceitacao', 'sem_resposta', 'em_vigencia',
+          'na_fila', 'aguardando_aceitacao', 'sem_resposta', 'em_vigencia',
           'em_analise', 'perdoada', 'cancelada', 'expirada'
         )),
       replica_advertido TEXT,
@@ -124,6 +124,30 @@ async function initSchema() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  // Atualiza a constraint de status em bancos já existentes para incluir 'na_fila'
+  await pool.query(`
+    DO $$
+    DECLARE
+      r RECORD;
+    BEGIN
+      FOR r IN (
+        SELECT conname
+        FROM pg_constraint
+        WHERE conrelid = 'advertencias'::regclass AND contype = 'c'
+      ) LOOP
+        EXECUTE 'ALTER TABLE advertencias DROP CONSTRAINT ' || quote_ident(r.conname);
+      END LOOP;
+    END $$;
+  `);
+  await pool.query(`
+    ALTER TABLE advertencias
+    ADD CONSTRAINT advertencias_status_check
+    CHECK (status IN (
+      'na_fila', 'aguardando_aceitacao', 'sem_resposta', 'em_vigencia',
+      'em_analise', 'perdoada', 'cancelada', 'expirada'
+    ));
+  `);
+
   // Marca desde quando a advertência está esperando resposta do advertido (reinicia a cada contra-argumento)
   await pool.query('ALTER TABLE advertencias ADD COLUMN IF NOT EXISTS data_aguardando_desde TIMESTAMPTZ');
 
@@ -317,7 +341,26 @@ function getCategoriasAdvertencia() {
   return pool.query('SELECT * FROM advertencias_categorias ORDER BY ordem').then((r) => r.rows);
 }
 
+/**
+ * Busca advertências válidas para basear reincidência (inclui tanto as que já estão
+ * em vigência quanto as que estão aguardando ciência/análise ou na fila).
+ */
 function getAdvertenciasEmVigencia(discordId, categoriaId) {
+  return pool
+    .query(
+      `SELECT * FROM advertencias
+       WHERE discord_id = $1
+         AND categoria_efetiva_id = $2
+         AND status IN ('em_vigencia', 'aguardando_aceitacao', 'em_analise', 'sem_resposta', 'na_fila')
+       ORDER BY
+         CASE WHEN status = 'em_vigencia' THEN 0 ELSE 1 END,
+         data_abertura DESC`,
+      [discordId, categoriaId]
+    )
+    .then((r) => r.rows);
+}
+
+function getAdvertenciasEstritamenteEmVigencia(discordId, categoriaId) {
   return pool
     .query(
       `SELECT * FROM advertencias
@@ -328,14 +371,78 @@ function getAdvertenciasEmVigencia(discordId, categoriaId) {
     .then((r) => r.rows);
 }
 
+/**
+ * Retorna a advertência ativa que ainda depende de resolução (ciência do membro ou decisão do autor)
+ */
+function getAdvertenciaPendenteDoUsuario(discordId) {
+  return pool
+    .query(
+      `SELECT * FROM advertencias
+       WHERE discord_id = $1
+         AND status IN ('aguardando_aceitacao', 'em_analise', 'sem_resposta')
+       ORDER BY data_abertura ASC, id ASC
+       LIMIT 1`,
+      [discordId]
+    )
+    .then((r) => r.rows[0] || null);
+}
+
+function listarFilaAdvertencias(discordId = null) {
+  if (discordId) {
+    return pool
+      .query(
+        `SELECT * FROM advertencias
+         WHERE discord_id = $1 AND status = 'na_fila'
+         ORDER BY data_abertura ASC, id ASC`,
+        [discordId]
+      )
+      .then((r) => r.rows);
+  }
+  return pool
+    .query(
+      `SELECT * FROM advertencias
+       WHERE status = 'na_fila'
+       ORDER BY data_abertura ASC, id ASC`
+    )
+    .then((r) => r.rows);
+}
+
+function obterProximaAdvertenciaNaFila(discordId) {
+  return pool
+    .query(
+      `SELECT * FROM advertencias
+       WHERE discord_id = $1 AND status = 'na_fila'
+       ORDER BY data_abertura ASC, id ASC
+       LIMIT 1`,
+      [discordId]
+    )
+    .then((r) => r.rows[0] || null);
+}
+
+function atualizarCategoriaAdvertencia(id, { categoriaEfetivaId, reincidencia, advertenciaReferenciaId }) {
+  return pool
+    .query(
+      `UPDATE advertencias
+       SET categoria_efetiva_id = $2,
+           reincidencia = $3,
+           advertencia_referencia_id = $4,
+           updated_at = now()
+       WHERE id = $1
+       RETURNING *`,
+      [id, categoriaEfetivaId, reincidencia, advertenciaReferenciaId]
+    )
+    .then((r) => r.rows[0] || null);
+}
+
 function getAdvertencia(id) {
   return pool.query('SELECT * FROM advertencias WHERE id = $1', [id]).then((r) => r.rows[0] || null);
 }
 
-function listarAdvertenciasDoUsuario(discordId) {
-  return pool
-    .query('SELECT * FROM advertencias WHERE discord_id = $1 ORDER BY data_abertura DESC', [discordId])
-    .then((r) => r.rows);
+function listarAdvertenciasDoUsuario(discordId, { incluirFila = false } = {}) {
+  const query = incluirFila
+    ? 'SELECT * FROM advertencias WHERE discord_id = $1 ORDER BY data_abertura DESC'
+    : "SELECT * FROM advertencias WHERE discord_id = $1 AND status <> 'na_fila' ORDER BY data_abertura DESC";
+  return pool.query(query, [discordId]).then((r) => r.rows);
 }
 
 function listarTodasAdvertencias() {
@@ -360,11 +467,12 @@ async function criarAdvertencia({
   categoriaEfetivaId,
   reincidencia,
   advertenciaReferenciaId,
+  statusInicial = 'aguardando_aceitacao',
 }) {
   const { rows } = await pool.query(
     `INSERT INTO advertencias
-      (discord_id, nome_real, titulo, evidencias, autor_id, categoria_declarada_id, categoria_efetiva_id, reincidencia, advertencia_referencia_id)
-     VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9)
+      (discord_id, nome_real, titulo, evidencias, autor_id, categoria_declarada_id, categoria_efetiva_id, reincidencia, advertencia_referencia_id, status, data_aguardando_desde)
+     VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, CASE WHEN $10 = 'aguardando_aceitacao' THEN now() ELSE NULL END)
      RETURNING *`,
     [
       discordId,
@@ -376,9 +484,11 @@ async function criarAdvertencia({
       categoriaEfetivaId,
       reincidencia,
       advertenciaReferenciaId,
+      statusInicial,
     ]
   );
-  await registrarHistoricoAdvertencia(rows[0].id, null, 'aguardando_aceitacao', autorId);
+  const motivo = statusInicial === 'na_fila' ? 'Adicionada à fila (membro possui advertência pendente)' : null;
+  await registrarHistoricoAdvertencia(rows[0].id, null, statusInicial, autorId, motivo);
   return rows[0];
 }
 
@@ -456,6 +566,11 @@ module.exports = {
   // advertências
   getCategoriasAdvertencia,
   getAdvertenciasEmVigencia,
+  getAdvertenciasEstritamenteEmVigencia,
+  getAdvertenciaPendenteDoUsuario,
+  listarFilaAdvertencias,
+  obterProximaAdvertenciaNaFila,
+  atualizarCategoriaAdvertencia,
   getAdvertencia,
   listarAdvertenciasDoUsuario,
   listarTodasAdvertencias,

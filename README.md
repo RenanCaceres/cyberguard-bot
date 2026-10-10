@@ -77,7 +77,8 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
 
 ### ⚖️ 3. Sistema Disciplinar & Advertências com Contraditório
 - **Gestão de Infrações (`/advertir`, `/painel-advertencias`)**: Abertura de advertências categorizadas por severidade (*Leve*, *Média*, *Grave*), com descrição, evidências anexadas e histórico associado.
-- **Progressão e Reincidência Automática**: Cálculo automático do agravamento da categoria em caso de reincidência.
+- **Fila de Advertências Automática**: Caso o membro já possua uma advertência aguardando ciência/análise, novas advertências aplicadas entram automaticamente na **fila (`na_fila`)** e são disparadas sozinhas assim que a anterior é concluída (com opção de gerenciamento manual pelo painel `⏳ Fila de Advertências`).
+- **Progressão e Reincidência Automática**: Cálculo automático do agravamento da categoria em caso de reincidência (inclusive validando advertências em andamento/fila e revalidando antes do disparo).
 - **Garantia de Contraditório e Ampla Defesa**:
   - Envio imediato da notificação ao membro com formulário para manifestação de justificativa/defesa no prazo regulamentar de **7 dias**.
   - Expiração automática de registros ativos após **90 dias** de conduta regular.
