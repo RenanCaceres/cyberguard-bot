@@ -121,15 +121,17 @@ function valoresDe(row) {
   };
 }
 
-// Localiza ou cria a aba "Painel Transparente" na planilha
-async function obterOuCriarAbaPainel() {
-  const meta = await api('GET', '?fields=sheets.properties(sheetId,title)');
+// Localiza ou cria a aba "Painel Transparente" (geral) na planilha
+async function obterOuCriarAbaPainel(meta) {
+  const m = meta || (await api('GET', '?fields=sheets.properties(sheetId,title)'));
   const preferida = process.env.PONTO_PAINEL_TAB;
-  let sh = meta.sheets.find((s) =>
-    preferida
+  const tituloBot = process.env.PONTO_PAINEL_BOT_TAB || 'Painel Transparente (Bot)';
+  let sh = m.sheets.find((s) => {
+    if (s.properties.title === tituloBot) return false;
+    return preferida
       ? s.properties.title === preferida
-      : /painel\s*transparente/i.test(s.properties.title)
-  );
+      : /painel\s*transparente/i.test(s.properties.title);
+  });
   if (sh) return { sheetId: sh.properties.sheetId, title: sh.properties.title };
 
   const novoTitulo = preferida || 'Painel Transparente';
@@ -140,11 +142,73 @@ async function obterOuCriarAbaPainel() {
   return { sheetId: prop?.sheetId, title: prop?.title || novoTitulo };
 }
 
+// Localiza ou cria a nova aba exclusiva com as horas do CyberGuard Bot (sem outros históricos)
+async function obterOuCriarAbaPainelBot(meta) {
+  const m = meta || (await api('GET', '?fields=sheets.properties(sheetId,title)'));
+  const tituloBot = process.env.PONTO_PAINEL_BOT_TAB || 'Painel Transparente (Bot)';
+  const sh = m.sheets.find((s) => s.properties.title.toLowerCase() === tituloBot.toLowerCase());
+  if (sh) return { sheetId: sh.properties.sheetId, title: sh.properties.title };
+
+  const criado = await api('POST', ':batchUpdate', {
+    requests: [{ addSheet: { properties: { title: tituloBot } } }],
+  });
+  const prop = criado.replies?.[0]?.addSheet?.properties;
+  return { sheetId: prop?.sheetId, title: prop?.title || tituloBot };
+}
+
+async function gravarTabelaPainel(abaInfo, participantes) {
+  const valoresPainel = [
+    ['Nome do Discord', 'Nome Real', 'Soma Total (Horas)'],
+    ...participantes.map((p) => [p.nomeDiscord, p.nomeReal, p.totalHoras]),
+  ];
+
+  await api('POST', `/values/${encAba(abaInfo.title, 'A1:Z1000')}:clear`, {});
+  await api(
+    'PUT',
+    `/values/${encAba(abaInfo.title, `A1:C${valoresPainel.length}`)}?valueInputOption=USER_ENTERED`,
+    { values: valoresPainel }
+  );
+
+  if (abaInfo.sheetId != null) {
+    try {
+      await api('POST', ':batchUpdate', {
+        requests: [
+          {
+            repeatCell: {
+              range: { sheetId: abaInfo.sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 3 },
+              cell: {
+                userEnteredFormat: {
+                  backgroundColor: { red: 0.13, green: 0.07, blue: 0.31 },
+                  textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } },
+                },
+              },
+              fields: 'userEnteredFormat(backgroundColor,textFormat)',
+            },
+          },
+          {
+            updateSheetProperties: {
+              properties: { sheetId: abaInfo.sheetId, gridProperties: { frozenRowCount: 1 } },
+              fields: 'gridProperties.frozenRowCount',
+            },
+          },
+          {
+            autoResizeDimensions: {
+              dimensions: { sheetId: abaInfo.sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 3 },
+            },
+          },
+        ],
+      });
+    } catch (e) {
+      console.warn(`[pontoSheets] aviso ao formatar aba ${abaInfo.title}:`, e.message);
+    }
+  }
+}
+
 /**
- * Configura e atualiza a aba "Painel Transparente" com:
- * [Nome do Discord | Nome Real | Soma Total]
- * trazendo o verdadeiro nome dos integrantes (membros / cadastro_legado, igual na hierarquia)
- * e sem níveis de pontos_produtividade.
+ * Configura e atualiza:
+ * 1) A aba "Painel Transparente" (histórico completo)
+ * 2) A nova aba "Painel Transparente (Bot)" (somente horas registradas pelo CyberGuard Bot, sem outros históricos)
+ * Ambas com [Nome do Discord | Nome Real | Soma Total (Horas)], trazendo o verdadeiro nome dos integrantes.
  */
 async function atualizarPainelTransparenteInterno() {
   if (!sheetId()) return;
@@ -158,6 +222,8 @@ async function atualizarPainelTransparenteInterno() {
   const idxInicio = listaCab.indexOf('horario_inicio');
   const idxFim = listaCab.indexOf('horario_fim');
   const idxTotal = listaCab.indexOf('total_horas');
+  const idxIdPonto = listaCab.indexOf('id_ponto');
+  const idxOrigem = listaCab.indexOf('origem');
 
   // Se houver lixo no fim da aba Raw Logs do Bot (ex: tabelas antigas coladas abaixo dos logs), limpa da aba de logs
   let primeiraLinhaInvalida = -1;
@@ -169,7 +235,6 @@ async function atualizarPainelTransparenteInterno() {
     }
   }
   if (primeiraLinhaInvalida > 1) {
-    // Verifica se todas as linhas a partir dali também não são snowflakes válidos
     const restoValido = todasLinhas.slice(primeiraLinhaInvalida - 1).some((row) =>
       /^\d{15,21}$/.test(String(row?.[idxUserId] ?? '').trim())
     );
@@ -178,8 +243,10 @@ async function atualizarPainelTransparenteInterno() {
     }
   }
 
-  // Soma horas por user_id a partir dos logs da planilha
-  const porUsuario = new Map();
+  // 1) Soma horas por user_id (Geral vs Somente Bot) a partir dos logs da planilha
+  const porUsuarioGeral = new Map();
+  const porUsuarioBot = new Map();
+
   for (let i = 1; i < todasLinhas.length; i++) {
     const row = todasLinhas[i] ?? [];
     const uid = String(row[idxUserId] ?? '').trim();
@@ -198,27 +265,57 @@ async function atualizarPainelTransparenteInterno() {
     if (horas < 0 || Number.isNaN(horas)) horas = 0;
 
     const nomeLog = String(row[idxMembro] ?? '').trim();
-    const atual = porUsuario.get(uid) || { totalHoras: 0, nomeDiscord: '' };
-    atual.totalHoras += horas;
-    if (nomeLog) atual.nomeDiscord = nomeLog;
-    porUsuario.set(uid, atual);
+
+    // Acumula no Geral
+    const atualGeral = porUsuarioGeral.get(uid) || { totalHoras: 0, nomeDiscord: '' };
+    atualGeral.totalHoras += horas;
+    if (nomeLog) atualGeral.nomeDiscord = nomeLog;
+    porUsuarioGeral.set(uid, atualGeral);
+
+    // Verifica se a linha pertence exclusivamente ao CyberGuard Bot (id_ponto "p..." e origem manual/voz)
+    const idPonto = idxIdPonto >= 0 ? String(row[idxIdPonto] ?? '').trim() : '';
+    const origem = idxOrigem >= 0 ? String(row[idxOrigem] ?? '').trim().toLowerCase() : '';
+    if (/^p\d+$/.test(idPonto) && (origem === 'manual' || origem === 'voz')) {
+      const atualBot = porUsuarioBot.get(uid) || { totalHoras: 0, nomeDiscord: '' };
+      atualBot.totalHoras += horas;
+      if (nomeLog) atualBot.nomeDiscord = nomeLog;
+      porUsuarioBot.set(uid, atualBot);
+    }
   }
 
-  // Complementa com dados de nomes do banco (pontos, membros e cadastro_legado — mesma base da hierarquia)
-  const [mapaReais, resumoDb] = await Promise.all([
+  // Complementa com dados do banco (membros/cadastro_legado + pontos gerais e pontos exclusivos do bot)
+  const [mapaReais, resumoDbGeral, resumoDbBot] = await Promise.all([
     db.obterMapaNomesReais().catch(() => new Map()),
     pdb.resumoPorAluno().catch(() => []),
+    pdb.resumoPorAlunoSomenteBot().catch(() => []),
   ]);
 
-  for (const r of resumoDb) {
+  for (const r of resumoDbGeral) {
     const uid = String(r.discord_id).trim();
-    if (!porUsuario.has(uid)) {
-      porUsuario.set(uid, {
+    if (!porUsuarioGeral.has(uid)) {
+      porUsuarioGeral.set(uid, {
         totalHoras: (r.seg || 0) / 3600,
         nomeDiscord: r.nome || r.usuario || uid,
       });
     } else {
-      const entry = porUsuario.get(uid);
+      const entry = porUsuarioGeral.get(uid);
+      if (!entry.nomeDiscord && (r.nome || r.usuario)) {
+        entry.nomeDiscord = r.nome || r.usuario;
+      }
+    }
+  }
+
+  for (const r of resumoDbBot) {
+    const uid = String(r.discord_id).trim();
+    const horasDb = (r.seg || 0) / 3600;
+    if (!porUsuarioBot.has(uid)) {
+      porUsuarioBot.set(uid, {
+        totalHoras: horasDb,
+        nomeDiscord: r.nome || r.usuario || uid,
+      });
+    } else {
+      const entry = porUsuarioBot.get(uid);
+      if (horasDb > entry.totalHoras) entry.totalHoras = horasDb;
       if (!entry.nomeDiscord && (r.nome || r.usuario)) {
         entry.nomeDiscord = r.nome || r.usuario;
       }
@@ -231,9 +328,10 @@ async function atualizarPainelTransparenteInterno() {
     guild = await discordClient.guilds.fetch(config.guildId || process.env.GUILD_ID).catch(() => null);
   }
 
-  const participantes = [];
-  for (const [uid, info] of porUsuario.entries()) {
-    let nomeDiscord = info.nomeDiscord;
+  const cacheNomesDiscord = new Map();
+  async function resolverNomeDiscord(uid, fallback) {
+    if (cacheNomesDiscord.has(uid)) return cacheNomesDiscord.get(uid) || fallback || uid;
+    let nomeDiscord = fallback;
     if (guild) {
       const member = guild.members.cache.get(uid) || (await guild.members.fetch(uid).catch(() => null));
       if (member) {
@@ -241,62 +339,40 @@ async function atualizarPainelTransparenteInterno() {
       }
     }
     if (!nomeDiscord) nomeDiscord = uid;
-
-    const nomeReal = mapaReais.get(uid) || nomeDiscord;
-    participantes.push({
-      userId: uid,
-      nomeDiscord,
-      nomeReal,
-      totalHoras: Number(info.totalHoras.toFixed(2)),
-    });
+    cacheNomesDiscord.set(uid, nomeDiscord);
+    return nomeDiscord;
   }
 
-  participantes.sort((a, b) => {
-    if (b.totalHoras !== a.totalHoras) return b.totalHoras - a.totalHoras;
-    return a.nomeReal.localeCompare(b.nomeReal, 'pt-BR');
-  });
-
-  const painel = await obterOuCriarAbaPainel();
-  const valoresPainel = [
-    ['Nome do Discord', 'Nome Real', 'Soma Total (Horas)'],
-    ...participantes.map((p) => [p.nomeDiscord, p.nomeReal, p.totalHoras]),
-  ];
-
-  // Limpa toda a aba Painel Transparente (removendo Nível 0..5, IDs científicos e fórmulas antigas)
-  await api('POST', `/values/${encAba(painel.title, 'A1:Z1000')}:clear`, {});
-  await api(
-    'PUT',
-    `/values/${encAba(painel.title, `A1:C${valoresPainel.length}`)}?valueInputOption=USER_ENTERED`,
-    { values: valoresPainel }
-  );
-
-  if (painel.sheetId != null) {
-    try {
-      await api('POST', ':batchUpdate', {
-        requests: [
-          {
-            repeatCell: {
-              range: { sheetId: painel.sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 3 },
-              cell: {
-                userEnteredFormat: {
-                  backgroundColor: { red: 0.13, green: 0.07, blue: 0.31 },
-                  textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } },
-                },
-              },
-              fields: 'userEnteredFormat(backgroundColor,textFormat)',
-            },
-          },
-          {
-            autoResizeDimensions: {
-              dimensions: { sheetId: painel.sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 3 },
-            },
-          },
-        ],
+  async function montarListaParticipantes(mapaUsuarios) {
+    const lista = [];
+    for (const [uid, info] of mapaUsuarios.entries()) {
+      const nomeDiscord = await resolverNomeDiscord(uid, info.nomeDiscord);
+      const nomeReal = mapaReais.get(uid) || nomeDiscord;
+      lista.push({
+        userId: uid,
+        nomeDiscord,
+        nomeReal,
+        totalHoras: Number(info.totalHoras.toFixed(2)),
       });
-    } catch (e) {
-      console.warn('[pontoSheets] aviso ao formatar aba Painel Transparente:', e.message);
     }
+    lista.sort((a, b) => {
+      if (b.totalHoras !== a.totalHoras) return b.totalHoras - a.totalHoras;
+      return a.nomeReal.localeCompare(b.nomeReal, 'pt-BR');
+    });
+    return lista;
   }
+
+  const [participantesGeral, participantesBot] = await Promise.all([
+    montarListaParticipantes(porUsuarioGeral),
+    montarListaParticipantes(porUsuarioBot),
+  ]);
+
+  const meta = await api('GET', '?fields=sheets.properties(sheetId,title)');
+  const painelGeral = await obterOuCriarAbaPainel(meta);
+  const painelBot = await obterOuCriarAbaPainelBot(meta);
+
+  await gravarTabelaPainel(painelGeral, participantesGeral);
+  await gravarTabelaPainel(painelBot, participantesBot);
 }
 
 // Serializa as gravações para dois eventos simultâneos não duplicarem a mesma linha.

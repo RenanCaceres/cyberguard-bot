@@ -261,6 +261,23 @@ async function resumoPorAluno() {
   return rows;
 }
 
+// Totais por aluno considerando SOMENTE pontos do CyberGuard Bot (manual/voz, sem KoV nem saldos importados).
+async function resumoPorAlunoSomenteBot() {
+  const { rows } = await q(`
+    SELECT discord_id,
+           (ARRAY_AGG(nome    ORDER BY aberto_em DESC))[1] AS nome,
+           (ARRAY_AGG(usuario ORDER BY aberto_em DESC))[1] AS usuario,
+           COUNT(*)::int AS pontos,
+           COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(fechado_em, now()) - aberto_em))), 0)::float8 AS seg,
+           BOOL_OR(fechado_em IS NULL) AS em_servico
+    FROM pontos
+    WHERE origem IN ('manual', 'voz')
+      AND kov_msg_id IS NULL
+    GROUP BY discord_id
+    ORDER BY seg DESC`);
+  return rows;
+}
+
 async function totalAluno(discordId) {
   const { rows } = await q(
     `SELECT COUNT(*)::int AS linhas,
@@ -417,7 +434,7 @@ async function setMeta(chave, valor) {
 module.exports = {
   PENDENTE, init, getAberto, getPorId, abrir, definirTarefa, fechar, fecharPorSaida,
   getPendenteReporte, registrarReporte, reportesPendentesAntigos, marcarLembrete,
-  marcarNotion, marcarPlanilha, listarAbertos, resumoPorAluno, totalAluno, historicoAluno,
+  marcarNotion, marcarPlanilha, listarAbertos, resumoPorAluno, resumoPorAlunoSomenteBot, totalAluno, historicoAluno,
   ultimosPontos, ajustarFechamento, importarSaldo, ranking, autoFecharExpirados,
   semanaAtual, periodoSemana, getMeta, setMeta,
   importarKov, kovJaImportado, kovPendentesPlanilha,
