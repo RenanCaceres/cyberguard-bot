@@ -1198,6 +1198,12 @@ async function init(client) {
   if (iniciado) return;
   iniciado = true;
   await pdb.init();
+  if (sheets?.setDiscordClient) sheets.setDiscordClient(client);
+  if (sheets?.atualizarPainelTransparente && process.env.PONTO_SHEET_ID) {
+    setTimeout(() => {
+      sheets.atualizarPainelTransparente().catch((e) => console.error('[ponto] painel transparente:', e.message));
+    }, 10_000).unref?.();
+  }
   // Exige o intent GuildVoiceStates no Client (index.js).
   client.on('voiceStateUpdate', (o, n) => aoMudarVoz(client, o, n).catch((e) => console.error('[ponto] voz:', e)));
   reconciliarVoz(client).catch((e) => console.error('[ponto] reconciliar voz:', e));

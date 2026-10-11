@@ -14,7 +14,7 @@ const dorme = (ms) => new Promise((r) => setTimeout(r, ms));
       const rows = await pdb.historicoAluno(a.discord_id, 100, off);
       for (const r of rows) {
         if (!r.fechado_em) continue; // ponto ainda aberto
-        await sheets.upsertPonto(r);
+        await sheets.upsertPonto(r, { pularPainel: true });
         await pdb.marcarPlanilha(r.id, true);
         n++;
         await dorme(1200); // respeita a cota da API do Google
@@ -22,6 +22,7 @@ const dorme = (ms) => new Promise((r) => setTimeout(r, ms));
       if (rows.length < 100) break;
     }
   }
-  console.log(`${n} ponto(s) sincronizado(s) com a planilha.`);
+  await sheets.atualizarPainelTransparente();
+  console.log(`${n} ponto(s) sincronizado(s) com a planilha e Painel Transparente atualizado.`);
   process.exit(0);
 })().catch((e) => { console.error('ERRO:', e.message); process.exit(1); });

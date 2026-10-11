@@ -309,6 +309,38 @@ function getNomeLegado(discordId) {
     .then((r) => (r.rows[0] ? r.rows[0].nome : null));
 }
 
+/**
+ * Retorna um Map(discord_id -> nome_real) consolidando cadastro_legado e membros
+ * (mesma lógica da hierarquia: membros tem prioridade sobre cadastro_legado).
+ */
+async function obterMapaNomesReais() {
+  const { rows } = await pool.query(`
+    SELECT discord_id, nome FROM cadastro_legado WHERE nome IS NOT NULL AND TRIM(nome) <> ''
+    UNION ALL
+    SELECT discord_id, nome FROM membros WHERE nome IS NOT NULL AND TRIM(nome) <> ''
+  `);
+  const mapa = new Map();
+  for (const r of rows) {
+    mapa.set(String(r.discord_id).trim(), r.nome.trim());
+  }
+  return mapa;
+}
+
+/**
+ * Resolve o nome verdadeiro de um integrante (membros.nome -> cadastro_legado.nome -> fallback).
+ */
+async function resolverNomeReal(discordId, fallback = null) {
+  try {
+    const membro = await getMembro(discordId);
+    if (membro && membro.nome && membro.nome.trim()) return membro.nome.trim();
+    const legado = await getNomeLegado(discordId);
+    if (legado && legado.trim()) return legado.trim();
+  } catch (err) {
+    console.error('[db] erro ao resolver nome real de', discordId, err.message);
+  }
+  return fallback;
+}
+
 function getEstado(chave) {
   return pool
     .query('SELECT valor FROM bot_state WHERE chave = $1', [chave])
@@ -558,6 +590,8 @@ module.exports = {
   registrarRecusa,
   buscarRecusasAnteriores,
   getNomeLegado,
+  obterMapaNomesReais,
+  resolverNomeReal,
   getEstado,
   salvarEstado,
   marcarLembreteResolvido,

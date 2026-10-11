@@ -11,6 +11,7 @@ const {
 } = require('discord.js');
 const cron = require('node-cron');
 const db = require('./db');
+const { renderizarListaMembrosAdvertencia } = require('./advertenciasRender');
 
 // Ajuste aqui se os prazos, o canal ou os autores autorizados mudarem
 const DIAS_PARA_EXPIRAR = 90;
@@ -337,43 +338,139 @@ function montarPainel() {
   return { embeds: [embed], components: [row] };
 }
 
-async function iniciarPainelAbrirAdvertencia(interaction) {
+const POR_PAGINA_MEMBROS = 25;
+
+async function coletarMembrosComNomeReal(guild) {
+  if (guild.members.cache.size <= 2) {
+    await guild.members.fetch().catch(() => {});
+  }
+  const mapaReais = await db.obterMapaNomesReais().catch(() => new Map());
+  const lista = [];
+
+  for (const [, m] of guild.members.cache) {
+    if (m.user.bot) continue;
+    const nomeReal = mapaReais.get(m.id) || m.user.globalName || m.displayName || m.user.username;
+    const nomeDiscord = m.user.username;
+    const avatarUrl = m.user.displayAvatarURL({ extension: 'png', size: 128, forceStatic: true });
+    lista.push({
+      id: m.id,
+      nomeReal,
+      nomeDiscord,
+      avatarUrl,
+    });
+  }
+
+  lista.sort((a, b) => a.nomeReal.localeCompare(b.nomeReal, 'pt-BR'));
+  return lista.map((item, idx) => ({ ...item, numero: idx + 1 }));
+}
+
+async function iniciarPainelAbrirAdvertencia(interaction, pagina = 0, atualizar = false) {
   if (!podeAbrirAdvertencia(interaction.user.id)) {
     return interaction.reply({ content: 'Você não tem permissão para abrir advertências.', ephemeral: true });
   }
 
-  const select = new UserSelectMenuBuilder().setCustomId('advertencia_painel_select_membro').setPlaceholder('Selecione o membro a ser advertido');
+  if (atualizar) {
+    await interaction.deferUpdate();
+  } else {
+    await interaction.deferReply({ ephemeral: true });
+  }
 
-  await interaction.reply({
-    content: 'Quem você vai advertir?',
-    components: [new ActionRowBuilder().addComponents(select)],
-    ephemeral: true,
+  const todosMembros = await coletarMembrosComNomeReal(interaction.guild);
+  if (todosMembros.length === 0) {
+    return interaction.editReply({ content: 'Nenhum integrante encontrado no servidor.', components: [] });
+  }
+
+  const totalPaginas = Math.ceil(todosMembros.length / POR_PAGINA_MEMBROS);
+  const pag = Math.min(Math.max(pagina, 0), totalPaginas - 1);
+  const fatia = todosMembros.slice(pag * POR_PAGINA_MEMBROS, (pag + 1) * POR_PAGINA_MEMBROS);
+
+  const bufferImagem = await renderizarListaMembrosAdvertencia(fatia, {
+    paginaAtual: pag + 1,
+    totalPaginas,
+    totalMembros: todosMembros.length,
+  });
+
+  const embed = new EmbedBuilder()
+    .setTitle('⚠️ Abrir Advertência — Selecione o Integrante')
+    .setDescription(
+      'Confira abaixo a foto do Discord e o **nome verdadeiro** de cada integrante (mesma base da hierarquia) e selecione no menu quem será advertido:'
+    )
+    .setColor(0xd85a30)
+    .setImage('attachment://membros_advertencia.png')
+    .setFooter({ text: `Página ${pag + 1} de ${totalPaginas} • Total: ${todosMembros.length} integrante(s)` });
+
+  const select = new StringSelectMenuBuilder()
+    .setCustomId('advertencia_painel_select_membro_str')
+    .setPlaceholder('Selecione o integrante pelo nome verdadeiro')
+    .addOptions(
+      fatia.map((m) => ({
+        label: `${m.numero}. ${m.nomeReal}`.slice(0, 100),
+        value: m.id,
+        description: `Discord: @${m.nomeDiscord}`.slice(0, 100),
+      }))
+    );
+
+  const components = [new ActionRowBuilder().addComponents(select)];
+
+  if (totalPaginas > 1) {
+    components.push(
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`advertencia_painel_membros_pag_${pag - 1}`)
+          .setLabel('◀ Página anterior')
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(pag === 0),
+        new ButtonBuilder()
+          .setCustomId(`advertencia_painel_membros_pag_${pag + 1}`)
+          .setLabel('Próxima página ▶')
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(pag >= totalPaginas - 1)
+      )
+    );
+  }
+
+  await interaction.editReply({
+    content: '',
+    embeds: [embed],
+    files: [{ attachment: bufferImagem, name: 'membros_advertencia.png' }],
+    components,
   });
 }
 
 async function handleSelecaoMembro(interaction) {
-  const membro = interaction.users.first();
-  const registro = await db.getMembro(membro.id);
-  const nomeReal = (registro && registro.nome) || membro.tag;
+  const membroId = interaction.isUserSelectMenu() ? interaction.users.first().id : interaction.values[0];
+  const usuario = await interaction.client.users.fetch(membroId);
+  const nomeReal = await db.resolverNomeReal(membroId, usuario.globalName || usuario.username);
+  const avatarUrl = usuario.displayAvatarURL({ extension: 'png', size: 256, forceStatic: true });
+
   const [categorias, pendenteAtual, filaMembro] = await Promise.all([
     db.getCategoriasAdvertencia(),
-    db.getAdvertenciaPendenteDoUsuario(membro.id),
-    db.listarFilaAdvertencias(membro.id),
+    db.getAdvertenciaPendenteDoUsuario(membroId),
+    db.listarFilaAdvertencias(membroId),
   ]);
 
   const select = new StringSelectMenuBuilder()
-    .setCustomId(`advertencia_painel_select_categoria_${membro.id}`)
+    .setCustomId(`advertencia_painel_select_categoria_${membroId}`)
     .setPlaceholder('Selecione a categoria')
     .addOptions(categorias.map((c) => ({ label: c.nome, value: String(c.id), description: c.comportamento.slice(0, 100) })));
 
   const avisoFila = pendenteAtual
-    ? `\n> ⏳ **Atenção:** Este membro já possui a advertência **#${pendenteAtual.id}** pendente (${pendenteAtual.status})${
+    ? `\n\n⏳ **Atenção:** Este integrante já possui a advertência **#${pendenteAtual.id}** pendente (${pendenteAtual.status})${
         filaMembro.length > 0 ? ` e outras **${filaMembro.length}** na fila` : ''
       }. A nova advertência será adicionada automaticamente à **fila** para envio assim que a atual for concluída.`
     : '';
 
+  const embedMembro = new EmbedBuilder()
+    .setAuthor({ name: nomeReal, iconURL: avatarUrl })
+    .setThumbnail(avatarUrl)
+    .setTitle(`Advertindo: ${nomeReal}`)
+    .setDescription(`**Integrante:** **${nomeReal}** (<@${membroId}>)\n**Discord:** \`@${usuario.username}\`${avisoFila}\n\nSelecione abaixo a categoria da advertência:`)
+    .setColor(0xd85a30);
+
   await interaction.update({
-    content: `Advertindo **${nomeReal}** (@${membro.tag}).${avisoFila}\nSelecione a categoria:`,
+    content: '',
+    embeds: [embedMembro],
+    files: [],
     components: [new ActionRowBuilder().addComponents(select)],
   });
 }
@@ -436,12 +533,9 @@ async function handleModalPainel(interaction) {
     .filter(Boolean)
     .map((link) => ({ tipo: 'link', path: link }));
 
-  const registro = await db.getMembro(pendente.membroId);
-  let nomeReal = registro && registro.nome;
-  if (!nomeReal) {
-    const usuario = await interaction.client.users.fetch(pendente.membroId);
-    nomeReal = usuario.tag;
-  }
+  const usuario = await interaction.client.users.fetch(pendente.membroId).catch(() => null);
+  const fallbackNome = (usuario && (usuario.globalName || usuario.username)) || pendente.membroId;
+  const nomeReal = await db.resolverNomeReal(pendente.membroId, fallbackNome);
 
   const { advertencia, enfileirada, pendenteAtual, posicaoFila } = await finalizarAbertura(interaction, {
     membroId: pendente.membroId,
@@ -461,7 +555,7 @@ async function handleModalPainel(interaction) {
     return;
   }
 
-  await interaction.reply({ content: `✅ Advertência #${advertencia.id} registrada e enviada para ${nomeReal}.`, ephemeral: true });
+  await interaction.reply({ content: `✅ Advertência #${advertencia.id} registrada e enviada para **${nomeReal}**.`, ephemeral: true });
 }
 
 async function handlePainelFila(interaction) {
@@ -865,6 +959,10 @@ async function handleAdvertenciaInteraction(interaction) {
   }
 
   if (interaction.isStringSelectMenu()) {
+    if (interaction.customId === 'advertencia_painel_select_membro_str') {
+      await handleSelecaoMembro(interaction);
+      return true;
+    }
     if (interaction.customId === 'advertencia_fila_select') {
       await handleFilaSelect(interaction);
       return true;
@@ -878,7 +976,12 @@ async function handleAdvertenciaInteraction(interaction) {
 
   if (interaction.isButton()) {
     if (interaction.customId === 'advertencia_painel_abrir') {
-      await iniciarPainelAbrirAdvertencia(interaction);
+      await iniciarPainelAbrirAdvertencia(interaction, 0, false);
+      return true;
+    }
+    const pagMembrosMatch = interaction.customId.match(/^advertencia_painel_membros_pag_(\d+)$/);
+    if (pagMembrosMatch) {
+      await iniciarPainelAbrirAdvertencia(interaction, Number(pagMembrosMatch[1]), true);
       return true;
     }
     if (interaction.customId === 'advertencia_painel_fila') {
