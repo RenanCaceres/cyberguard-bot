@@ -2,6 +2,17 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 
+if (!Promise.withResolvers) {
+  Promise.withResolvers = function () {
+    let resolve, reject;
+    const promise = new Promise((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  };
+}
+
 async function extrairDadosDePdf(caminhoPdf) {
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const data = new Uint8Array(fs.readFileSync(caminhoPdf));

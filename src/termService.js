@@ -7,6 +7,17 @@ const Docxtemplater = require('docxtemplater');
 const { PDFDocument, rgb } = require('pdf-lib');
 const config = require('./config');
 
+if (!Promise.withResolvers) {
+  Promise.withResolvers = function () {
+    let resolve, reject;
+    const promise = new Promise((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  };
+}
+
 const execFileAsync = promisify(execFile);
 
 async function converterParaPdf(caminhoDocx, dirSaida) {

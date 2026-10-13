@@ -2,6 +2,17 @@ const fs = require('fs');
 const { PDFDocument, PDFName } = require('pdf-lib');
 const { validarData } = require('./validators');
 
+if (!Promise.withResolvers) {
+  Promise.withResolvers = function () {
+    let resolve, reject;
+    const promise = new Promise((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  };
+}
+
 function dataHojeBrasil() {
   const formatter = new Intl.DateTimeFormat('pt-BR', {
     timeZone: 'America/Sao_Paulo',
