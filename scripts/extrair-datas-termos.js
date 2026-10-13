@@ -13,6 +13,14 @@ if (!Promise.withResolvers) {
   };
 }
 
+function formatarDataIso(diaStr, mesStr, anoStr) {
+  const d = diaStr.replace(/\s+/g, '').padStart(2, '0');
+  const m = mesStr.replace(/\s+/g, '').padStart(2, '0');
+  const y = anoStr.replace(/\s+/g, '');
+  if (d.length !== 2 || m.length !== 2 || y.length !== 4) return null;
+  return `${y}-${m}-${d}`;
+}
+
 async function extrairDadosDePdf(caminhoPdf) {
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const data = new Uint8Array(fs.readFileSync(caminhoPdf));
@@ -26,35 +34,70 @@ async function extrairDadosDePdf(caminhoPdf) {
     textoCompleto += ` ${strings}`;
   }
 
-  // Regex para RA (apenas dígitos)
-  const matchRa = textoCompleto.match(/RA:\s*([0-9]{5,8})/i);
+  // Regex para RA (ex: 2525526, A2865688)
+  const matchRa = textoCompleto.match(/RA:\s*([a-zA-Z0-9]{5,10})/i);
   const ra = matchRa ? matchRa[1].trim() : null;
 
-  // Regex para Data de Início
-  // No termo de voluntariado da UTFPR costuma aparecer: "Início: 01/05/2026" ou "05/2026"
-  const matchInicioCompleto = textoCompleto.match(/In[íi]cio:\s*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/i);
+  // Nome do voluntário (especificamente na seção 'Dados do(a) Voluntário(a)', para não pegar a coordenação)
+  const matchVoluntario = textoCompleto.match(
+    /Dados do\(a\) Volunt[aá]rio\(a\)[\s\S]*?Nome:\s*([^,\n\r]+?)(?=\s+Data nascimento|\s+CPF|\s+É estudante|\s+Curso)/i
+  );
+  let nome = matchVoluntario ? matchVoluntario[1].trim() : null;
+  if (!nome) {
+    // Fallback: tenta match após "Voluntário(a)" em geral
+    const matchAlt = textoCompleto.match(/Volunt[aá]rio\(a\)[\s\S]*?Nome:\s*([^,\n\r]+?)(?=\s+Data nascimento|\s+CPF)/i);
+    if (matchAlt) nome = matchAlt[1].trim();
+  }
+
+  // Data de Entrada / Assinatura (na página 2 ou 3, em 'Local: Cornélio Procópio Data: DD/MM/AAAA' ou 'ACEITE E CONCORDÂNCIA')
+  let dataInicioIso = null;
   let dataInicio = null;
   let mesAnoInicio = null;
 
-  if (matchInicioCompleto) {
-    dataInicio = matchInicioCompleto[1];
-    const partes = dataInicio.split('/');
-    mesAnoInicio = `${partes[1]}/${partes[2]}`;
-  } else {
-    // Tenta formato mm/aaaa direto
-    const matchMesAno = textoCompleto.match(/In[íi]cio:\s*([0-9]{2}\/[0-9]{4})/i);
-    if (matchMesAno) {
-      mesAnoInicio = matchMesAno[1];
+  const matchDataAceite =
+    textoCompleto.match(/Local:.*?Data:\s*([0-9\s]{1,4})\s*\/\s*([0-9\s]{1,4})\s*\/\s*([0-9\s]{4,6})/i) ||
+    textoCompleto.match(/ACEITE E CONCORD[ÂA]NCIA[\s\S]*?Data:\s*([0-9\s]{1,4})\s*\/\s*([0-9\s]{1,4})\s*\/\s*([0-9\s]{4,6})/i);
+
+  if (matchDataAceite) {
+    dataInicioIso = formatarDataIso(matchDataAceite[1], matchDataAceite[2], matchDataAceite[3]);
+  }
+
+  // Se não achou com o prefixo 'Local:', busca 'Data: DD/MM/AAAA' geral (excluindo Data nascimento)
+  if (!dataInicioIso) {
+    const todosMatches = [
+      ...textoCompleto.matchAll(/(?:Data|data):\s*([0-9\s]{1,4})\s*\/\s*([0-9\s]{1,4})\s*\/\s*([0-9\s]{4,6})/gi),
+    ];
+    for (const m of todosMatches) {
+      const iso = formatarDataIso(m[1], m[2], m[3]);
+      // Não é data de nascimento (anos 199x ou 200x até 2008)
+      if (iso && !iso.startsWith('199') && !iso.startsWith('200')) {
+        dataInicioIso = iso;
+        break;
+      }
     }
   }
 
-  // Regex para Data de Assinatura
-  const matchDataAssinatura = textoCompleto.match(/Data:\s*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/i);
-  const dataAssinatura = matchDataAssinatura ? matchDataAssinatura[1] : null;
+  // Caso especial: termos com data '2X/06/2026'
+  if (!dataInicioIso) {
+    const match2X = textoCompleto.match(/Data:\s*2[xX]\s*\/\s*([0-9]{2})\s*\/\s*([0-9]{4})/i);
+    if (match2X) {
+      dataInicioIso = `${match2X[2]}-${match2X[1]}-25`;
+    }
+  }
 
-  // Nome do voluntário (geralmente entre "VOLUNTÁRIO(A):" ou no início da tabela)
-  const matchNome = textoCompleto.match(/Nome:\s*([^,\n\r]+?)(?=\s+Data nascimento|\s+CPF|\s+Curso)/i);
-  const nome = matchNome ? matchNome[1].trim() : null;
+  // Assinatura digital gov.br (ex: 13/07/2026 14:30:00)
+  if (!dataInicioIso) {
+    const matchGovBr = textoCompleto.match(/([0-9]{2})\/([0-9]{2})\/([0-9]{4})\s+[0-9]{2}:[0-9]{2}:[0-9]{2}/);
+    if (matchGovBr) {
+      dataInicioIso = formatarDataIso(matchGovBr[1], matchGovBr[2], matchGovBr[3]);
+    }
+  }
+
+  if (dataInicioIso) {
+    const [y, m, d] = dataInicioIso.split('-');
+    dataInicio = `${d}/${m}/${y}`;
+    mesAnoInicio = `${m}/${y}`;
+  }
 
   return {
     caminho: caminhoPdf,
@@ -62,8 +105,8 @@ async function extrairDadosDePdf(caminhoPdf) {
     ra,
     nome,
     dataInicio,
+    dataInicioIso,
     mesAnoInicio,
-    dataAssinatura,
   };
 }
 

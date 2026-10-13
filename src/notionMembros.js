@@ -47,26 +47,39 @@ async function req(method, path, body) {
 }
 
 /**
- * Busca a página de um membro no Notion pelo Discord ID ou RA
+ * Busca a página de um membro no Notion pelo RA ou Nome
  */
-async function buscarPaginaMembro(discordId, ra = null) {
+async function buscarPaginaMembro(discordId, ra = null, nome = null) {
   const { dbId } = cfg();
   if (!dbId) return null;
 
   try {
-    const filtros = [
-      {
-        property: 'Discord ID',
-        rich_text: { equals: String(discordId) },
-      },
-    ];
+    let nomeBuscar = nome;
+    let raBuscar = ra;
 
-    if (ra) {
+    if (!nomeBuscar || !raBuscar) {
+      const regDb = await db.getMembro(discordId).catch(() => null);
+      if (regDb) {
+        if (!nomeBuscar && regDb.nome) nomeBuscar = regDb.nome;
+        if (!raBuscar && regDb.ra) raBuscar = regDb.ra;
+      }
+    }
+
+    const filtros = [];
+    if (raBuscar) {
       filtros.push({
         property: 'RA',
-        rich_text: { equals: String(ra) },
+        rich_text: { equals: String(raBuscar).trim() },
       });
     }
+    if (nomeBuscar) {
+      filtros.push({
+        property: 'Nome',
+        title: { equals: String(nomeBuscar).trim() },
+      });
+    }
+
+    if (filtros.length === 0) return null;
 
     const r = await req('POST', `/databases/${dbId}/query`, {
       filter: filtros.length > 1 ? { or: filtros } : filtros[0],
@@ -88,7 +101,7 @@ async function registrarMembroAtivo(membro) {
   if (!token || !dbId) return;
 
   try {
-    const existente = await buscarPaginaMembro(membro.discord_id, membro.ra);
+    const existente = await buscarPaginaMembro(membro.discord_id, membro.ra, membro.nome);
 
     const propriedades = {
       Nome: {
@@ -97,24 +110,20 @@ async function registrarMembroAtivo(membro) {
       Status: {
         select: { name: 'Ativo' },
       },
-      'Discord ID': {
-        rich_text: [{ text: { content: String(membro.discord_id) } }],
-      },
       RA: {
-        rich_text: [{ text: { content: String(membro.ra || '') } }],
+        rich_text: membro.ra ? [{ text: { content: String(membro.ra).trim() } }] : [],
+      },
+      'Data de Saída': {
+        date: null,
       },
     };
-
-    if (membro.curso) {
-      propriedades.Curso = { rich_text: [{ text: { content: membro.curso } }] };
-    }
 
     const setorNormalizado = normalizarSetor(membro.area_interesse);
     if (setorNormalizado) {
       propriedades.Setor = { select: { name: setorNormalizado } };
     }
 
-    if (membro.data_inicio || membro.data_aprovacao) {
+    if (membro.data_inicio || membro.data_aprovacao || membro.created_at) {
       let dataIso = null;
       if (membro.data_inicio && membro.data_inicio.includes('/')) {
         const partes = membro.data_inicio.split('/');
@@ -126,8 +135,8 @@ async function registrarMembroAtivo(membro) {
           dataIso = `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
         }
       }
-      if (!dataIso && membro.data_aprovacao) {
-        dataIso = new Date(membro.data_aprovacao).toISOString().split('T')[0];
+      if (!dataIso && (membro.data_aprovacao || membro.created_at)) {
+        dataIso = new Date(membro.data_aprovacao || membro.created_at).toISOString().split('T')[0];
       }
       if (dataIso) {
         propriedades['Data de Entrada'] = { date: { start: dataIso } };
@@ -150,32 +159,26 @@ async function registrarMembroAtivo(membro) {
 }
 
 /**
- * Atualiza o status do membro para Egresso / Desligado ou Expulso ao sair do Discord
+ * Atualiza o status do membro para Desligado / Egresso ao sair do Discord
  */
-async function registrarSaidaMembro(discordId, { motivo = null, expulso = false } = {}) {
+async function registrarSaidaMembro(discordId, { nome = null, ra = null, expulso = false } = {}) {
   const { dbId, token } = cfg();
   if (!token || !dbId) return;
 
   try {
-    const pagina = await buscarPaginaMembro(discordId);
+    const pagina = await buscarPaginaMembro(discordId, ra, nome);
     if (!pagina) {
       console.warn(`[notion-membros] Página não encontrada no Notion para o Discord ID ${discordId}`);
       return;
     }
 
     const dataHojeIso = new Date().toISOString().split('T')[0];
-    const novoStatus = expulso ? 'Expulso' : 'Egresso / Desligado';
+    const novoStatus = expulso ? 'Expulso' : 'Desligado / Egresso';
 
     const propriedades = {
       Status: { select: { name: novoStatus } },
       'Data de Saída': { date: { start: dataHojeIso } },
     };
-
-    if (motivo) {
-      propriedades['Motivo da Saída'] = {
-        rich_text: [{ text: { content: motivo.slice(0, 2000) } }],
-      };
-    }
 
     await req('PATCH', `/pages/${pagina.id}`, { properties: propriedades });
     console.log(`[notion-membros] Saída do membro (${discordId}) registrada no Notion como "${novoStatus}".`);
