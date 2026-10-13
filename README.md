@@ -8,7 +8,7 @@
 </a>
 
 <img
-  src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=19&duration=3000&pause=1000&color=A78BFA&center=true&vCenter=true&width=800&lines=Sistema+Integrado+de+Gest%C3%A3o+e+Automa%C3%A7%C3%A3o+Discord;Ponto+Eletr%C3%B4nico+Inteligente+com+Notion+%26+Sheets;Onboarding+Automatizado+com+Assinatura+Gov.br;Atas+de+Reuni%C3%A3o+com+Transcri%C3%A7%C3%A3o+Gemini+AI;Sistema+Disciplinar+Completo+com+Contradit%C3%B3rio"
+  src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=19&duration=3000&pause=1000&color=A78BFA&center=true&vCenter=true&width=800&lines=Sistema+Integrado+de+Gest%C3%A3o+e+Automa%C3%A7%C3%A3o+Discord;Ponto+Eletr%C3%B4nico+Inteligente+com+Notion+%26+Sheets;Onboarding+Automatizado+com+Assinatura+Gov.br;Declara%C3%A7%C3%A3o+de+Voluntariado+com+Assinatura+Digital;Atas+de+Reuni%C3%A3o+com+Transcri%C3%A7%C3%A3o+Gemini+AI;Sistema+Disciplinar+Completo+com+Contradit%C3%B3rio"
   alt="Typing SVG"
 />
 
@@ -75,7 +75,18 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
 
 ---
 
-### ⚖️ 3. Sistema Disciplinar & Advertências com Contraditório
+### 📜 3. Emissão de Declaração de Voluntariado & Assinatura Digital Gov.br
+- **Solicitação Autônoma no Discord (`/declaracao solicitar`)**: O acadêmico solicita sua declaração de participação com um único comando. O bot valida o cadastro (Nome, RA, Curso, Data de Início e regime de 10 horas semanais) e gera um código rastreável de protocolo (`#DECL-...`).
+- **Geração Dinâmica de Documento Oficial**: O bot mescla os dados cadastrais diretamente no template institucional da UTFPR e gera o PDF oficial com certificação de protocolo.
+- **Tramitação por E-mail Institucional (SMTP)**: O arquivo gerado é despachado automaticamente para a caixa de e-mail do Coordenador do Projeto (**Prof. André Luiz Przybysz**) com as instruções de assinatura digital.
+- **Assinatura Digital ICP-Brasil / Gov.br**: O coordenador assina o documento pelo portal Gov.br (com validade jurídica garantida pela Lei Federal nº 14.063/2020) e responde ao mesmo e-mail anexando o PDF assinado.
+- **Monitoramento e Captura Autônoma (IMAP)**: Um serviço em segundo plano checa a caixa de entrada a cada minuto, identifica a mensagem pelo código `#DECL-...`, faz o download do anexo assinado e valida sua integridade.
+- **Entrega Imediata na DM do Aluno**: Assim que o documento assinado é processado, o bot realiza a entrega do PDF final diretamente na DM do Discord do estudante e emite notificação comprobatória com cópia no canal do RH.
+- **Acompanhamento com Sincronização em Tempo Real (`/declaracao status`)**: Permite ao aluno acompanhar a situação do documento (`Aguardando assinatura` ou `Assinada e Entregue`), disparando uma checagem IMAP imediata na caixa de entrada para detecção instantânea.
+
+---
+
+### ⚖️ 4. Sistema Disciplinar & Advertências com Contraditório
 - **Gestão de Infrações (`/advertir`, `/painel-advertencias`)**: Abertura de advertências categorizadas por severidade (*Leve*, *Média*, *Grave*), com descrição, evidências anexadas e histórico associado.
 - **Fila de Advertências Automática**: Caso o membro já possua uma advertência aguardando ciência/análise, novas advertências aplicadas entram automaticamente na **fila (`na_fila`)** e são disparadas sozinhas assim que a anterior é concluída (com opção de gerenciamento manual pelo painel `⏳ Fila de Advertências`).
 - **Progressão e Reincidência Automática**: Cálculo automático do agravamento da categoria em caso de reincidência (inclusive validando advertências em andamento/fila e revalidando antes do disparo).
@@ -86,7 +97,7 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
 
 ---
 
-### 🎙️ 4. Atas de Reunião com Inteligência Artificial (Gemini)
+### 🎙️ 5. Atas de Reunião com Inteligência Artificial (Gemini)
 - **Gravação de Áudio Integrada (`/reuniao`)**: Captura áudio de salas de voz via Discord/OBS com suporte a múltiplos participantes simultâneos.
 - **Transcrição e Resumo via Gemini AI**: Processamento do áudio com a API do Google Gemini (`gemini-2.5-flash`), sintetizando:
   - Resumo executivo da pauta.
@@ -96,7 +107,7 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
 
 ---
 
-### 👥 5. Hierarquia Visual & Identidade do Servidor
+### 👥 6. Hierarquia Visual & Identidade do Servidor
 - **Organograma Dinâmico Renderizado**: Geração de imagem gráfica com `@napi-rs/canvas` refletindo a estrutura viva do servidor (Presidente, Purple Team, Líderes e membros dos times setoriais).
 - **Cartões de Boas-Vindas e Despedida**: Geração automática de cards ilustrados com avatar e nome dos membros em eventos de entrada e saída.
 
@@ -114,6 +125,7 @@ flowchart TD
 
     subgraph Core [" CyberGuard Bot Core (Node.js) "]
         Onboarding[Onboarding & Gov.br Engine]
+        Declaracao[Declarações & IMAP Worker]
         Ponto[Ponto Eletrônico v2 & Idle Checker]
         Disciplinar[Módulo de Advertências & Contraditório]
         Reuniao[Áudio Recorder & Gemini Engine]
@@ -126,6 +138,7 @@ flowchart TD
         Sheets[(Google Sheets API)]
         Gemini[(Google Gemini AI)]
         SMTP[(Serviço de E-mail SMTP)]
+        IMAP[(Servidor IMAP / Leitura)]
         LibreOffice[LibreOffice Headless]
     end
 
@@ -136,6 +149,10 @@ flowchart TD
     Onboarding --> LibreOffice
     Onboarding --> SMTP
     Onboarding --> Sheets
+    Declaracao --> LibreOffice
+    Declaracao --> SMTP
+    Declaracao --> IMAP
+    Declaracao --> Postgres
     Ponto --> Notion
     Ponto --> Sheets
     Ponto --> CanvasRender
@@ -168,7 +185,7 @@ flowchart TD
 | **Integração em Nuvem** | `Google APIs` & `Notion Client` | Sincronização contínua com Google Sheets e banco de dados do Notion |
 | **Processamento de Docs** | `docxtemplater`, `pizzip`, `pdf-lib` | Automação e manipulação de arquivos DOCX e PDF com AcroForms |
 | **Renderização Gráfica** | `@napi-rs/canvas` | Criação server-side de rankings, organogramas e cartões comemorativos |
-| **Serviços de Sistema** | `node-cron`, `nodemailer`, `LibreOffice` | Agendamentos periódicos, disparo de e-mails corporativos e conversão PDF |
+| **Serviços de Sistema** | `node-cron`, `nodemailer`, `imapflow`, `LibreOffice` | Agendamentos periódicos, disparo SMTP, escuta IMAP e conversão PDF |
 
 ---
 
@@ -176,6 +193,8 @@ flowchart TD
 
 | Comando | Acesso | Descrição |
 | :--- | :--- | :--- |
+| `/declaracao solicitar` | Qualquer Membro | Solicita emissão da declaração oficial de voluntariado com dados e protocolo |
+| `/declaracao status` | Qualquer Membro | Consulta o andamento da declaração e sincroniza respostas de e-mail em tempo real |
 | `/painel-ponto` | Membros & RH | Abre o painel interativo de registro de ponto e consulta de horas |
 | `/ajustar-ponto` | Exclusivo RH | Permite ajustar horários de registros passados com notificação em DM |
 | `/importar-horas` | Exclusivo RH | Importa e recalcula históricos consolidados de membros |
@@ -256,12 +275,17 @@ pm2 save
 | `GEMINI_API_KEY` | `AIza...` | Chave de API do Google Gemini para transcrição de atas |
 | `CANAL_ADVERTENCIAS_ID` | `154...` | Canal restrito onde ocorrem as notificações de moderação |
 | `AUTORES_ADVERTENCIA_IDS`| `3717...,7366...` | IDs dos membros autorizados a emitir advertências |
+| `EMAIL_PROFESSOR_COORDENADOR` | `andre.przybysz@utfpr.edu.br` | E-mail do professor coordenador que assina as declarações |
+| `IMAP_HOST` | `imap.gmail.com` | Host do servidor IMAP para leitura autônoma das respostas |
+| `IMAP_PORT` | `993` | Porta de conexão segura IMAP com suporte a TLS |
+| `IMAP_USER` / `IMAP_PASS` | `bot@utfpr...`, `app-pass` | Usuário e Senha de App da conta de e-mail monitorada |
 
 ---
 
 # 📄 Manuais Operacionais em PDF
 
 A pasta `docs/manuais/` conta com documentações e manuais completos gerados para o projeto:
+- 📜 **`Manual_Membro_Declaracao_Voluntariado.pdf`**: Guia para membros sobre emissão de declarações de voluntariado, fluxo de assinatura digital no Gov.br, prazos e entrega por DM.
 - 📘 **`Manual_Membro_Ponto.pdf`**: Guia para membros sobre o ponto manual, registro por voz e confirmação de presença.
 - 📕 **`Manual_Membro_Advertencias.pdf`**: Direitos, prazos e fluxo de contraditório para membros advertidos.
 - 📗 **`Manual_Lider_RH_Ponto.pdf`**: Manual administrativo de ajuste de ponto, regras do RH e auditoria de horas.
