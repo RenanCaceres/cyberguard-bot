@@ -11,12 +11,6 @@ module.exports = {
       sub
         .setName('solicitar')
         .setDescription('Solicita a emissão da declaração de participação para assinatura do coordenador')
-        .addStringOption((opt) =>
-          opt
-            .setName('data_inicio')
-            .setDescription('Mês e ano de início (ex: 05/2026). Deixe em branco para usar o cadastrado.')
-            .setRequired(false)
-        )
     )
     .addSubcommand((sub) =>
       sub
@@ -94,8 +88,7 @@ module.exports = {
         });
       }
 
-      const dataInicioInformada = interaction.options.getString('data_inicio');
-      const dataInicioFinal = dataInicioInformada || membro.data_inicio || '05/2026';
+      const dataInicioFinal = membro.data_inicio || '05/2026';
 
       const codigo = `DECL-${membro.ra}-${Date.now().toString().slice(-4)}`;
 
