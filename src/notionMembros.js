@@ -6,8 +6,22 @@ const BASE = 'https://api.notion.com/v1';
 
 const cfg = () => ({
   token: process.env.NOTION_TOKEN,
-  dbId: process.env.NOTION_MEMBROS_DB_ID || '3f8c798fd40780399b3ccb530c901967',
+  dbId: process.env.NOTION_MEMBROS_DB_ID || '3f8c798f-d407-815a-9d95-eb30329ba64d',
 });
+
+function normalizarSetor(area) {
+  if (!area) return null;
+  const a = area.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (a.includes('blue')) return 'Blue Team';
+  if (a.includes('red') || a.includes('etico')) return 'Red Team';
+  if (a.includes('design')) return 'Design';
+  if (a.includes('hardware')) return 'Hardware Hacking';
+  if (a.includes('observatorio')) return 'Observatório';
+  if (a.includes('humano') || a.includes('rh')) return 'Recursos Humanos';
+  if (a.includes('social') || a.includes('copy')) return 'Social Media & Copy';
+  if (a.includes('lider')) return 'Líderes';
+  return area.trim();
+}
 
 async function req(method, path, body) {
   const { token } = cfg();
@@ -92,14 +106,32 @@ async function registrarMembroAtivo(membro) {
     };
 
     if (membro.curso) {
-      propriedades.Curso = { select: { name: membro.curso } };
+      propriedades.Curso = { rich_text: [{ text: { content: membro.curso } }] };
     }
-    if (membro.area_interesse) {
-      propriedades.Time = { select: { name: membro.area_interesse } };
+
+    const setorNormalizado = normalizarSetor(membro.area_interesse);
+    if (setorNormalizado) {
+      propriedades.Setor = { select: { name: setorNormalizado } };
     }
+
     if (membro.data_inicio || membro.data_aprovacao) {
-      const dataIso = (membro.data_aprovacao ? new Date(membro.data_aprovacao) : new Date()).toISOString().split('T')[0];
-      propriedades['Data de Entrada'] = { date: { start: dataIso } };
+      let dataIso = null;
+      if (membro.data_inicio && membro.data_inicio.includes('/')) {
+        const partes = membro.data_inicio.split('/');
+        if (partes.length === 2) {
+          // mm/aaaa -> aaaa-mm-01
+          dataIso = `${partes[1]}-${partes[0].padStart(2, '0')}-01`;
+        } else if (partes.length === 3) {
+          // dd/mm/aaaa -> aaaa-mm-dd
+          dataIso = `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
+        }
+      }
+      if (!dataIso && membro.data_aprovacao) {
+        dataIso = new Date(membro.data_aprovacao).toISOString().split('T')[0];
+      }
+      if (dataIso) {
+        propriedades['Data de Entrada'] = { date: { start: dataIso } };
+      }
     }
 
     if (existente) {
