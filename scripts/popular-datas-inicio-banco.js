@@ -4,13 +4,15 @@ const db = require('../src/db');
 
 async function main() {
   const relatorioPath = path.resolve('./temp/extracao_termos_resultado.json');
-  if (!fs.existsSync(relatorioPath)) {
-    console.error(`Relatório de extração não encontrado em ${relatorioPath}. Execute scripts/extrair-datas-termos.js primeiro.`);
-    process.exit(1);
-  }
+  let itens = [];
 
-  const itens = JSON.parse(fs.readFileSync(relatorioPath, 'utf8'));
-  console.log(`Carregados ${itens.length} registros extraídos dos termos.\n`);
+  if (fs.existsSync(relatorioPath)) {
+    itens = JSON.parse(fs.readFileSync(relatorioPath, 'utf8'));
+    console.log(`Carregados ${itens.length} registros extraídos dos termos.\n`);
+  } else {
+    console.log('Arquivo temp/extracao_termos_resultado.json não encontrado.');
+    console.log('Aplicando início padrão (05/2026) diretamente aos membros cadastrados no banco...');
+  }
 
   let atualizados = 0;
   for (const item of itens) {
