@@ -24,16 +24,19 @@ async function extrairDadosCompletos(caminhoPdf) {
   const content = await page.getTextContent();
   const text = content.items.map((it) => it.str).join(' ');
 
+  const idxVoluntario = text.search(/Dados do(\(a\))?\s*Volunt[aá]rio/i);
+  const textoVoluntario = idxVoluntario !== -1 ? text.slice(idxVoluntario) : text;
+
   // Nome: Nome Completo (até Curso, Data nascimento ou CPF)
-  const matchNome = text.match(/Nome:\s*([^\n\r,]+?)(?=\s+Data nascimento|\s+CPF|\s+Curso|\s+Nacionalidade)/i);
+  const matchNome = textoVoluntario.match(/Nome:\s*([^\n\r,]+?)(?=\s+Data nascimento|\s+CPF|\s+Curso|\s+Nacionalidade)/i);
   const nome = matchNome ? matchNome[1].trim() : null;
 
   // Curso: Nome do Curso (até Período, RA, etc.)
-  const matchCurso = text.match(/Curso:\s*([^\n\r,]+?)(?=\s+Per[ií]odo|\s+RA:|\s+Data|\s+Endere[çc]o)/i);
+  const matchCurso = textoVoluntario.match(/Curso:\s*([^\n\r,]+?)(?=\s+Per[ií]odo|\s+RA:|\s+Data|\s+Endere[çc]o)/i);
   const curso = matchCurso ? matchCurso[1].trim() : null;
 
   // RA: Apenas números
-  const matchRa = text.match(/RA:\s*([0-9]{5,8})/i);
+  const matchRa = textoVoluntario.match(/RA:\s*([0-9]{5,8})/i);
   const ra = matchRa ? matchRa[1].trim() : null;
 
   return { nome, curso, ra };
