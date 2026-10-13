@@ -12,7 +12,9 @@ const advertenciaCommand = require('../commands/advertir/advertirCommand');
 const painelAdvertenciasCommand = require('../commands/painel-advertencias/painelAdvertenciasCommand');
 const minhasAdvertenciasCommand = require('../commands/minhas-advertencias/minhasAdvertenciasCommand');
 const advertenciasCommand = require('../commands/advertencias/advertenciasCommand');
+const declaracaoCommand = require('../commands/declaracao/declaracaoCommand');
 const { handleAdvertenciaInteraction, iniciarCronAdvertencias } = require('./advertencias');
+const { iniciarCronDeclaracoes } = require('./declaracaoEmail');
 const hierarquia = require('./hierarquia');
 const { popularCacheDeMembros } = require('./popularCache');
 const ponto = require('./ponto');
@@ -34,6 +36,7 @@ client.once('ready', async () => {
   await db.initSchema();
   iniciarLembretes(client);
   iniciarCronAdvertencias(client);
+  iniciarCronDeclaracoes(client);
   ponto.init(client)
     .then(() => kovLogs.init(client))
     .catch((e) => console.error('[ponto] init:', e));
@@ -86,6 +89,11 @@ client.on('interactionCreate', async (interaction) => {
 
   if (interaction.isChatInputCommand() && interaction.commandName === 'advertencias') {
     advertenciasCommand.execute(interaction).catch((err) => console.error('Erro no comando /advertencias:', err));
+    return;
+  }
+
+  if (interaction.isChatInputCommand() && interaction.commandName === 'declaracao') {
+    declaracaoCommand.execute(interaction).catch((err) => console.error('Erro no comando /declaracao:', err));
     return;
   }
 
@@ -160,6 +168,13 @@ client.on('guildMemberRemove', async (member) => {
       discordTag: member.user.tag,
       avatarUrl: member.user.displayAvatarURL({ extension: 'png', size: 256 }),
     });
+
+    try {
+      const { registrarSaidaMembro } = require('./notionMembros');
+      await registrarSaidaMembro(member.id);
+    } catch (errNotion) {
+      console.error('Erro ao atualizar saída no Notion:', errNotion.message);
+    }
 
     if (registro && registro.status === 'concluido') {
       try {

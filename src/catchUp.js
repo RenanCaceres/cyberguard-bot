@@ -140,6 +140,13 @@ async function processarSaidasPerdidas(client, membrosAtuais) {
         console.error('Erro ao postar cartão de saída retroativo de', registro.discord_id, errCartao);
       }
 
+      try {
+        const { registrarSaidaMembro } = require('./notionMembros');
+        await registrarSaidaMembro(registro.discord_id);
+      } catch (errNotion) {
+        console.error('Erro ao registrar saída retroativa no Notion:', errNotion.message);
+      }
+
       if (registro.status === 'concluido') {
         try {
           await db.marcarSaidaProcessada(registro.discord_id);

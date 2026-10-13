@@ -30,6 +30,7 @@ async function initSchema() {
     'data_limite_assinatura TIMESTAMPTZ',
     'ultimo_lembrete TIMESTAMPTZ',
     'termo_arquivo_path TEXT',
+    'data_inicio TEXT',
   ];
 
   for (const coluna of colunas) {
@@ -177,6 +178,30 @@ async function initSchema() {
       data TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+
+  // --- Sistema de Declarações de Voluntariado ---
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS declaracoes_solicitadas (
+      id SERIAL PRIMARY KEY,
+      codigo TEXT UNIQUE NOT NULL,
+      discord_id TEXT NOT NULL,
+      nome TEXT NOT NULL,
+      ra TEXT NOT NULL,
+      curso TEXT NOT NULL,
+      data_inicio TEXT NOT NULL,
+      data_solicitacao TIMESTAMPTZ NOT NULL DEFAULT now(),
+      status TEXT NOT NULL DEFAULT 'aguardando_assinatura_professor'
+        CHECK (status IN ('aguardando_assinatura_professor', 'concluida', 'cancelada')),
+      caminho_pdf_gerado TEXT,
+      caminho_pdf_assinado TEXT,
+      message_id_email TEXT,
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_declaracoes_codigo ON declaracoes_solicitadas (codigo)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_declaracoes_discord_id ON declaracoes_solicitadas (discord_id)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_declaracoes_status ON declaracoes_solicitadas (status)');
 }
 
 function getMembro(discordId) {
@@ -578,6 +603,64 @@ function expirarAdvertenciasVencidas() {
   );
 }
 
+// --- Funções de Declaração de Voluntariado ---
+
+async function criarSolicitacaoDeclaracao({
+  codigo,
+  discordId,
+  nome,
+  ra,
+  curso,
+  dataInicio,
+  caminhoPdfGerado,
+  messageIdEmail = null,
+}) {
+  const { rows } = await pool.query(
+    `INSERT INTO declaracoes_solicitadas
+      (codigo, discord_id, nome, ra, curso, data_inicio, caminho_pdf_gerado, message_id_email)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING *`,
+    [codigo, discordId, nome, ra, curso, dataInicio, caminhoPdfGerado, messageIdEmail]
+  );
+  return rows[0];
+}
+
+function buscarDeclaracaoPorCodigo(codigo) {
+  return pool
+    .query('SELECT * FROM declaracoes_solicitadas WHERE codigo = $1', [codigo])
+    .then((r) => r.rows[0] || null);
+}
+
+function listarDeclaracoesPendentes() {
+  return pool
+    .query(
+      `SELECT * FROM declaracoes_solicitadas
+       WHERE status = 'aguardando_assinatura_professor'
+       ORDER BY data_solicitacao ASC`
+    )
+    .then((r) => r.rows);
+}
+
+function atualizarDeclaracaoConcluida(codigo, caminhoPdfAssinado) {
+  return pool
+    .query(
+      `UPDATE declaracoes_solicitadas
+       SET status = 'concluida', caminho_pdf_assinado = $2, atualizado_em = now()
+       WHERE codigo = $1
+       RETURNING *`,
+      [codigo, caminhoPdfAssinado]
+    )
+    .then((r) => r.rows[0] || null);
+}
+
+function atualizarDataInicioMembro(discordId, dataInicio) {
+  return pool.query('UPDATE membros SET data_inicio = $2 WHERE discord_id = $1', [discordId, dataInicio]);
+}
+
+function atualizarDataInicioPorRa(ra, dataInicio) {
+  return pool.query('UPDATE membros SET data_inicio = $2 WHERE ra = $1', [ra, dataInicio]);
+}
+
 module.exports = {
   pool,
   initSchema,
@@ -616,4 +699,11 @@ module.exports = {
   atualizarStatusAdvertencia,
   listarAdvertenciasSemRespostaVencidas,
   expirarAdvertenciasVencidas,
+  // declarações
+  criarSolicitacaoDeclaracao,
+  buscarDeclaracaoPorCodigo,
+  listarDeclaracoesPendentes,
+  atualizarDeclaracaoConcluida,
+  atualizarDataInicioMembro,
+  atualizarDataInicioPorRa,
 };

@@ -129,6 +129,13 @@ async function handleAprovacaoInteraction(interaction) {
 
   await adicionarLinhaPlanilha(membroAtualizado, usuarioDiscord.tag);
 
+  try {
+    const { registrarMembroAtivo } = require('./notionMembros');
+    await registrarMembroAtivo(membroAtualizado);
+  } catch (errNotion) {
+    console.error('Erro ao registrar membro no Notion:', errNotion.message);
+  }
+
   await postarCartao(interaction.client, config.channelBoasVindasId, {
     tipo: 'entrada',
     nome: membroAtualizado.nome,

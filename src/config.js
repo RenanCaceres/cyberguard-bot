@@ -52,4 +52,12 @@ module.exports = {
       .map((e) => e.trim())
       .filter(Boolean),
   },
+  imap: {
+    host: process.env.IMAP_HOST || 'imap.gmail.com',
+    port: parseInt(process.env.IMAP_PORT || '993', 10),
+    user: process.env.IMAP_USER || process.env.SMTP_USER,
+    pass: process.env.IMAP_PASS || process.env.SMTP_PASS,
+    tls: process.env.IMAP_TLS !== 'false',
+  },
+  emailProfessorCoordenador: process.env.EMAIL_PROFESSOR_COORDENADOR || '',
 };

@@ -19,3 +19,6 @@ seed_cadastro_legado.sql
 *.bak-*
 .~lock.*
 *.bak*
+
+# Documentos sensíveis de alunos
+docs/Termos-Voluntarios-Assinados/

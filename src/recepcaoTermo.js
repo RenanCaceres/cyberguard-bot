@@ -65,12 +65,46 @@ async function handleMensagemDM(message) {
   }
 
   await encaminharTermoAssinado(membro, caminhoLocal, anexo.name);
-  await db.atualizarStatus(message.author.id, 'concluido');
+
+  let caminhoPermanente = null;
+  try {
+    const pastaBase = path.resolve('./docs/Termos-Voluntarios-Assinados');
+    const subpasta = obterSubpastaArea(membro.area_interesse);
+    const pastaDestino = path.join(pastaBase, subpasta);
+    fs.mkdirSync(pastaDestino, { recursive: true });
+
+    const nomeFormatado = (membro.nome || 'membro').trim().replace(/[\s/\\]+/g, '_');
+    const raFormatado = (membro.ra || message.author.id).trim();
+    const nomeArquivo = `termo_assinado_${raFormatado}_${nomeFormatado}.pdf`;
+    caminhoPermanente = path.join(pastaDestino, nomeArquivo);
+
+    fs.copyFileSync(caminhoLocal, caminhoPermanente);
+  } catch (errSalvar) {
+    console.error('Erro ao salvar cópia permanente do termo assinado:', errSalvar);
+  }
+
+  await db.atualizarStatus(message.author.id, 'concluido', {
+    termo_arquivo_path: caminhoPermanente,
+  });
   fs.unlink(caminhoLocal, () => {});
 
   await message.reply(
     'Termo recebido e validado! Encaminhei para o RH e seu cadastro está concluído. Bem-vindo(a) ao CyberGuard! 🎉'
   );
+}
+
+function obterSubpastaArea(area) {
+  if (!area) return 'Geral';
+  const a = area.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (a.includes('blue')) return 'BlueTeam';
+  if (a.includes('red') || a.includes('etico')) return 'RedTeam';
+  if (a.includes('design')) return 'Design';
+  if (a.includes('hardware')) return 'HardwareHacking';
+  if (a.includes('observatorio')) return 'Observatorio';
+  if (a.includes('humano') || a.includes('rh')) return 'Recursos Humanos';
+  if (a.includes('social') || a.includes('copy')) return 'SocialMedia';
+  if (a.includes('lider')) return 'Líderes';
+  return 'Geral';
 }
 
 module.exports = { handleMensagemDM };
