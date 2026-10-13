@@ -3,6 +3,7 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const { Client, GatewayIntentBits } = require('discord.js');
+const { JWT } = require('google-auth-library');
 const db = require('../src/db');
 const config = require('../src/config');
 
@@ -37,11 +38,11 @@ function normalizarSetor(rolesOuTexto) {
 
   if (norm.includes('blue')) return 'Blue Team';
   if (norm.includes('red') || norm.includes('etico')) return 'Red Team';
-  if (norm.includes('design')) return 'Design';
+  if (norm.includes('design') || norm.includes('desing')) return 'Design';
   if (norm.includes('hardware')) return 'Hardware Hacking';
   if (norm.includes('observatorio')) return 'Observatório';
   if (norm.includes('humano') || norm.includes('rh')) return 'Recursos Humanos';
-  if (norm.includes('social') || norm.includes('copy')) return 'Social Media & Copy';
+  if (norm.includes('social') || norm.includes('copy') || norm.includes('midia')) return 'Social Media & Copy';
   if (norm.includes('lider')) return 'Líderes';
   return null;
 }
@@ -51,18 +52,95 @@ function limparRa(ra) {
   return String(ra).trim().replace(/\s+/g, '');
 }
 
+async function buscarDadosGoogleSheets() {
+  if (!config.googleSheets.sheetId || !config.googleSheets.serviceAccountEmail) {
+    console.log('Google Sheets não configurado ou credenciais ausentes.');
+    return [];
+  }
+
+  try {
+    const auth = new JWT({
+      email: config.googleSheets.serviceAccountEmail,
+      key: config.googleSheets.privateKey,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const tokenRes = await auth.getAccessToken();
+    const token = tokenRes.token;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${config.googleSheets.sheetId}/values/${encodeURIComponent(
+      'Respostas ao formulário 1!A1:Z100'
+    )}`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+
+    if (!data.values || data.values.length < 2) return [];
+
+    const cabecalho = data.values[0];
+    const linhas = data.values.slice(1);
+    const resultado = [];
+
+    for (const r of linhas) {
+      if (!r[1]) continue;
+      resultado.push({
+        carimbo: r[0] || '',
+        nome: (r[1] || '').trim(),
+        ra: (r[2] || '').trim(),
+        curso: (r[3] || '').trim(),
+        cargo: (r[4] || '').trim(),
+        time: (r[5] || '').trim(),
+        email: (r[7] || '').trim(),
+        discord: (r[8] || '').trim(),
+      });
+    }
+
+    console.log(`Carregadas ${resultado.length} respostas diretamente do Google Sheets.`);
+    return resultado;
+  } catch (err) {
+    console.warn('Erro ao carregar dados do Google Sheets:', err.message);
+    return [];
+  }
+}
+
 async function main() {
   console.log('Iniciando sincronização completa e precisa do Notion...\n');
 
-  // 1. Garante que o banco seja inline na página de Membros
+  // 1. Garante que o banco seja inline na página de Membros e tenha apenas as 3 opções de Status solicitadas
   try {
-    await reqNotion('PATCH', `/databases/${DB_ID}`, { is_inline: true });
-    console.log('✅ Banco no Notion configurado como is_inline: true (renderiza direto na página).');
+    await reqNotion('PATCH', `/databases/${DB_ID}`, {
+      is_inline: true,
+      properties: {
+        Status: {
+          select: {
+            options: [
+              { name: 'Ativo', color: 'green' },
+              { name: 'Inativo', color: 'gray' },
+              { name: 'Expulso', color: 'red' },
+            ],
+          },
+        },
+      },
+    });
+    console.log('✅ Banco no Notion configurado como is_inline: true.');
+    console.log('✅ Opções de Status padronizadas: [Ativo, Inativo, Expulso].');
   } catch (err) {
-    console.warn('Aviso ao ajustar is_inline:', err.message);
+    console.warn('Aviso ao ajustar configurações do banco:', err.message);
   }
 
-  // 2. Carrega extração dos termos assinados se disponível
+  // 2. Carrega respostas da planilha Google Sheets
+  const respostasPlanilha = await buscarDadosGoogleSheets();
+  const mapaPlanilhaPorNome = new Map();
+  const mapaPlanilhaPorRa = new Map();
+  const mapaPlanilhaPorDiscord = new Map();
+
+  for (const item of respostasPlanilha) {
+    if (item.nome) mapaPlanilhaPorNome.set(item.nome.toLowerCase().trim(), item);
+    if (item.ra) {
+      const raLimpo = limparRa(item.ra).replace(/\D/g, '');
+      if (raLimpo) mapaPlanilhaPorRa.set(raLimpo, item);
+    }
+    if (item.discord) mapaPlanilhaPorDiscord.set(item.discord.toLowerCase().replace(/[@#]/g, '').trim(), item);
+  }
+
+  // 3. Carrega extração dos termos assinados
   const relatorioPath = path.resolve('./temp/extracao_termos_resultado.json');
   let termos = [];
   if (fs.existsSync(relatorioPath)) {
@@ -81,12 +159,12 @@ async function main() {
     }
   }
 
-  // 3. Busca todas as páginas atuais no Notion
+  // 4. Busca todas as páginas atuais no Notion
   const rNotion = await reqNotion('POST', `/databases/${DB_ID}/query`, { page_size: 100 });
   const paginasNotion = rNotion.results;
   console.log(`Páginas atuais encontradas no Notion: ${paginasNotion.length}`);
 
-  // 4. Conecta ao Discord para saber quem REALMENTE está no servidor
+  // 5. Conecta ao Discord para saber quem REALMENTE está no servidor
   const client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
   });
@@ -95,21 +173,12 @@ async function main() {
   const guild = await client.guilds.fetch(config.guildId);
   await guild.members.fetch();
 
-  // 5. Busca dados cadastrais do banco
+  // 6. Busca dados cadastrais do banco de dados
   const { rows: membrosDb } = await db.pool.query('SELECT * FROM membros');
   const { rows: legadosDb } = await db.pool.query('SELECT * FROM cadastro_legado');
 
   const mapaMembrosDb = new Map(membrosDb.map((m) => [m.discord_id, m]));
   const mapaLegados = new Map(legadosDb.map((l) => [l.discord_id, l.nome]));
-
-  // Remove páginas inválidas ou lixo
-  for (const pag of paginasNotion) {
-    const titulo = pag.properties.Nome?.title?.[0]?.plain_text || '';
-    if (!titulo || titulo.trim() === 'Membro' || titulo.trim() === '.') {
-      console.log(`[Lixeira] Arquivando registro inválido: ${pag.id}`);
-      await reqNotion('PATCH', `/pages/${pag.id}`, { archived: true });
-    }
-  }
 
   // Função auxiliar para encontrar página existente no Notion por Nome ou RA
   function encontrarPagina(nome, ra) {
@@ -128,9 +197,11 @@ async function main() {
     });
   }
 
-  // 6. Sincroniza cada membro ativo que está na guilda do Discord
+  // 7. Sincroniza membros ativos aprovados
   console.log('\n--- ATUALIZANDO MEMBROS ATIVOS NO DISCORD ---');
   let ativosAtualizados = 0;
+  const membrosProcessadosAtivos = new Set();
+
   for (const guildMember of guild.members.cache.values()) {
     if (guildMember.user.bot) continue;
 
@@ -138,10 +209,60 @@ async function main() {
     const registroDb = mapaMembrosDb.get(discordId);
     const nomeLegado = mapaLegados.get(discordId);
 
-    // Tenta achar termo associado
+    // REGRA: Não poderá ir para a planilha aqueles que entraram no servidor mas ainda não foram aprovados!
+    const ehLegado = mapaLegados.has(discordId);
+    const temTermoAssinado =
+      mapaTermosPorNome.has((guildMember.displayName || '').toLowerCase().trim()) ||
+      (nomeLegado && mapaTermosPorNome.has(nomeLegado.toLowerCase().trim())) ||
+      (registroDb && registroDb.nome && mapaTermosPorNome.has(registroDb.nome.toLowerCase().trim()));
+
+    const temPlanilha =
+      mapaPlanilhaPorDiscord.has(guildMember.user.username.toLowerCase()) ||
+      (nomeLegado && mapaPlanilhaPorNome.has(nomeLegado.toLowerCase().trim())) ||
+      (registroDb && registroDb.nome && mapaPlanilhaPorNome.has(registroDb.nome.toLowerCase().trim()));
+
+    const aprovadoNoDb =
+      registroDb &&
+      (registroDb.status === 'concluido' ||
+        registroDb.data_aprovacao !== null ||
+        registroDb.status === 'revisao_manual');
+
+    // Se o usuário entrou mas ainda está coletando dados sem aprovação e não é membro legado/reconhecido
+    const estaAprovado = ehLegado || aprovadoNoDb || temTermoAssinado || temPlanilha;
+
+    if (!estaAprovado) {
+      console.log(`⚠️ [IGNORADO / NÃO APROVADO] ${guildMember.displayName} (${discordId}) ainda não foi aprovado pelo RH.`);
+      // Se por engano foi parar no Notion anteriormente, arquiva a página
+      const pagPendente = encontrarPagina(guildMember.displayName, null);
+      if (pagPendente) {
+        console.log(`[Lixeira] Arquivando página não aprovada: ${pagPendente.id} (${guildMember.displayName})`);
+        await reqNotion('PATCH', `/pages/${pagPendente.id}`, { archived: true });
+      }
+      continue;
+    }
+
+    // Procura na planilha Google Sheets primeiro para dados cadastrais mais ricos (RA, etc.)
+    let dadosPlanilha = null;
+    if (registroDb && registroDb.ra) {
+      dadosPlanilha = mapaPlanilhaPorRa.get(limparRa(registroDb.ra).replace(/\D/g, ''));
+    }
+    if (!dadosPlanilha && registroDb && registroDb.nome) {
+      dadosPlanilha = mapaPlanilhaPorNome.get(registroDb.nome.toLowerCase().trim());
+    }
+    if (!dadosPlanilha && nomeLegado) {
+      dadosPlanilha = mapaPlanilhaPorNome.get(nomeLegado.toLowerCase().trim());
+    }
+    if (!dadosPlanilha) {
+      dadosPlanilha = mapaPlanilhaPorDiscord.get(guildMember.user.username.toLowerCase());
+    }
+
+    // Procura no termo de voluntariado
     let termoMembro = null;
     if (registroDb && registroDb.ra) {
-      termoMembro = mapaTermosPorRa.get(limparRa(registroDb.ra).toLowerCase().replace(/\D/g, ''));
+      termoMembro = mapaTermosPorRa.get(limparRa(registroDb.ra).replace(/\D/g, ''));
+    }
+    if (!termoMembro && dadosPlanilha && dadosPlanilha.ra) {
+      termoMembro = mapaTermosPorRa.get(limparRa(dadosPlanilha.ra).replace(/\D/g, ''));
     }
     if (!termoMembro && registroDb && registroDb.nome) {
       termoMembro = mapaTermosPorNome.get(registroDb.nome.toLowerCase().trim());
@@ -151,21 +272,25 @@ async function main() {
     }
 
     const nomeReal =
+      (dadosPlanilha && dadosPlanilha.nome) ||
       (termoMembro && termoMembro.nome) ||
       (registroDb && registroDb.nome && registroDb.nome.trim()) ||
       nomeLegado ||
-      guildMember.displayName ||
-      guildMember.user.username;
+      guildMember.displayName;
 
-    const ra = (termoMembro && termoMembro.ra) || (registroDb && registroDb.ra) || '';
+    const ra =
+      (dadosPlanilha && dadosPlanilha.ra) ||
+      (termoMembro && termoMembro.ra) ||
+      (registroDb && registroDb.ra) ||
+      '';
 
     const setor =
       normalizarSetor(guildMember.roles.cache.map((r) => r.name)) ||
+      (dadosPlanilha && normalizarSetor(dadosPlanilha.time)) ||
       (termoMembro && normalizarSetor(termoMembro.time)) ||
       (registroDb && normalizarSetor(registroDb.area_interesse)) ||
       'Líderes';
 
-    // Determina Data de Entrada real
     let dataEntradaIso = null;
     if (termoMembro && termoMembro.dataInicioIso) {
       dataEntradaIso = termoMembro.dataInicioIso;
@@ -197,7 +322,7 @@ async function main() {
 
     if (ra) {
       props.RA = {
-        rich_text: [{ text: { content: String(ra) } }],
+        rich_text: [{ text: { content: String(ra).trim() } }],
       };
     } else {
       props.RA = {
@@ -219,13 +344,14 @@ async function main() {
       console.log(`➕ [ATIVO] ${nomeReal} | Setor: ${setor} | RA: ${ra || 'N/A'} | Entrada: ${dataEntradaIso}`);
     }
 
+    membrosProcessadosAtivos.add(nomeReal.toLowerCase().trim());
     ativosAtualizados++;
     await new Promise((r) => setTimeout(r, 300));
   }
 
-  // 7. Sincroniza Membros Desligados / Egressos
-  console.log('\n--- ATUALIZANDO MEMBROS DESLIGADOS / EGRESSOS ---');
-  const membrosDesligados = [
+  // 8. Sincroniza Membros Desligados com Status 'Inativo'
+  console.log('\n--- ATUALIZANDO MEMBROS INATIVOS ---');
+  const membrosInativos = [
     {
       nome: 'Pedro Lucas Sales Larini',
       ra: '2767147',
@@ -235,14 +361,14 @@ async function main() {
     },
     {
       nome: 'Maria Eduarda Fernandes Crespo',
-      ra: 'a2565480',
+      ra: '2565480',
       setor: 'Social Media & Copy',
       dataEntrada: '2026-06-29',
       dataSaida: '2026-09-13',
     },
     {
       nome: 'Augusto da Silva de Sá',
-      ra: '',
+      ra: '2564319',
       setor: 'Líderes',
       dataEntrada: '2026-06-22',
       dataSaida: '2026-09-13',
@@ -270,13 +396,13 @@ async function main() {
     },
   ];
 
-  for (const m of membrosDesligados) {
+  for (const m of membrosInativos) {
     const props = {
       Nome: {
         title: [{ text: { content: m.nome } }],
       },
       Status: {
-        select: { name: 'Desligado / Egresso' },
+        select: { name: 'Inativo' },
       },
       Setor: {
         select: { name: m.setor || 'Líderes' },
@@ -291,7 +417,7 @@ async function main() {
 
     if (m.ra) {
       props.RA = {
-        rich_text: [{ text: { content: String(m.ra) } }],
+        rich_text: [{ text: { content: String(m.ra).trim() } }],
       };
     } else {
       props.RA = {
@@ -303,22 +429,31 @@ async function main() {
 
     if (pagExistente) {
       await reqNotion('PATCH', `/pages/${pagExistente.id}`, { properties: props });
-      console.log(`✅ [DESLIGADO] ${m.nome} | Setor: ${m.setor} | Saída: ${m.dataSaida || 'N/A'}`);
+      console.log(`✅ [INATIVO] ${m.nome} | RA: ${m.ra || 'N/A'} | Saída: ${m.dataSaida || 'N/A'}`);
     } else {
       const novaPag = await reqNotion('POST', '/pages', {
         parent: { database_id: DB_ID },
         properties: props,
       });
       paginasNotion.push(novaPag);
-      console.log(`➕ [DESLIGADO] ${m.nome} | Setor: ${m.setor} | Saída: ${m.dataSaida || 'N/A'}`);
+      console.log(`➕ [INATIVO] ${m.nome} | RA: ${m.ra || 'N/A'} | Saída: ${m.dataSaida || 'N/A'}`);
     }
 
     await new Promise((r) => setTimeout(r, 300));
   }
 
+  // 9. Limpa páginas obsoletas ou lixo (sem título ou pessoas avulsas que não deveriam estar no Notion)
+  for (const pag of paginasNotion) {
+    const titulo = (pag.properties.Nome?.title?.[0]?.plain_text || '').trim();
+    if (!titulo || titulo === 'Membro' || titulo === '.') {
+      console.log(`[Lixeira] Arquivando página sem nome: ${pag.id}`);
+      await reqNotion('PATCH', `/pages/${pag.id}`, { archived: true });
+    }
+  }
+
   console.log(`\nSincronização concluída com sucesso!`);
-  console.log(`- ${ativosAtualizados} membros ativos.`);
-  console.log(`- ${membrosDesligados.length} membros desligados / egressos.`);
+  console.log(`- ${ativosAtualizados} membros ativos (aprovados).`);
+  console.log(`- ${membrosInativos.length} membros inativos.`);
 
   await client.destroy();
   await db.pool.end();

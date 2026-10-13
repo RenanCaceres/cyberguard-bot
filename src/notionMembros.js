@@ -159,7 +159,7 @@ async function registrarMembroAtivo(membro) {
 }
 
 /**
- * Atualiza o status do membro para Desligado / Egresso ao sair do Discord
+ * Atualiza o status do membro para Inativo ao sair do Discord
  */
 async function registrarSaidaMembro(discordId, { nome = null, ra = null, expulso = false } = {}) {
   const { dbId, token } = cfg();
@@ -173,7 +173,7 @@ async function registrarSaidaMembro(discordId, { nome = null, ra = null, expulso
     }
 
     const dataHojeIso = new Date().toISOString().split('T')[0];
-    const novoStatus = expulso ? 'Expulso' : 'Desligado / Egresso';
+    const novoStatus = expulso ? 'Expulso' : 'Inativo';
 
     const propriedades = {
       Status: { select: { name: novoStatus } },
