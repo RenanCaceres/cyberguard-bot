@@ -332,11 +332,15 @@ async function gerarManualLiderAdvertenciasAtualizado() {
   await doc.salvar(path.join(__dirname, '../docs/manuais/Manual_Lider_Advertencias_Atualizado.pdf'));
 }
 
+const { gerarManualMembroDeclaracao } = require('./gerarManualDeclaracao');
+
 (async () => {
   console.log('Compilando manuais em PDF com fluxogramas visuais...');
   await gerarManualMembroAdvertencias();
   await gerarManualMembroPonto();
   await gerarManualLiderRHPonto();
   await gerarManualLiderAdvertenciasAtualizado();
-  console.log('Todos os 4 manuais com fluxos foram compilados com sucesso!');
+  await gerarManualMembroDeclaracao();
+  console.log('Todos os 5 manuais com fluxos foram compilados com sucesso!');
 })();
+

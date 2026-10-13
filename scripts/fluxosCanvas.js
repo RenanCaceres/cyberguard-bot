@@ -311,4 +311,53 @@ function fluxoAjusteRH() {
   return pronto(n);
 }
 
-module.exports = { fluxoAdvertencias, fluxoPontoAbrirFechar, fluxoPontoVerificacao, fluxoAjusteRH };
+// ---------------------------------------------------------------------------------------
+// 5) FLUXO DE DECLARAÇÃO DE VOLUNTARIADO
+// ---------------------------------------------------------------------------------------
+function fluxoDeclaracao() {
+  const n = nova(760);
+  const { ctx } = n;
+
+  const passos = [
+    { linhas: ['1. Aluno solicita declaração', 'comando /declaracao solicitar no Discord'], tema: 'azul', w: 360, h: 60 },
+    { linhas: ['2. Bot valida cadastro e gera documento', 'dados (RA, curso, data) + PDF via template UTFPR'], tema: 'laranja', w: 420, h: 60 },
+    { linhas: ['3. Disparo de e-mail ao Coordenador', 'envia o PDF ao Prof. André Luiz Przybysz via SMTP'], tema: 'laranja', w: 420, h: 60 },
+    { linhas: ['4. Assinatura Digital no Gov.br', 'professor assina pelo gov.br e responde o e-mail'], tema: 'azul', w: 420, h: 60 },
+    { linhas: ['5. Leitura IMAP e validação automática', 'bot detecta #DECL-, baixa o anexo e valida PDF'], tema: 'laranja', w: 420, h: 60 },
+  ];
+
+  let y = 35;
+  passos.forEach((p, i) => {
+    const x = (W - p.w) / 2;
+    caixa(ctx, x, y, p.w, p.h, p.tema, p.linhas);
+    if (i < passos.length - 1) {
+      seta(ctx, [[W / 2, y + p.h], [W / 2, y + p.h + 30]]);
+    }
+    y += p.h + 30;
+  });
+
+  const base = y; // base da caixa 5
+  const tronco = base + 24;
+  const destinos = [
+    { x: 30, tema: 'verde', linhas: ['DM DO ALUNO', 'PDF assinado entregue', 'diretamente no privado'] },
+    { x: 305, tema: 'verde', linhas: ['BANCO DE DADOS', 'Status alterado para', '"concluida" com data'] },
+    { x: 580, tema: 'cinza', linhas: ['CANAL DO RH', 'Protocolo e cópia para', 'arquivo institucional'] },
+  ];
+
+  destinos.forEach((d) => {
+    const cx = d.x + 110;
+    seta(ctx, [[W / 2, base], [W / 2, tronco], [cx, tronco], [cx, tronco + 32]]);
+    caixa(ctx, d.x, tronco + 32, 220, 80, d.tema, d.linhas);
+  });
+
+  legenda(ctx, 670, [
+    ['azul', 'Ação Humana (Aluno / Professor)'],
+    ['laranja', 'Automação do Bot'],
+    ['verde', 'Entrega e Sucesso'],
+    ['cinza', 'Arquivo / RH'],
+  ], 'Dica: O aluno pode acompanhar a qualquer instante com o comando /declaracao status');
+
+  return pronto(n);
+}
+
+module.exports = { fluxoAdvertencias, fluxoPontoAbrirFechar, fluxoPontoVerificacao, fluxoAjusteRH, fluxoDeclaracao };
