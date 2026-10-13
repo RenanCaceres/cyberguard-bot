@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const db = require('../../src/db');
 const { gerarDeclaracaoPdf } = require('../../src/declaracaoService');
-const { enviarDeclaracaoParaProfessor } = require('../../src/declaracaoEmail');
+const { enviarDeclaracaoParaProfessor, verificarRespostasDeclaracoes } = require('../../src/declaracaoEmail');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -22,6 +22,14 @@ module.exports = {
     const subcomando = interaction.options.getSubcommand();
 
     if (subcomando === 'status') {
+      await interaction.deferReply({ ephemeral: true });
+
+      try {
+        await verificarRespostasDeclaracoes(interaction.client);
+      } catch (errImap) {
+        console.error('[declaracao-status] Erro ao sincronizar IMAP:', errImap.message);
+      }
+
       const rows = await db.pool
         .query(
           `SELECT * FROM declaracoes_solicitadas WHERE discord_id = $1 ORDER BY data_solicitacao DESC`,
@@ -30,9 +38,8 @@ module.exports = {
         .then((r) => r.rows);
 
       if (rows.length === 0) {
-        return interaction.reply({
+        return interaction.editReply({
           content: 'Você ainda não possui nenhuma solicitação de declaração registrada.',
-          ephemeral: true,
         });
       }
 
@@ -55,7 +62,7 @@ module.exports = {
         });
       }
 
-      return interaction.reply({ embeds: [embed], ephemeral: true });
+      return interaction.editReply({ embeds: [embed] });
     }
 
     if (subcomando === 'solicitar') {
