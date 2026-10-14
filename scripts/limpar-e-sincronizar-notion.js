@@ -228,8 +228,10 @@ async function main() {
         registroDb.data_aprovacao !== null ||
         registroDb.status === 'revisao_manual');
 
-    // Se o usuário entrou mas ainda está coletando dados sem aprovação e não é membro legado/reconhecido
-    const estaAprovado = ehLegado || aprovadoNoDb || temTermoAssinado || temPlanilha;
+    // Quem tem cargo de setor no Discord (Design, Hacking Ético, Hardware Hacking, Recursos Humanos, Social Media & Copy, Líderes) é membro do time!
+    const temCargoDeSetor = guildMember.roles.cache.some((r) => normalizarSetor(r.name));
+
+    const estaAprovado = ehLegado || aprovadoNoDb || temTermoAssinado || temPlanilha || temCargoDeSetor;
 
     if (!estaAprovado) {
       console.log(`⚠️ [IGNORADO / NÃO APROVADO] ${guildMember.displayName} (${discordId}) ainda não foi aprovado pelo RH.`);
@@ -359,9 +361,17 @@ async function main() {
     await new Promise((r) => setTimeout(r, 300));
   }
 
-  // 8. Sincroniza Membros Desligados com Status 'Inativo'
-  console.log('\n--- ATUALIZANDO MEMBROS INATIVOS ---');
+  // 8. Sincroniza Membros Desligados com Status 'Inativo' ou 'Expulso'
+  console.log('\n--- ATUALIZANDO MEMBROS INATIVOS E EXPULSOS ---');
   const membrosInativos = [
+    {
+      nome: 'Gabriel Henrique Ferreira Pirolo',
+      ra: '2768364',
+      setor: 'Social Media & Copy',
+      dataEntrada: '2026-06-25',
+      dataSaida: '2026-10-14',
+      status: 'Expulso',
+    },
     {
       nome: 'Pedro Lucas Sales Larini',
       ra: '2767147',
@@ -418,7 +428,7 @@ async function main() {
         title: [{ text: { content: m.nome } }],
       },
       Status: {
-        select: { name: 'Inativo' },
+        select: { name: m.status || 'Inativo' },
       },
       Setor: {
         select: { name: m.setor || 'Líderes' },
@@ -449,25 +459,38 @@ async function main() {
 
     if (pagExistente) {
       await reqNotion('PATCH', `/pages/${pagExistente.id}`, { properties: props });
-      console.log(`✅ [INATIVO] ${m.nome} | RA: ${m.ra || 'N/A'} | E-mail: ${emailInativo || 'N/A'} | Saída: ${m.dataSaida || 'N/A'}`);
+      console.log(`✅ [${m.status || 'INATIVO'}] ${m.nome} | RA: ${m.ra || 'N/A'} | E-mail: ${emailInativo || 'N/A'} | Saída: ${m.dataSaida || 'N/A'}`);
     } else {
       const novaPag = await reqNotion('POST', '/pages', {
         parent: { database_id: DB_ID },
         properties: props,
       });
       paginasNotion.push(novaPag);
-      console.log(`➕ [INATIVO] ${m.nome} | RA: ${m.ra || 'N/A'} | E-mail: ${emailInativo || 'N/A'} | Saída: ${m.dataSaida || 'N/A'}`);
+      console.log(`➕ [${m.status || 'INATIVO'}] ${m.nome} | RA: ${m.ra || 'N/A'} | E-mail: ${emailInativo || 'N/A'} | Saída: ${m.dataSaida || 'N/A'}`);
     }
 
     await new Promise((r) => setTimeout(r, 300));
   }
 
-  // 9. Limpa páginas obsoletas ou lixo (sem título ou pessoas avulsas que não deveriam estar no Notion)
+  // 9. Garante que qualquer membro que não esteja no Discord não continue como 'Ativo' no Notion
+  console.log('\n--- VERIFICANDO PÁGINAS ATIVAS RESTANTES NO NOTION ---');
   for (const pag of paginasNotion) {
     const titulo = (pag.properties.Nome?.title?.[0]?.plain_text || '').trim();
     if (!titulo || titulo === 'Membro' || titulo === '.') {
       console.log(`[Lixeira] Arquivando página sem nome: ${pag.id}`);
       await reqNotion('PATCH', `/pages/${pag.id}`, { archived: true });
+      continue;
+    }
+
+    const statusAtual = pag.properties.Status?.select?.name;
+    if (statusAtual === 'Ativo' && !membrosProcessadosAtivos.has(titulo.toLowerCase().trim())) {
+      console.log(`⚠️ Membro não está no Discord mas estava Ativo no Notion: ${titulo}. Alterando para Inativo.`);
+      await reqNotion('PATCH', `/pages/${pag.id}`, {
+        properties: {
+          Status: { select: { name: 'Inativo' } },
+          'Data de Saída': { date: { start: new Date().toISOString().split('T')[0] } },
+        },
+      });
     }
   }
 

@@ -171,12 +171,25 @@ client.on('guildMemberRemove', async (member) => {
       avatarUrl: member.user.displayAvatarURL({ extension: 'png', size: 256 }),
     });
 
+    let foiExpulso = false;
+    try {
+      const auditLogs = await member.guild.fetchAuditLogs({ limit: 5 });
+      const entry = auditLogs.entries.find(
+        (e) =>
+          (e.action === 20 || e.action === 22) &&
+          e.target?.id === member.id &&
+          Date.now() - e.createdTimestamp < 30_000
+      );
+      if (entry) foiExpulso = true;
+    } catch {}
+
     try {
       const { registrarSaidaMembro } = require('./notionMembros');
       await registrarSaidaMembro(member.id, {
         nome: registro?.nome || nome,
         ra: registro?.ra || null,
         email: registro?.email || null,
+        expulso: foiExpulso,
       });
     } catch (errNotion) {
       console.error('Erro ao atualizar saída no Notion:', errNotion.message);
@@ -186,8 +199,10 @@ client.on('guildMemberRemove', async (member) => {
       try {
         const canalRh = await member.guild.channels.fetch(config.channelRhId);
         const emailInfo = registro && registro.email ? `\`${registro.email}\`` : 'não registrado';
+        const tipoAviso = foiExpulso ? '🚫 **Expulsão do Servidor — Revogação Notion:**' : '🚪 **Saída do Servidor — Revogação Notion:**';
+        const statusTexto = foiExpulso ? 'Expulso' : 'Inativo';
         await canalRh.send({
-          content: `🚪 **Revogação de Acesso ao Notion:**\nO integrante **${nome}** (<@${member.id}>) saiu do servidor.\n📧 **E-mail:** ${emailInfo}\n⚠️ *O cadastro no Notion foi alterado para Inativo. Remova o acesso de convidado deste e-mail nas configurações do Workspace do Notion.*`,
+          content: `${tipoAviso}\nO integrante **${nome}** (<@${member.id}>) ${foiExpulso ? 'foi expulso do' : 'saiu do'} servidor.\n📧 **E-mail:** ${emailInfo}\n⚠️ *O cadastro no Notion foi alterado para ${statusTexto}. Remova o acesso de convidado deste e-mail nas configurações do Workspace do Notion.*`,
         });
       } catch (errRhAviso) {
         console.error('Erro ao alertar RH sobre saída do membro:', errRhAviso.message);
