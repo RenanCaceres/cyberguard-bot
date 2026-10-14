@@ -102,6 +102,7 @@ async function encerrarPorInatividade(id, motivo) {
     `UPDATE pontos
         SET fechado_em = now(),
             auto_fechado = true,
+            reportado = false,
             ajuste_motivo = $2
       WHERE id = $1 AND fechado_em IS NULL
       RETURNING *`,
@@ -113,7 +114,8 @@ async function encerrarPorInatividade(id, motivo) {
 async function fecharPorCheckNao(id, discordId) {
   const { rows } = await q(
     `UPDATE pontos
-        SET fechado_em = now()
+        SET fechado_em = now(),
+            reportado = false
       WHERE id = $1 AND discord_id = $2 AND fechado_em IS NULL
       RETURNING *`,
     [id, discordId],
@@ -187,7 +189,8 @@ async function getPendenteReporte(discordId) {
 async function registrarReporte(id, discordId, { progresso, feito, falta }) {
   const { rows } = await q(
     `UPDATE pontos SET progresso = $3, feito = $4, falta = $5, reportado = true
-      WHERE id = $1 AND discord_id = $2 AND reportado = false AND fechado_em IS NOT NULL RETURNING *`,
+      WHERE id = $1 AND discord_id = $2 AND fechado_em IS NOT NULL
+        AND (reportado = false OR progresso IS NULL) RETURNING *`,
     [id, discordId, progresso, feito, falta || null],
   );
   return rows[0] ?? null;
