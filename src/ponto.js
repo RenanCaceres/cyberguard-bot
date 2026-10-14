@@ -302,10 +302,14 @@ async function escolherTarefa(interaction) {
     content:
       `🟢 Ponto aberto às ${ts(row.aberto_em, 't')} para **${titulo}**` +
       (progresso != null ? ` (progresso atual: ${progresso}%)` : '') +
-      '.\nQuando terminar, clique em **Fechar ponto**.',
-    components: [],
+      '.\nQuando terminar, clique em **Fechar ponto** abaixo ou no painel.',
+    components: [
+      new ActionRowBuilder().addComponents(
+        btn('ponto:fechar', 'Fechar ponto', ButtonStyle.Danger, '🔴'),
+      ),
+    ],
   });
-  expirar(interaction, 12_000);
+  expirar(interaction, 60_000);
   await logar(
     interaction.client,
     new EmbedBuilder()
@@ -383,16 +387,24 @@ async function tratarNovaTarefaModal(interaction, modo = 'm') {
     const aberto = await pdb.getAberto(userId);
     if (aberto && aberto.tarefa_id === pdb.PENDENTE) {
       await pdb.definirTarefa(aberto.id, dados);
-      await interaction.editReply(
-        `✅ Nova tarefa **${tarefa.titulo}** criada no Notion e vinculada ao seu ponto de voz!\nSeu tempo está contando desde ${ts(aberto.aberto_em, 't')}.`,
-      );
-      return expirar(interaction, 12_000);
+      await interaction.editReply({
+        content:
+          `✅ Nova tarefa **${tarefa.titulo}** criada no Notion e vinculada ao seu ponto de voz!\n` +
+          `Seu tempo está contando desde ${ts(aberto.aberto_em, 't')}.\n` +
+          `Quando terminar, clique em **Fechar ponto** abaixo ou no painel.`,
+        components: [
+          new ActionRowBuilder().addComponents(
+            btn('ponto:fechar', 'Fechar ponto', ButtonStyle.Danger, '🔴'),
+          ),
+        ],
+      });
+      return expirar(interaction, 60_000);
     }
     const pend = await pdb.getPendenteReporte(userId);
     if (pend && pend.tarefa_id === pdb.PENDENTE) {
       await pdb.definirTarefa(pend.id, dados);
       return interaction.editReply({
-        content: `✅ Nova tarefa **${tarefa.titulo}** criada no Notion! Agora reporte o progresso desta sessão.`,
+        content: `✅ Nova tarefa **${tarefa.titulo}** criada no Notion! Agora reporte o progresso desta sessão:`,
         components: [new ActionRowBuilder().addComponents(btn(`ponto:reportar:${pend.id}`, 'Reportar progresso', ButtonStyle.Primary, '📝'))],
       });
     }
@@ -416,12 +428,18 @@ async function tratarNovaTarefaModal(interaction, modo = 'm') {
     return expirar(interaction, 12_000);
   }
 
-  await interaction.editReply(
-    `🟢 Tarefa criada no Notion e ponto aberto às ${ts(row.aberto_em, 't')} para **${tarefa.titulo}**` +
-    (tarefa.progresso > 0 ? ` (progresso inicial: ${tarefa.progresso}%)` : '') +
-    '.\nQuando terminar, clique em **Fechar ponto**.',
-  );
-  expirar(interaction, 12_000);
+  await interaction.editReply({
+    content:
+      `🟢 Tarefa criada no Notion e ponto aberto às ${ts(row.aberto_em, 't')} para **${tarefa.titulo}**` +
+      (tarefa.progresso > 0 ? ` (progresso inicial: ${tarefa.progresso}%)` : '') +
+      '.\nQuando terminar, clique em **Fechar ponto** abaixo ou no painel.',
+    components: [
+      new ActionRowBuilder().addComponents(
+        btn('ponto:fechar', 'Fechar ponto', ButtonStyle.Danger, '🔴'),
+      ),
+    ],
+  });
+  expirar(interaction, 60_000);
 
   await logar(
     interaction.client,
@@ -533,11 +551,14 @@ async function fecharFluxo(interaction) {
 async function fecharModal(interaction) {
   const dados = await lerCamposReporte(interaction);
   if (!dados) return;
-  await interaction.deferReply({ flags: EPH });
+  await interaction.deferReply(efemero(interaction, {}));
   const row = await pdb.fechar(interaction.user.id, dados);
   if (!row) {
     await interaction.editReply('⚠️ Nenhum ponto aberto (ele pode ter sido encerrado automaticamente).');
     return expirar(interaction, 10_000);
+  }
+  if (!interaction.inGuild() && interaction.message?.editable) {
+    await interaction.message.edit({ components: [] }).catch(() => {});
   }
   const { notionOk, seg } = await finalizarSessao(interaction.client, row, dados, '🔴 Ponto fechado');
   const destino = dados.progresso >= 100 ? '**Concluída** ✅' : `**Em andamento** (${dados.progresso}%)`;
@@ -688,16 +709,24 @@ async function escolherTarefaVoz(interaction) {
   if (aberto && aberto.tarefa_id === pdb.PENDENTE) {
     await pdb.definirTarefa(aberto.id, dados);
     await interaction.update({
-      content: `✅ Tarefa definida: **${titulo}**` + (progresso != null ? ` (progresso atual: ${progresso}%)` : '') + `.\nSeu tempo está contando desde ${ts(aberto.aberto_em, 't')}.`,
-      components: [],
+      content:
+        `✅ Tarefa definida: **${titulo}**` +
+        (progresso != null ? ` (progresso atual: ${progresso}%)` : '') +
+        `.\nSeu tempo está contando desde ${ts(aberto.aberto_em, 't')}.\n` +
+        `Quando terminar, clique em **Fechar ponto** abaixo ou no painel.`,
+      components: [
+        new ActionRowBuilder().addComponents(
+          btn('ponto:fechar', 'Fechar ponto', ButtonStyle.Danger, '🔴'),
+        ),
+      ],
     });
-    return expirar(interaction, 12_000);
+    return expirar(interaction, 60_000);
   }
   const pend = await pdb.getPendenteReporte(userId);
   if (pend && pend.tarefa_id === pdb.PENDENTE) {
     await pdb.definirTarefa(pend.id, dados);
     return interaction.update({
-      content: `✅ Tarefa: **${titulo}**. Agora reporte o progresso desta sessão.`,
+      content: `✅ Tarefa: **${titulo}**. Agora reporte o progresso desta sessão:`,
       components: [new ActionRowBuilder().addComponents(btn(`ponto:reportar:${pend.id}`, 'Reportar progresso', ButtonStyle.Primary, '📝'))],
     });
   }
@@ -707,7 +736,8 @@ async function escolherTarefaVoz(interaction) {
 
 async function abrirModalReporte(interaction, pontoId) {
   const p = await pdb.getPorId(pontoId);
-  if (!p || p.discord_id !== interaction.user.id || p.reportado) {
+  const jaReportado = p && p.reportado && p.progresso != null;
+  if (!p || p.discord_id !== interaction.user.id || jaReportado) {
     await interaction.update({ content: 'Esse ponto já foi reportado (ou não é seu).', components: [] });
     return expirar(interaction, 10_000);
   }
@@ -1157,30 +1187,10 @@ async function handlePontoInteraction(interaction) {
           await interaction.update({ content: '⚠️ Este ponto já foi encerrado anteriormente.', components: [] });
           return true;
         }
-        const row = await pdb.fecharPorCheckNao(pontoId, interaction.user.id);
-        if (row) {
-          await sincronizarPlanilha(row);
-          const seg = (new Date(row.fechado_em) - new Date(row.aberto_em)) / 1000;
-          await logar(
-            interaction.client,
-            new EmbedBuilder()
-              .setColor(0xe74c3c)
-              .setTitle('🔴 Ponto fechado (resposta ao aviso de atividade)')
-              .addFields(
-                { name: 'Membro', value: `<@${row.discord_id}> (${row.nome})`, inline: true },
-                { name: 'Tarefa', value: trunc(row.tarefa_titulo, 256), inline: true },
-                { name: 'Duração', value: fmtDur(seg), inline: true },
-              ),
-          );
-          const rowFinal = new ActionRowBuilder().addComponents(
-            btn(`ponto:final:${row.id}`, 'Informar progresso da tarefa', ButtonStyle.Primary, '📝'),
-          );
-          await interaction.update({
-            content: `🔴 **Ponto encerrado agora.** Duração contabilizada: **${fmtDur(seg)}** em **${row.tarefa_titulo}**.\nSe quiser registrar o progresso e o que fez, clique no botão abaixo:`,
-            components: [rowFinal],
-          });
+        if (p.tarefa_id === pdb.PENDENTE) {
+          return ofertarTarefaPendente(interaction, p);
         }
-        return true;
+        return interaction.showModal(modalReporte('ponto:fechar_modal', 'Fechar ponto', p.progresso_inicial));
       }
       if (id === 'ponto:abrir') await abrirFluxo(interaction);
       else if (id.startsWith('ponto:pag:')) {
@@ -1194,7 +1204,9 @@ async function handlePontoInteraction(interaction) {
       else if (id.startsWith('ponto:det:')) {
         const [, , alvo, pag] = id.split(':');
         await detalhe(interaction, alvo, Number(pag));
-      } else if (id.startsWith('ponto:reportar:')) await abrirModalReporte(interaction, Number(id.split(':')[2]));
+      } else if (id.startsWith('ponto:reportar:') || id.startsWith('ponto:final:')) {
+        await abrirModalReporte(interaction, Number(id.split(':')[2]));
+      }
       else if (id.startsWith('ponto:nova_tarefa:')) {
         const modo = id.split(':')[2] || 'm';
         if (modo === 'm') {
@@ -1275,8 +1287,16 @@ async function verificarInatividadePontos(client) {
           await enviarDM(
             client,
             p.discord_id,
-            `⚠️ Seu ponto em **${p.tarefa_titulo}** foi **encerrado automaticamente** porque você não respondeu aos 3 avisos de verificação de atividade.\n` +
-            `Foram contabilizadas **${fmtDur(seg)}** até o momento do encerramento. Se você ainda estava trabalhando, solicite ajuste ao RH.`,
+            {
+              content:
+                `⚠️ Seu ponto em **${p.tarefa_titulo}** foi **encerrado automaticamente** porque você não respondeu aos 3 avisos de verificação de atividade.\n` +
+                `Foram contabilizadas **${fmtDur(seg)}** até o momento do encerramento. Se quiser registrar o progresso e o que foi feito, clique no botão abaixo:`,
+              components: [
+                new ActionRowBuilder().addComponents(
+                  btn(`ponto:reportar:${fechado.id}`, 'Reportar progresso', ButtonStyle.Primary, '📝'),
+                ),
+              ],
+            },
           );
         }
       } else {
