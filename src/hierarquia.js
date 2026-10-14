@@ -191,5 +191,7 @@ function cargosRelevantesMudaram(oldMember, newMember) {
 
 module.exports = {
   agendarAtualizacaoHierarquia,
+  executarAtualizacao,
+  coletarDadosHierarquia,
   cargosRelevantesMudaram,
 };

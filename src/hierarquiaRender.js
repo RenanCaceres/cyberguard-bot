@@ -9,7 +9,7 @@ try {
 
 const LARGURA = 2400;
 const MARGEM = 60;
-const GAP_COLUNA = 28;
+const GAP_COLUNA = 36;
 const COLUNAS = 4;
 const LARGURA_COLUNA = (LARGURA - MARGEM * 2 - GAP_COLUNA * (COLUNAS - 1)) / COLUNAS;
 
@@ -230,7 +230,7 @@ async function renderizarHierarquia(dados) {
   const alturaTitulo = 76;
   const alturaPresidente = AVATAR_TAMANHO_PRESIDENTE + 80;
   const alturaConectores = 76;
-  const gapEntreLinhas = 34;
+  const gapEntreLinhas = 44;
 
   const altura = Math.round(
     alturaTitulo +
@@ -320,23 +320,24 @@ async function renderizarHierarquia(dados) {
   ctx.strokeStyle = COR_BORDA;
   ctx.lineWidth = 3;
 
-  ctx.beginPath();
-  ctx.moveTo(centroX, yBarra);
-  ctx.lineTo(centroX, yTroncoLinha2);
-  ctx.stroke();
+  // Os conectores para a Linha 2 descem pelos vãos (gaps) entre os cards da Linha 1,
+  // sem passar por cima do time de Recursos Humanos nem de nenhum card.
+  const xGap1 = MARGEM + LARGURA_COLUNA_L1 + GAP_COLUNA / 2;
+  const xGap2 = MARGEM + 2 * LARGURA_COLUNA_L1 + GAP_COLUNA + GAP_COLUNA / 2;
 
+  // Ramo esquerdo (para Hardware Hacking):
   ctx.beginPath();
-  ctx.moveTo(centroHardwareX, yTroncoLinha2);
-  ctx.lineTo(centroEticoX, yTroncoLinha2);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(centroHardwareX, yTroncoLinha2);
+  ctx.moveTo(xGap1, yBarra);
+  ctx.lineTo(xGap1, yTroncoLinha2);
+  ctx.lineTo(centroHardwareX, yTroncoLinha2);
   ctx.lineTo(centroHardwareX, yLinha2);
   ctx.stroke();
 
+  // Ramo direito (para Hacking Ético):
   ctx.beginPath();
-  ctx.moveTo(centroEticoX, yTroncoLinha2);
+  ctx.moveTo(xGap2, yBarra);
+  ctx.lineTo(xGap2, yTroncoLinha2);
+  ctx.lineTo(centroEticoX, yTroncoLinha2);
   ctx.lineTo(centroEticoX, yLinha2);
   ctx.stroke();
 

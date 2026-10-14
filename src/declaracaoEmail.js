@@ -34,7 +34,7 @@ async function enviarDeclaracaoParaProfessor({ declaracao, caminhoPdf }) {
     text:
       `Olá Prof. André Luiz Przybysz,\n\n` +
       `O(A) acadêmico(a) ${declaracao.nome} (RA: ${declaracao.ra}, Curso: ${declaracao.curso}) solicitou uma declaração de comprovação de participação voluntária no projeto de extensão CyberGuard.\n\n` +
-      `Em anexo está o documento gerado automaticamente com início registrado em ${declaracao.data_inicio} e carga horária semanal de 10 horas.\n\n` +
+      `Em anexo está o documento gerado automaticamente com início registrado em ${declaracao.data_inicio} e carga horária semanal de ${declaracao.carga_horaria || '4 horas'}.\n\n` +
       `Para assinar e concluir:\n` +
       `1. Baixe o PDF em anexo;\n` +
       `2. Assine digitalmente pelo gov.br (assinador de documentos);\n` +
