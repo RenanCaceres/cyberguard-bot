@@ -55,36 +55,48 @@ async function buscarPaginaMembro(discordId, ra = null, nome = null) {
     let nomeBuscar = nome;
     let raBuscar = ra;
 
-    if (!nomeBuscar || !raBuscar) {
+    if (discordId && (!nomeBuscar || !raBuscar)) {
       const regDb = await db.getMembro(discordId).catch(() => null);
       if (regDb) {
         if (!nomeBuscar && regDb.nome) nomeBuscar = regDb.nome;
         if (!raBuscar && regDb.ra) raBuscar = regDb.ra;
       }
+      if (!nomeBuscar || !raBuscar) {
+        const { rows: leg } = await db.pool.query('SELECT nome, ra FROM cadastro_legado WHERE discord_id = $1', [discordId]).catch(() => ({ rows: [] }));
+        if (leg && leg[0]) {
+          if (!nomeBuscar && leg[0].nome) nomeBuscar = leg[0].nome;
+          if (!raBuscar && leg[0].ra) raBuscar = leg[0].ra;
+        }
+      }
     }
 
-    const filtros = [];
-    if (raBuscar) {
-      filtros.push({
-        property: 'RA',
-        rich_text: { equals: String(raBuscar).trim() },
+    const r = await req('POST', `/databases/${dbId}/query`, { page_size: 100 });
+    if (!r?.results?.length) return null;
+
+    const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    const nBuscar = norm(nomeBuscar);
+    const raLimpo = String(raBuscar || '').replace(/\D/g, '');
+
+    // 1. Busca por RA
+    if (raLimpo) {
+      const achouRa = r.results.find((p) => {
+        const pRa = String(p.properties.RA?.rich_text?.[0]?.plain_text || '').replace(/\D/g, '');
+        return pRa && pRa === raLimpo;
       });
+      if (achouRa) return achouRa;
     }
-    if (nomeBuscar) {
-      filtros.push({
-        property: 'Nome',
-        title: { equals: String(nomeBuscar).trim() },
+
+    // 2. Busca por Nome
+    if (nBuscar) {
+      const achouNome = r.results.find((p) => {
+        const pNome = norm(p.properties.Nome?.title?.[0]?.plain_text || '');
+        if (!pNome) return false;
+        return pNome === nBuscar || pNome.includes(nBuscar) || nBuscar.includes(pNome);
       });
+      if (achouNome) return achouNome;
     }
 
-    if (filtros.length === 0) return null;
-
-    const r = await req('POST', `/databases/${dbId}/query`, {
-      filter: filtros.length > 1 ? { or: filtros } : filtros[0],
-      page_size: 1,
-    });
-
-    return r && r.results && r.results.length > 0 ? r.results[0] : null;
+    return null;
   } catch (err) {
     console.error('[notion-membros] Erro ao buscar página do membro:', err.message);
     return null;
