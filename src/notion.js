@@ -139,4 +139,55 @@ async function comentar(pageId, texto) {
   });
 }
 
-module.exports = { listarTarefasAbertas, atualizarTarefa, comentar };
+/**
+ * Cria uma nova tarefa no database de tarefas do Notion
+ */
+async function criarTarefa({ titulo, responsavelNome = null, progresso = 0 }) {
+  const c = cfg();
+  if (!c.token) throw new Error('NOTION_TOKEN não configurado');
+  if (!c.ds) throw new Error('NOTION_DATA_SOURCE_ID não configurado');
+
+  const ds = await req('GET', `/data_sources/${c.ds}`);
+  const dbId = ds.parent?.database_id || ds.id;
+
+  const titleEntry = Object.entries(ds.properties || {}).find(([, v]) => v.type === 'title');
+  const titlePropName = titleEntry ? titleEntry[0] : 'Entrada';
+
+  const properties = {
+    [titlePropName]: {
+      title: [{ text: { content: String(titulo).trim() } }],
+    },
+    [c.pStatus]: {
+      status: { name: S.andamento },
+    },
+  };
+
+  if (c.pProgresso && ds.properties?.[c.pProgresso]?.type === 'number') {
+    properties[c.pProgresso] = { number: Number(progresso) || 0 };
+  }
+
+  if (responsavelNome && ds.properties?.[c.pResponsavel]) {
+    const respType = ds.properties[c.pResponsavel].type;
+    if (respType === 'rich_text') {
+      properties[c.pResponsavel] = {
+        rich_text: [{ text: { content: String(responsavelNome).trim() } }],
+      };
+    }
+  }
+
+  const novaPagina = await req('POST', '/pages', {
+    parent: { database_id: dbId },
+    properties,
+  });
+
+  return {
+    id: novaPagina.id,
+    titulo: String(titulo).trim(),
+    status: S.andamento,
+    responsavel: responsavelNome,
+    progresso: Number(progresso) || 0,
+  };
+}
+
+module.exports = { listarTarefasAbertas, atualizarTarefa, comentar, criarTarefa };
+

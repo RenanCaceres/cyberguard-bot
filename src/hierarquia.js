@@ -8,7 +8,6 @@ const ORDEM_TIMES = [
   'Social Media & Copy',
   'Recursos Humanos',
   'Design',
-  'Observatório',
   'Hardware Hacking',
   'Hacking Ético',
 ];
@@ -17,9 +16,13 @@ const CORES_TIME = {
   'Social Media & Copy': '#ff6ea9',
   'Recursos Humanos': '#4cd6a0',
   Design: '#f4b942',
-  Observatório: '#5ec8f2',
   'Hardware Hacking': '#ff884d',
   'Hacking Ético': '#a468ff',
+};
+
+const LIDERES_TIME = {
+  'Hacking Ético': '710682125074169956', // Christopher Ribeiro Paiva Oliveira
+  Design: '602207814034915348', // Fernanda Menan Gomes de Oliveira
 };
 
 async function baixarAvatar(discordUser) {
@@ -56,33 +59,18 @@ async function montarPessoa(guildMember) {
 }
 
 function obterMembrosDoTime(guild, nomeSecao) {
-  // ---------------------------------------------------------------------
-  // TEMPORÁRIO — remover este bloco quando o cargo "Hacking Ético" existir.
-  //
-  // O cargo "Hacking Ético" ainda não foi criado no Discord. Enquanto isso,
-  // o time é montado juntando quem tem o cargo "Red Team" OU "Blue Team"
-  // (os dois times antigos que foram fundidos nele).
-  //
-  // Assim que você criar o cargo "Hacking Ético" no servidor e atribuí-lo
-  // aos membros, apague este `if` inteiro — o `else` abaixo já busca
-  // qualquer time de ORDEM_TIMES pelo nome exato do cargo, então vai
-  // funcionar sozinho.
-  // ---------------------------------------------------------------------
   if (nomeSecao === 'Hacking Ético') {
-    const roleEtico = guild.roles.cache.find((r) => r.name === nomeSecao);
-    if (roleEtico) {
-      return guild.members.cache.filter((m) => m.roles.cache.has(roleEtico.id));
-    }
-
+    const roleIdEtico = config.roleHackingEticoId || '1502772363178147860';
+    const roleEtico = guild.roles.cache.get(roleIdEtico) || guild.roles.cache.find((r) => r.name === nomeSecao);
     const roleRed = guild.roles.cache.find((r) => r.name === 'Red Team');
     const roleBlue = guild.roles.cache.find((r) => r.name === 'Blue Team');
     return guild.members.cache.filter(
       (m) =>
+        (roleEtico && m.roles.cache.has(roleEtico.id)) ||
         (roleRed && m.roles.cache.has(roleRed.id)) ||
         (roleBlue && m.roles.cache.has(roleBlue.id))
     );
   }
-  // ---------------------------------------------------------------------
 
   const role = guild.roles.cache.find((r) => r.name === nomeSecao);
   if (!role) return null;
@@ -110,8 +98,8 @@ async function coletarDadosHierarquia(guild) {
     const pessoas = await Promise.all(
       membrosDoTime.map(async (m) => {
         const pessoa = await montarPessoa(m);
-        const ehLider = roleLider ? m.roles.cache.has(roleLider.id) : false;
-        return { ...pessoa, lider: ehLider };
+        const ehLider = (roleLider && m.roles.cache.has(roleLider.id)) || LIDERES_TIME[nomeSecao] === m.id;
+        return { ...pessoa, lider: !!ehLider };
       })
     );
 
@@ -189,6 +177,7 @@ function cargosRelevantesMudaram(oldMember, newMember) {
   const idsRelevantes = new Set(
     guild.roles.cache.filter((r) => nomesRelevantes.has(r.name)).map((r) => r.id)
   );
+  if (config.roleHackingEticoId) idsRelevantes.add(config.roleHackingEticoId);
 
   const antes = new Set(oldMember.roles.cache.filter((r) => idsRelevantes.has(r.id)).map((r) => r.id));
   const depois = new Set(newMember.roles.cache.filter((r) => idsRelevantes.has(r.id)).map((r) => r.id));
