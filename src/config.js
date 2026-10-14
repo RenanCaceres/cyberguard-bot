@@ -6,13 +6,15 @@ module.exports = {
   hierarquiaChannelId: process.env.HIERARQUIA_CHANNEL_ID || '',
   presidenteId: process.env.PRESIDENTE_ID || '',
   purpleTeamId: process.env.PURPLE_TEAM_ID || '',
+  roleHackingEticoId: process.env.ROLE_HACKING_ETICO_ID || '1502772363178147860',
+  categoriaHackingEticoId: process.env.CATEGORIA_HACKING_ETICO_ID || '1518448843279302696',
   roleLiderNome: process.env.ROLE_LIDER_NOME || 'Líderes',
   guildId: process.env.GUILD_ID,
   channelRhId: process.env.CHANNEL_RH_ID,
   channelBoasVindasId: process.env.CHANNEL_BOASVINDAS_ID || '',
   roleRhNome: process.env.ROLE_RH_NOME || 'Recursos Humanos',
   roleAprovadoNome: process.env.ROLE_APROVADO_NOME || '',
-  areasInteresse: (process.env.AREAS_INTERESSE || '')
+  areasInteresse: (process.env.AREAS_INTERESSE || 'Social Media & Copy,Recursos Humanos,Design,Hardware Hacking,Hacking Ético')
     .split(',')
     .map((a) => a.trim())
     .filter(Boolean),

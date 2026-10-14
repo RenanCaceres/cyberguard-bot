@@ -12,11 +12,9 @@ const cfg = () => ({
 function normalizarSetor(area) {
   if (!area) return null;
   const a = area.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  if (a.includes('blue')) return 'Blue Team';
-  if (a.includes('red') || a.includes('etico')) return 'Red Team';
+  if (a.includes('etico') || a.includes('hack') || a.includes('red') || a.includes('blue')) return 'Hacking Ético';
   if (a.includes('design')) return 'Design';
   if (a.includes('hardware')) return 'Hardware Hacking';
-  if (a.includes('observatorio')) return 'Observatório';
   if (a.includes('humano') || a.includes('rh')) return 'Recursos Humanos';
   if (a.includes('social') || a.includes('copy')) return 'Social Media & Copy';
   if (a.includes('lider')) return 'Líderes';
@@ -117,6 +115,10 @@ async function registrarMembroAtivo(membro) {
         date: null,
       },
     };
+
+    if (membro.email) {
+      propriedades['E-mail'] = { email: String(membro.email).trim() };
+    }
 
     const setorNormalizado = normalizarSetor(membro.area_interesse);
     if (setorNormalizado) {

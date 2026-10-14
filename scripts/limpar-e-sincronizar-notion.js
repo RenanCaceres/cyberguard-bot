@@ -36,11 +36,9 @@ function normalizarSetor(rolesOuTexto) {
   const str = lista.filter(Boolean).map((r) => (typeof r === 'string' ? r : r.name || '')).join(' ');
   const norm = str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-  if (norm.includes('blue')) return 'Blue Team';
-  if (norm.includes('red') || norm.includes('etico')) return 'Red Team';
+  if (norm.includes('blue') || norm.includes('red') || norm.includes('etico') || norm.includes('hack')) return 'Hacking Ético';
   if (norm.includes('design') || norm.includes('desing')) return 'Design';
   if (norm.includes('hardware')) return 'Hardware Hacking';
-  if (norm.includes('observatorio')) return 'Observatório';
   if (norm.includes('humano') || norm.includes('rh')) return 'Recursos Humanos';
   if (norm.includes('social') || norm.includes('copy') || norm.includes('midia')) return 'Social Media & Copy';
   if (norm.includes('lider')) return 'Líderes';
@@ -103,7 +101,7 @@ async function buscarDadosGoogleSheets() {
 async function main() {
   console.log('Iniciando sincronização completa e precisa do Notion...\n');
 
-  // 1. Garante que o banco seja inline na página de Membros e tenha apenas as 3 opções de Status solicitadas
+  // 1. Garante que o banco seja inline na página de Membros e tenha apenas as 3 opções de Status solicitadas + E-mail
   try {
     await reqNotion('PATCH', `/databases/${DB_ID}`, {
       is_inline: true,
@@ -117,10 +115,13 @@ async function main() {
             ],
           },
         },
+        'E-mail': {
+          email: {},
+        },
       },
     });
     console.log('✅ Banco no Notion configurado como is_inline: true.');
-    console.log('✅ Opções de Status padronizadas: [Ativo, Inativo, Expulso].');
+    console.log('✅ Opções de Status padronizadas: [Ativo, Inativo, Expulso] e campo E-mail garantido.');
   } catch (err) {
     console.warn('Aviso ao ajustar configurações do banco:', err.message);
   }
@@ -302,6 +303,11 @@ async function main() {
       dataEntradaIso = '2026-05-01';
     }
 
+    const email =
+      (dadosPlanilha && dadosPlanilha.email) ||
+      (registroDb && registroDb.email) ||
+      '';
+
     const props = {
       Nome: {
         title: [{ text: { content: nomeReal } }],
@@ -320,6 +326,10 @@ async function main() {
       },
     };
 
+    if (email) {
+      props['E-mail'] = { email: email.trim() };
+    }
+
     if (ra) {
       props.RA = {
         rich_text: [{ text: { content: String(ra).trim() } }],
@@ -334,14 +344,14 @@ async function main() {
 
     if (pagExistente) {
       await reqNotion('PATCH', `/pages/${pagExistente.id}`, { properties: props });
-      console.log(`✅ [ATIVO] ${nomeReal} | Setor: ${setor} | RA: ${ra || 'N/A'} | Entrada: ${dataEntradaIso}`);
+      console.log(`✅ [ATIVO] ${nomeReal} | Setor: ${setor} | RA: ${ra || 'N/A'} | E-mail: ${email || 'N/A'} | Entrada: ${dataEntradaIso}`);
     } else {
       const novaPag = await reqNotion('POST', '/pages', {
         parent: { database_id: DB_ID },
         properties: props,
       });
       paginasNotion.push(novaPag);
-      console.log(`➕ [ATIVO] ${nomeReal} | Setor: ${setor} | RA: ${ra || 'N/A'} | Entrada: ${dataEntradaIso}`);
+      console.log(`➕ [ATIVO] ${nomeReal} | Setor: ${setor} | RA: ${ra || 'N/A'} | E-mail: ${email || 'N/A'} | Entrada: ${dataEntradaIso}`);
     }
 
     membrosProcessadosAtivos.add(nomeReal.toLowerCase().trim());
@@ -376,14 +386,14 @@ async function main() {
     {
       nome: 'Gabriel de Almeida Oliveira',
       ra: '2575361',
-      setor: 'Blue Team',
+      setor: 'Hacking Ético',
       dataEntrada: '2026-06-25',
       dataSaida: '2026-08-30',
     },
     {
       nome: 'Pedro Coppo',
       ra: '',
-      setor: 'Observatório',
+      setor: 'Hacking Ético',
       dataEntrada: '2026-06-11',
       dataSaida: '2026-07-27',
     },
@@ -397,6 +407,12 @@ async function main() {
   ];
 
   for (const m of membrosInativos) {
+    let emailInativo = '';
+    const dpInativo =
+      mapaPlanilhaPorNome.get(m.nome.toLowerCase().trim()) ||
+      (m.ra ? mapaPlanilhaPorRa.get(limparRa(m.ra).replace(/\D/g, '')) : null);
+    if (dpInativo && dpInativo.email) emailInativo = dpInativo.email;
+
     const props = {
       Nome: {
         title: [{ text: { content: m.nome } }],
@@ -415,6 +431,10 @@ async function main() {
       },
     };
 
+    if (emailInativo) {
+      props['E-mail'] = { email: emailInativo.trim() };
+    }
+
     if (m.ra) {
       props.RA = {
         rich_text: [{ text: { content: String(m.ra).trim() } }],
@@ -429,14 +449,14 @@ async function main() {
 
     if (pagExistente) {
       await reqNotion('PATCH', `/pages/${pagExistente.id}`, { properties: props });
-      console.log(`✅ [INATIVO] ${m.nome} | RA: ${m.ra || 'N/A'} | Saída: ${m.dataSaida || 'N/A'}`);
+      console.log(`✅ [INATIVO] ${m.nome} | RA: ${m.ra || 'N/A'} | E-mail: ${emailInativo || 'N/A'} | Saída: ${m.dataSaida || 'N/A'}`);
     } else {
       const novaPag = await reqNotion('POST', '/pages', {
         parent: { database_id: DB_ID },
         properties: props,
       });
       paginasNotion.push(novaPag);
-      console.log(`➕ [INATIVO] ${m.nome} | RA: ${m.ra || 'N/A'} | Saída: ${m.dataSaida || 'N/A'}`);
+      console.log(`➕ [INATIVO] ${m.nome} | RA: ${m.ra || 'N/A'} | E-mail: ${emailInativo || 'N/A'} | Saída: ${m.dataSaida || 'N/A'}`);
     }
 
     await new Promise((r) => setTimeout(r, 300));

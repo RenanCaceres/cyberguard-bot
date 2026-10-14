@@ -145,7 +145,6 @@ client.on('guildMemberRemove', async (member) => {
         'Social Media & Copy',
         'Recursos Humanos',
         'Design',
-        'Observatório',
         'Hardware Hacking',
         'Hacking Ético',
         'Red Team',
@@ -153,7 +152,10 @@ client.on('guildMemberRemove', async (member) => {
         config.roleLiderNome,
       ]);
       const tinhaCargoRelevante =
-        member.roles && member.roles.cache.some((r) => nomesRelevantes.has(r.name));
+        member.roles &&
+        member.roles.cache.some(
+          (r) => nomesRelevantes.has(r.name) || r.id === config.roleHackingEticoId
+        );
 
       if (tinhaCargoRelevante) {
         hierarquia.agendarAtualizacaoHierarquia(member.guild);
@@ -171,9 +173,25 @@ client.on('guildMemberRemove', async (member) => {
 
     try {
       const { registrarSaidaMembro } = require('./notionMembros');
-      await registrarSaidaMembro(member.id);
+      await registrarSaidaMembro(member.id, {
+        nome: registro?.nome || nome,
+        ra: registro?.ra || null,
+        email: registro?.email || null,
+      });
     } catch (errNotion) {
       console.error('Erro ao atualizar saída no Notion:', errNotion.message);
+    }
+
+    if (config.channelRhId) {
+      try {
+        const canalRh = await member.guild.channels.fetch(config.channelRhId);
+        const emailInfo = registro && registro.email ? `\`${registro.email}\`` : 'não registrado';
+        await canalRh.send({
+          content: `🚪 **Revogação de Acesso ao Notion:**\nO integrante **${nome}** (<@${member.id}>) saiu do servidor.\n📧 **E-mail:** ${emailInfo}\n⚠️ *O cadastro no Notion foi alterado para Inativo. Remova o acesso de convidado deste e-mail nas configurações do Workspace do Notion.*`,
+        });
+      } catch (errRhAviso) {
+        console.error('Erro ao alertar RH sobre saída do membro:', errRhAviso.message);
+      }
     }
 
     if (registro && registro.status === 'concluido') {

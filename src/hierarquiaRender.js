@@ -208,24 +208,23 @@ async function renderizarHierarquia(dados) {
   const { presidente, times } = dados;
 
   // --------------------------------------------------------------------
-  // Layout atual assume EXATAMENTE 6 times, nesta ordem (ver ORDEM_TIMES
-  // em hierarquia.js):
-  //   0-3: Social Media & Copy, Recursos Humanos, Design, Observatório
-  //        -> uma linha com 4 cards (linha1)
-  //   4:   Hardware Hacking     -> linha2, coluna esquerda
-  //   5:   Hacking Ético        -> linha2, coluna direita
-  // Se a quantidade ou a ordem dos times mudar, ajuste os índices abaixo.
+  // Layout para 5 times (ver ORDEM_TIMES em hierarquia.js):
+  //   0-2: Social Media & Copy, Recursos Humanos, Design
+  //        -> Linha 1 com 3 colunas
+  //   3:   Hardware Hacking     -> Linha 2, coluna esquerda
+  //   4:   Hacking Ético        -> Linha 2, coluna direita
   // --------------------------------------------------------------------
-  const linha1 = times.slice(0, 4);
-  const hardwareHacking = times[4];
-  const hackingEtico = times[5];
+  const COLUNAS_L1 = 3;
+  const LARGURA_COLUNA_L1 = (LARGURA - MARGEM * 2 - GAP_COLUNA * (COLUNAS_L1 - 1)) / COLUNAS_L1;
+  const LARGURA_COLUNA_L2 = (LARGURA - MARGEM * 2 - GAP_COLUNA) / 2;
 
-  const alturaLinha1 = Math.max(...linha1.map((t) => medirAlturaCard(t, LARGURA_COLUNA)));
+  const linha1 = times.slice(0, 3);
+  const hardwareHacking = times[3] || { nome: 'Hardware Hacking', cor: '#ff884d', membros: [] };
+  const hackingEtico = times[4] || { nome: 'Hacking Ético', cor: '#a468ff', membros: [] };
 
-  // linha2 tem só 2 cards, cada um ocupando a largura de 2 colunas da linha1
-  const larguraLinha2 = LARGURA_COLUNA * 2 + GAP_COLUNA;
-  const alturaHardware = medirAlturaCard(hardwareHacking, larguraLinha2);
-  const alturaEtico = medirAlturaCard(hackingEtico, larguraLinha2);
+  const alturaLinha1 = Math.max(...linha1.map((t) => medirAlturaCard(t, LARGURA_COLUNA_L1)));
+  const alturaHardware = medirAlturaCard(hardwareHacking, LARGURA_COLUNA_L2);
+  const alturaEtico = medirAlturaCard(hackingEtico, LARGURA_COLUNA_L2);
   const alturaLinha2 = Math.max(alturaHardware, alturaEtico);
 
   const alturaTitulo = 76;
@@ -285,14 +284,14 @@ async function renderizarHierarquia(dados) {
   ctx.stroke();
 
   const centrosColunas = [];
-  for (let i = 0; i < COLUNAS; i++) {
-    const x = MARGEM + i * (LARGURA_COLUNA + GAP_COLUNA);
-    centrosColunas.push(x + LARGURA_COLUNA / 2);
+  for (let i = 0; i < COLUNAS_L1; i++) {
+    const x = MARGEM + i * (LARGURA_COLUNA_L1 + GAP_COLUNA);
+    centrosColunas.push(x + LARGURA_COLUNA_L1 / 2);
   }
 
   ctx.beginPath();
   ctx.moveTo(centrosColunas[0], yBarra);
-  ctx.lineTo(centrosColunas[COLUNAS - 1], yBarra);
+  ctx.lineTo(centrosColunas[COLUNAS_L1 - 1], yBarra);
   ctx.stroke();
 
   const yFimGalho = y + alturaConectores;
@@ -306,19 +305,16 @@ async function renderizarHierarquia(dados) {
   y += alturaConectores;
 
   linha1.forEach((time, i) => {
-    const x = MARGEM + i * (LARGURA_COLUNA + GAP_COLUNA);
-    desenharCardTime(ctx, time, x, y, LARGURA_COLUNA, alturaLinha1);
+    const x = MARGEM + i * (LARGURA_COLUNA_L1 + GAP_COLUNA);
+    desenharCardTime(ctx, time, x, y, LARGURA_COLUNA_L1, alturaLinha1);
   });
 
   const yLinha2 = y + alturaLinha1 + gapEntreLinhas;
 
-  // Conector: o tronco central continua descendo por trás da linha 1 e se
-  // ramifica de novo pra linha 2 (Hardware Hacking + Hacking Ético), pra
-  // deixar claro que os dois também estão sob o presidente.
   const xHardware = MARGEM;
-  const xEtico = MARGEM + larguraLinha2 + GAP_COLUNA;
-  const centroHardwareX = xHardware + larguraLinha2 / 2;
-  const centroEticoX = xEtico + larguraLinha2 / 2;
+  const xEtico = MARGEM + LARGURA_COLUNA_L2 + GAP_COLUNA;
+  const centroHardwareX = xHardware + LARGURA_COLUNA_L2 / 2;
+  const centroEticoX = xEtico + LARGURA_COLUNA_L2 / 2;
 
   const yTroncoLinha2 = yLinha2 - gapEntreLinhas / 2;
   ctx.strokeStyle = COR_BORDA;
@@ -344,8 +340,8 @@ async function renderizarHierarquia(dados) {
   ctx.lineTo(centroEticoX, yLinha2);
   ctx.stroke();
 
-  desenharCardTime(ctx, hardwareHacking, xHardware, yLinha2, larguraLinha2, alturaLinha2);
-  desenharCardTime(ctx, hackingEtico, xEtico, yLinha2, larguraLinha2, alturaLinha2);
+  desenharCardTime(ctx, hardwareHacking, xHardware, yLinha2, LARGURA_COLUNA_L2, alturaLinha2);
+  desenharCardTime(ctx, hackingEtico, xEtico, yLinha2, LARGURA_COLUNA_L2, alturaLinha2);
 
   return canvas.encode('png');
 }

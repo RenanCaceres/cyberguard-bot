@@ -151,7 +151,10 @@ async function handleAprovacaoInteraction(interaction) {
       );
 
       for (const nomeCargo of nomesParaAtribuir) {
-        const role = interaction.guild.roles.cache.find((r) => r.name === nomeCargo);
+        let role = interaction.guild.roles.cache.find((r) => r.name === nomeCargo);
+        if (!role && (nomeCargo === 'Hacking Ético' || nomeCargo === 'Hacking Etico') && config.roleHackingEticoId) {
+          role = interaction.guild.roles.cache.get(config.roleHackingEticoId);
+        }
         if (role) {
           await guildMember.roles.add(role);
         } else {
@@ -160,6 +163,17 @@ async function handleAprovacaoInteraction(interaction) {
       }
     } catch (err) {
       console.error('Erro ao atribuir cargos ao membro aprovado:', err);
+    }
+  }
+
+  if (config.channelRhId && membroAtualizado.email) {
+    try {
+      const canalRh = await interaction.guild.channels.fetch(config.channelRhId);
+      await canalRh.send({
+        content: `🔑 **Liberação de Acesso ao Notion:**\nO integrante **${membroAtualizado.nome}** (<@${discordId}> - RA: \`${membroAtualizado.ra || 'N/A'}\`) foi aprovado no onboarding!\n📧 **E-mail:** \`${membroAtualizado.email}\`\n📌 *O cadastro foi registrado como Ativo no Notion. Adicione este e-mail aos convidados do Workspace no Notion para conceder o acesso.*`,
+      });
+    } catch (errRhNotif) {
+      console.error('Erro ao notificar canal do RH sobre e-mail Notion:', errRhNotif.message);
     }
   }
 

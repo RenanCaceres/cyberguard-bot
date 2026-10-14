@@ -96,11 +96,9 @@ async function handleMensagemDM(message) {
 function obterSubpastaArea(area) {
   if (!area) return 'Geral';
   const a = area.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  if (a.includes('blue')) return 'BlueTeam';
-  if (a.includes('red') || a.includes('etico')) return 'RedTeam';
+  if (a.includes('etico') || a.includes('hack') || a.includes('red') || a.includes('blue')) return 'HackingEtico';
   if (a.includes('design')) return 'Design';
   if (a.includes('hardware')) return 'HardwareHacking';
-  if (a.includes('observatorio')) return 'Observatorio';
   if (a.includes('humano') || a.includes('rh')) return 'Recursos Humanos';
   if (a.includes('social') || a.includes('copy')) return 'SocialMedia';
   if (a.includes('lider')) return 'Líderes';

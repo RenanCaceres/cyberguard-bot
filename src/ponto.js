@@ -175,16 +175,19 @@ function montarSelecaoTarefas(tarefas, pagina, modo = 'm', conteudo) {
     );
 
   const linhas = [new ActionRowBuilder().addComponents(select)];
+  const linhaBotoes = new ActionRowBuilder();
   if (totalPag > 1) {
-    linhas.push(
-      new ActionRowBuilder().addComponents(
-        btn(`ponto:pag:${modo}:${pagina - 1}`, '◀', ButtonStyle.Secondary).setDisabled(pagina === 0),
-        btn('ponto:pag_info', `${pagina + 1}/${totalPag}`, ButtonStyle.Secondary).setDisabled(true),
-        btn(`ponto:pag:${modo}:${pagina + 1}`, '▶', ButtonStyle.Secondary).setDisabled(pagina >= totalPag - 1),
-      ),
+    linhaBotoes.addComponents(
+      btn(`ponto:pag:${modo}:${pagina - 1}`, '◀', ButtonStyle.Secondary).setDisabled(pagina === 0),
+      btn('ponto:pag_info', `${pagina + 1}/${totalPag}`, ButtonStyle.Secondary).setDisabled(true),
+      btn(`ponto:pag:${modo}:${pagina + 1}`, '▶', ButtonStyle.Secondary).setDisabled(pagina >= totalPag - 1),
     );
   }
-  return { content: conteudo ?? `Selecione a tarefa (${tarefas.length} em aberto):`, components: linhas };
+  linhaBotoes.addComponents(
+    btn(`ponto:nova_tarefa:${modo}`, 'Criar tarefa no Notion', ButtonStyle.Success, '➕'),
+  );
+  linhas.push(linhaBotoes);
+  return { content: conteudo ?? `Selecione a tarefa (${tarefas.length} em aberto) ou crie uma nova:`, components: linhas };
 }
 
 const tituloEscolhido = (interaction) =>
@@ -200,6 +203,16 @@ async function ofertarTarefaPendente(interaction, aberto) {
     console.error('[ponto] notion (listar):', e.message);
     await interaction.editReply('❌ Não consegui consultar as tarefas no Notion agora. Tente de novo em instantes.');
     return expirar(interaction, 10_000);
+  }
+  if (!tarefas.length) {
+    const row = new ActionRowBuilder().addComponents(
+      btn('ponto:nova_tarefa:v', 'Criar nova tarefa no Notion', ButtonStyle.Success, '➕'),
+    );
+    await interaction.editReply({
+      content: `🎙️ Seu ponto da call (aberto às ${ts(aberto.aberto_em, 't')}) ainda não tem tarefa e não há tarefas em aberto no Notion. Crie uma agora:`,
+      components: [row],
+    });
+    return expirar(interaction, 60_000);
   }
   await interaction.editReply(
     montarSelecaoTarefas(tarefas, 0, 'v', `🎙️ Seu ponto da call (aberto às ${ts(aberto.aberto_em, 't')}) ainda não tem tarefa. Escolha:`),
@@ -227,8 +240,14 @@ async function abrirFluxo(interaction) {
     return expirar(interaction, 10_000);
   }
   if (!tarefas.length) {
-    await interaction.editReply('Nenhuma tarefa em aberto no Notion.');
-    return expirar(interaction, 10_000);
+    const row = new ActionRowBuilder().addComponents(
+      btn('ponto:nova_tarefa:m', 'Criar nova tarefa no Notion', ButtonStyle.Success, '➕'),
+    );
+    await interaction.editReply({
+      content: 'Nenhuma tarefa em aberto no Notion. Você pode criar uma agora:',
+      components: [row],
+    });
+    return expirar(interaction, 60_000);
   }
   await interaction.editReply(montarSelecaoTarefas(tarefas, 0, 'm'));
   return expirar(interaction, 120_000); // some sozinho se a pessoa desistir de escolher
@@ -275,6 +294,123 @@ async function escolherTarefa(interaction) {
     new EmbedBuilder()
       .setColor(0x2ecc71)
       .setTitle('🟢 Ponto aberto')
+      .addFields(
+        { name: 'Membro', value: `<@${row.discord_id}> (${row.nome})`, inline: true },
+        { name: 'Tarefa', value: trunc(row.tarefa_titulo, 256), inline: true },
+        { name: 'Horário', value: ts(row.aberto_em), inline: true },
+      ),
+  );
+}
+
+// ---------- criar nova tarefa no Notion e vincular ao ponto ----------
+function modalCriarTarefa(modo = 'm') {
+  return new ModalBuilder()
+    .setCustomId(`ponto:modal_nova_tarefa:${modo}`)
+    .setTitle('Criar Tarefa no Notion')
+    .addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('titulo')
+          .setLabel('Título da tarefa')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setPlaceholder('Ex.: Implementar tela de login / Documentar API')
+          .setMaxLength(150),
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('progresso')
+          .setLabel('Progresso inicial (%) (opcional, padrão 0)')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(false)
+          .setPlaceholder('0')
+          .setMaxLength(3),
+      ),
+    );
+}
+
+async function tratarNovaTarefaModal(interaction, modo = 'm') {
+  const titulo = interaction.fields.getTextInputValue('titulo')?.trim();
+  const progBruto = interaction.fields.getTextInputValue('progresso')?.trim();
+  let progresso = 0;
+  if (progBruto) {
+    const num = Number(progBruto.replace('%', ''));
+    if (!isNaN(num) && num >= 0 && num <= 100) progresso = Math.round(num);
+  }
+
+  if (!titulo) {
+    await interaction.reply({ content: '⚠️ O título da tarefa não pode ser vazio.', flags: EPH });
+    return expirar(interaction, 10_000);
+  }
+
+  await interaction.deferReply({ flags: EPH });
+
+  const nome = nomeDe(interaction);
+  let tarefa;
+  try {
+    tarefa = await notion.criarTarefa({
+      titulo,
+      responsavelNome: nome,
+      progresso,
+    });
+  } catch (err) {
+    console.error('[ponto] erro ao criar tarefa no Notion:', err);
+    await interaction.editReply('❌ Falha ao criar a tarefa no Notion. Tente novamente em instantes.');
+    return expirar(interaction, 12_000);
+  }
+
+  if (modo === 'v') {
+    const userId = interaction.user.id;
+    const dados = { tarefaId: tarefa.id, tarefaTitulo: tarefa.titulo, progressoInicial: tarefa.progresso };
+
+    const aberto = await pdb.getAberto(userId);
+    if (aberto && aberto.tarefa_id === pdb.PENDENTE) {
+      await pdb.definirTarefa(aberto.id, dados);
+      await interaction.editReply(
+        `✅ Nova tarefa **${tarefa.titulo}** criada no Notion e vinculada ao seu ponto de voz!\nSeu tempo está contando desde ${ts(aberto.aberto_em, 't')}.`,
+      );
+      return expirar(interaction, 12_000);
+    }
+    const pend = await pdb.getPendenteReporte(userId);
+    if (pend && pend.tarefa_id === pdb.PENDENTE) {
+      await pdb.definirTarefa(pend.id, dados);
+      return interaction.editReply({
+        content: `✅ Nova tarefa **${tarefa.titulo}** criada no Notion! Agora reporte o progresso desta sessão.`,
+        components: [new ActionRowBuilder().addComponents(btn(`ponto:reportar:${pend.id}`, 'Reportar progresso', ButtonStyle.Primary, '📝'))],
+      });
+    }
+    await interaction.editReply(`✅ Tarefa **${tarefa.titulo}** criada no Notion.`);
+    return expirar(interaction, 10_000);
+  }
+
+  // modo manual 'm'
+  const row = await pdb.abrir({
+    discordId: interaction.user.id,
+    nome,
+    usuario: interaction.user.username,
+    tarefaId: tarefa.id,
+    tarefaTitulo: tarefa.titulo,
+    progressoInicial: tarefa.progresso,
+    origem: 'manual',
+  });
+
+  if (!row) {
+    await interaction.editReply(`✅ Tarefa **${tarefa.titulo}** criada no Notion, mas você já possui um ponto aberto.`);
+    return expirar(interaction, 12_000);
+  }
+
+  await interaction.editReply(
+    `🟢 Tarefa criada no Notion e ponto aberto às ${ts(row.aberto_em, 't')} para **${tarefa.titulo}**` +
+    (tarefa.progresso > 0 ? ` (progresso inicial: ${tarefa.progresso}%)` : '') +
+    '.\nQuando terminar, clique em **Fechar ponto**.',
+  );
+  expirar(interaction, 12_000);
+
+  await logar(
+    interaction.client,
+    new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle('🟢 Ponto aberto (Nova tarefa no Notion)')
       .addFields(
         { name: 'Membro', value: `<@${row.discord_id}> (${row.nome})`, inline: true },
         { name: 'Tarefa', value: trunc(row.tarefa_titulo, 256), inline: true },
@@ -1040,6 +1176,21 @@ async function handlePontoInteraction(interaction) {
         const [, , alvo, pag] = id.split(':');
         await detalhe(interaction, alvo, Number(pag));
       } else if (id.startsWith('ponto:reportar:')) await abrirModalReporte(interaction, Number(id.split(':')[2]));
+      else if (id.startsWith('ponto:nova_tarefa:')) {
+        const modo = id.split(':')[2] || 'm';
+        if (modo === 'm') {
+          const aberto = await pdb.getAberto(interaction.user.id);
+          if (aberto) {
+            if (aberto.tarefa_id === pdb.PENDENTE) return ofertarTarefaPendente(interaction, aberto);
+            await interaction.reply({
+              content: `⚠️ Você já tem um ponto aberto desde ${ts(aberto.aberto_em)} em **${aberto.tarefa_titulo}**. Feche-o antes de abrir outro.`,
+              flags: EPH,
+            });
+            return expirar(interaction, 10_000);
+          }
+        }
+        return interaction.showModal(modalCriarTarefa(modo));
+      }
     } else if (interaction.isStringSelectMenu()) {
       if (id === 'ponto:tarefa') await escolherTarefa(interaction);
       else if (id === 'ponto:tarefa_voz') await escolherTarefaVoz(interaction);
@@ -1049,6 +1200,7 @@ async function handlePontoInteraction(interaction) {
       if (id === 'ponto:fechar_modal') await fecharModal(interaction);
       else if (id.startsWith('ponto:rep_modal:')) await reporteModal(interaction, Number(id.split(':')[2]));
       else if (id.startsWith('ponto:adj_modal:')) await ajustarModal(interaction, Number(id.split(':')[2]));
+      else if (id.startsWith('ponto:modal_nova_tarefa:')) await tratarNovaTarefaModal(interaction, id.split(':')[2] || 'm');
     }
     return true;
   } catch (e) {
