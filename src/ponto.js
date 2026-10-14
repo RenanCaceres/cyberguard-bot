@@ -9,6 +9,7 @@ const {
 } = require('discord.js');
 const notion = require('./notion');
 const pdb = require('./pontoDb');
+const db = require('./db');
 const { gerarRanking } = require('./rankingRender');
 
 // Planilha (Google Sheets): opcional. Se src/pontoSheets.js não existir, o ponto funciona sem ela.
@@ -54,6 +55,21 @@ const fmtDataHora = (d) =>
 const fmtHora = (d) =>
   new Date(d).toLocaleTimeString('pt-BR', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 const nomeDe = (i) => i.member?.displayName ?? i.user.globalName ?? i.user.username;
+
+async function resolverNomeCompleto(discordId, fallbackUser) {
+  try {
+    const membro = await db.getMembro(discordId).catch(() => null);
+    if (membro && membro.nome) return membro.nome.trim();
+
+    const legado = await db.getNomeLegado(discordId).catch(() => null);
+    if (legado) return legado.trim();
+  } catch (err) {
+    console.error('[ponto] erro ao resolver nome completo de', discordId, err.message);
+  }
+
+  return fallbackUser?.displayName ?? fallbackUser?.globalName ?? fallbackUser?.username ?? fallbackUser?.user?.username ?? 'Membro';
+}
+
 const umaLinha = (s) => String(s ?? '').replace(/\s*\n+\s*/g, ' ').trim();
 const ICONE_ORIGEM = { voz: '🎙️', importado: '📥', kov: '⏰', manual: '' };
 
@@ -268,9 +284,10 @@ async function paginaTarefas(interaction, modo, pagina) {
 async function escolherTarefa(interaction) {
   const { id: tarefaId, progresso } = lerValor(interaction.values[0]);
   const titulo = tituloEscolhido(interaction);
+  const nomeCompleto = await resolverNomeCompleto(interaction.user.id, interaction.member || interaction.user);
   const row = await pdb.abrir({
     discordId: interaction.user.id,
-    nome: nomeDe(interaction),
+    nome: nomeCompleto,
     usuario: interaction.user.username,
     tarefaId,
     tarefaTitulo: titulo,
@@ -345,7 +362,7 @@ async function tratarNovaTarefaModal(interaction, modo = 'm') {
 
   await interaction.deferReply({ flags: EPH });
 
-  const nome = nomeDe(interaction);
+  const nome = await resolverNomeCompleto(interaction.user.id, interaction.member || interaction.user);
   let tarefa;
   try {
     tarefa = await notion.criarTarefa({
@@ -535,9 +552,10 @@ async function fecharModal(interaction) {
 const saidasPendentes = new Map(); // discordId -> timer da tolerância de saída
 
 async function abrirPorEntrada(client, member) {
+  const nomeCompleto = await resolverNomeCompleto(member.id, member);
   const row = await pdb.abrir({
     discordId: member.id,
-    nome: member.displayName ?? member.user.username,
+    nome: nomeCompleto,
     usuario: member.user.username,
     tarefaId: pdb.PENDENTE,
     tarefaTitulo: '(aguardando escolha da tarefa)',
@@ -1035,9 +1053,10 @@ async function importarComando(interaction) {
   }
   await interaction.deferReply({ flags: EPH });
   const membro = interaction.options.getMember('membro');
+  const nomeCompleto = await resolverNomeCompleto(alvo.id, membro || alvo);
   const row = await pdb.importarSaldo({
     discordId: alvo.id,
-    nome: membro?.displayName ?? alvo.globalName ?? alvo.username,
+    nome: nomeCompleto,
     usuario: alvo.username,
     segundos,
     obs: interaction.options.getString('observacao'),

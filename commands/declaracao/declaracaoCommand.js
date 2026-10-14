@@ -3,6 +3,30 @@ const db = require('../../src/db');
 const { gerarDeclaracaoPdf } = require('../../src/declaracaoService');
 const { enviarDeclaracaoParaProfessor, verificarRespostasDeclaracoes } = require('../../src/declaracaoEmail');
 
+const config = require('../../src/config');
+
+async function verificarSeEhLider(client, member, discordId) {
+  if (discordId === config.presidenteId) return true;
+  try {
+    let guildMember = member;
+    if (!guildMember || !guildMember.roles) {
+      const guild = await client.guilds.fetch(config.guildId);
+      guildMember = await guild.members.fetch(discordId).catch(() => null);
+    }
+    if (!guildMember?.roles) return false;
+    const pontoLiderRole = process.env.PONTO_ROLE_LIDERES_ID;
+    return guildMember.roles.cache.some(
+      (r) =>
+        r.name === config.roleLiderNome ||
+        r.name === 'Líderes' ||
+        r.name === 'Lideres' ||
+        (pontoLiderRole && r.id === pontoLiderRole)
+    );
+  } catch {
+    return false;
+  }
+}
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('declaracao')
@@ -58,7 +82,7 @@ module.exports = {
 
         embed.addFields({
           name: `#${d.codigo} (${dataFormatada})`,
-          value: `**Status:** ${statusLabel}\n**Início declarado:** ${d.data_inicio}\n**RA:** ${d.ra}`,
+          value: `**Status:** ${statusLabel}\n**Início declarado:** ${d.data_inicio}\n**Carga horária:** ${d.carga_horaria || '4 horas'}\n**RA:** ${d.ra}`,
         });
       }
 
@@ -96,6 +120,9 @@ module.exports = {
       }
 
       const dataInicioFinal = membro.data_inicio || '05/2026';
+      const ehLider = await verificarSeEhLider(interaction.client, interaction.member, interaction.user.id);
+      const cargaHoraria = ehLider ? '10 horas' : '4 horas';
+      const cargaHorariaExtenso = ehLider ? '10 horas semanais' : '4 horas semanais';
 
       const codigo = `DECL-${membro.ra}-${Date.now().toString().slice(-4)}`;
 
@@ -106,7 +133,7 @@ module.exports = {
           curso: membro.curso || 'Engenharia / Tecnologia',
           ra: membro.ra,
           dataInicio: dataInicioFinal,
-          cargaHoraria: '10 horas',
+          cargaHoraria: cargaHoraria,
           dataSolicitacao: new Date(),
         });
 
@@ -118,6 +145,7 @@ module.exports = {
           ra: membro.ra,
           curso: membro.curso || 'Engenharia / Tecnologia',
           dataInicio: dataInicioFinal,
+          cargaHoraria: cargaHoraria,
           caminhoPdfGerado: caminhoPdf,
         });
 
@@ -146,7 +174,7 @@ module.exports = {
             { name: 'RA', value: membro.ra, inline: true },
             { name: 'Curso', value: membro.curso || '—', inline: true },
             { name: 'Início no Projeto', value: dataInicioFinal, inline: true },
-            { name: 'Carga Horária', value: '10 horas semanais', inline: true }
+            { name: 'Carga Horária', value: cargaHorariaExtenso, inline: true }
           )
           .setColor(0x2f6fed)
           .setFooter({

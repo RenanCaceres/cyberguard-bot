@@ -195,10 +195,12 @@ async function initSchema() {
       caminho_pdf_gerado TEXT,
       caminho_pdf_assinado TEXT,
       message_id_email TEXT,
+      carga_horaria TEXT DEFAULT '4 horas',
       criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
       atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  await pool.query('ALTER TABLE declaracoes_solicitadas ADD COLUMN IF NOT EXISTS carga_horaria TEXT DEFAULT \'4 horas\'');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_declaracoes_codigo ON declaracoes_solicitadas (codigo)');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_declaracoes_discord_id ON declaracoes_solicitadas (discord_id)');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_declaracoes_status ON declaracoes_solicitadas (status)');
@@ -612,15 +614,16 @@ async function criarSolicitacaoDeclaracao({
   ra,
   curso,
   dataInicio,
+  cargaHoraria = '4 horas',
   caminhoPdfGerado,
   messageIdEmail = null,
 }) {
   const { rows } = await pool.query(
     `INSERT INTO declaracoes_solicitadas
-      (codigo, discord_id, nome, ra, curso, data_inicio, caminho_pdf_gerado, message_id_email)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      (codigo, discord_id, nome, ra, curso, data_inicio, carga_horaria, caminho_pdf_gerado, message_id_email)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING *`,
-    [codigo, discordId, nome, ra, curso, dataInicio, caminhoPdfGerado, messageIdEmail]
+    [codigo, discordId, nome, ra, curso, dataInicio, cargaHoraria, caminhoPdfGerado, messageIdEmail]
   );
   return rows[0];
 }
