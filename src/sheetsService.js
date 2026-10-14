@@ -1,4 +1,3 @@
-const { GoogleSpreadsheet } = require('google-spreadsheet');
 const { JWT } = require('google-auth-library');
 const config = require('./config');
 
@@ -27,6 +26,7 @@ async function adicionarLinhaPlanilha(membro, discordTag) {
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
+    const { GoogleSpreadsheet } = await import('google-spreadsheet');
     const doc = new GoogleSpreadsheet(config.googleSheets.sheetId, auth);
     await doc.loadInfo();
 
