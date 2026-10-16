@@ -161,28 +161,26 @@ async function localizarAreaEsperadaAssinatura(caminhoPdf) {
   for (let i = 1; i <= documento.numPages; i++) {
     const pagina = await documento.getPage(i);
     const conteudo = await pagina.getTextContent();
-    const textoPagina = conteudo.items.map((it) => it.str).join(' ');
-
-    // Deve ser a página da seção ACEITE E CONCORDÂNCIA
-    if (!/aceite e concord[âa]ncia/i.test(textoPagina)) {
-      continue;
-    }
 
     let voluntario = null;
     let coordenacao = null;
+    let direc = null;
+
     for (const item of conteudo.items) {
       const texto = item.str.trim();
       if (/^Volunt[aá]rio\(a\)$/i.test(texto)) voluntario = item;
       if (/^Coordena[cç][aã]o da a[cç][aã]o$/i.test(texto)) coordenacao = item;
+      if (/^DIREC$/i.test(texto)) direc = item;
     }
 
-    if (voluntario && coordenacao) {
+    if (voluntario && (coordenacao || direc)) {
+      const refY = coordenacao ? coordenacao.transform[5] : direc.transform[5] + 40;
       return {
         pageIndex: i - 1,
         xMin: 210,
         xMax: 548,
-        yMin: Math.min(coordenacao.transform[5], voluntario.transform[5]),
-        yMax: Math.max(coordenacao.transform[5], voluntario.transform[5]) + 30,
+        yMin: Math.min(refY, voluntario.transform[5]),
+        yMax: Math.max(refY, voluntario.transform[5]) + 30,
       };
     }
   }
@@ -288,15 +286,15 @@ async function validarTermoDevolvido(caminhoPdf) {
     };
   }
 
-  // Verifica se a assinatura não tem mais de 60 dias
+  // Verifica se a assinatura não tem mais de 90 dias
   const limitePassado = new Date();
-  limitePassado.setDate(limitePassado.getDate() - 60);
+  limitePassado.setDate(limitePassado.getDate() - 90);
   if (dataAssinatura < limitePassado) {
     return {
       valido: false,
       revisarManualmente: true,
       motivo:
-        `A data preenchida no termo (${dataEncontrada}) é de mais de 60 dias atrás. O termo precisa ser recente.`,
+        `A data preenchida no termo (${dataEncontrada}) é de mais de 90 dias atrás. O termo precisa ser recente.`,
     };
   }
 
