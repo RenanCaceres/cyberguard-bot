@@ -3,7 +3,7 @@ const config = require('./config');
 const db = require('./db');
 const { iniciarOnboarding } = require('./onboarding');
 const { handleAprovacaoInteraction } = require('./approval');
-const { handleMensagemDM } = require('./recepcaoTermo');
+const { handleMensagemDM, handleRevisaoTermoInteraction } = require('./recepcaoTermo');
 const { iniciarLembretes, handleResolverLembrete } = require('./reminders');
 const { processarMembrosPendentes, processarSaidasPerdidas } = require('./catchUp');
 const { postarCartao } = require('./cartaoServidor');
@@ -97,17 +97,14 @@ client.on('interactionCreate', async (interaction) => {
     return;
   }
 
-  handleAdvertenciaInteraction(interaction)
-    .then((tratado) => {
-      if (tratado) return;
-      handleResolverLembrete(interaction).then((tratado2) => {
-        if (tratado2) return;
-        handleAprovacaoInteraction(interaction).catch((err) =>
-          console.error('Erro na interação de aprovação:', err)
-        );
-      });
-    })
-    .catch((err) => console.error('Erro na interação de advertência:', err));
+  try {
+    if (await handleAdvertenciaInteraction(interaction)) return;
+    if (await handleResolverLembrete(interaction)) return;
+    if (await handleRevisaoTermoInteraction(interaction)) return;
+    await handleAprovacaoInteraction(interaction);
+  } catch (err) {
+    console.error('Erro na interação do bot:', err);
+  }
 });
 
 client.on('guildMemberUpdate', (oldMember, newMember) => {
