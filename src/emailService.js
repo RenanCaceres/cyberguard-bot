@@ -12,14 +12,16 @@ const transporter = nodemailer.createTransport({
 });
 
 async function encaminharTermoAssinado(membro, caminhoArquivo, nomeArquivoOriginal) {
-  if (config.smtp.destinatarios.length === 0) {
-    console.warn('Nenhum destinatário configurado em EMAIL_DESTINATARIOS.');
-    return;
-  }
+  const destinatario = config.smtp.emailTermosDestinatario || 'natassyasilva@utfpr.edu.br';
+  const copias =
+    config.smtp.emailTermosCc && config.smtp.emailTermosCc.length > 0
+      ? config.smtp.emailTermosCc
+      : ['renan.2004@alunos.utfpr.edu.br', 'andrequeiroz@alunos.utfpr.edu.br'];
 
   await transporter.sendMail({
-    from: config.smtp.from,
-    to: config.smtp.destinatarios.join(', '),
+    from: config.smtp.from || config.smtp.user,
+    to: destinatario,
+    cc: copias,
     subject: `Termo de voluntariado assinado - ${membro.nome}`,
     text:
       `Segue em anexo o termo de voluntariado assinado por ${membro.nome} (RA: ${membro.ra}).\n\n` +
