@@ -124,17 +124,18 @@ async function gerarManualMembroPonto() {
 
   doc.secao('3', 'Modo 1: Registro Manual pelo Painel de Ponto');
   doc.subsecao('Passo 1: Clicar em "Abrir ponto" (Verde)');
-  doc.listaItem('O bot consulta as tarefas em aberto no Notion e exibe um menu para sua escolha.');
-  doc.listaItem('Ao escolher a tarefa, seu ponto é aberto imediatamente e registrado no log do servidor.');
+  doc.listaItem('O bot consulta as tarefas em aberto no Notion e exibe um menu paginado para sua escolha.');
+  doc.listaItem('Criar tarefa no Notion: caso sua demanda ainda não esteja cadastrada, clique no botão "Criar tarefa no Notion" para cadastrá-la na hora (informando título e progresso inicial) e já abrir o ponto vinculado a ela.');
+  doc.listaItem('Ao escolher ou criar a tarefa, seu ponto é aberto imediatamente e registrado no log do servidor.');
 
   doc.subsecao('Passo 2: Clicar em "Fechar ponto" (Vermelho)');
   doc.listaItem('Progresso da tarefa (0 a 100): digite a porcentagem atingida (ex.: 60 ou 100).');
   doc.listaItem('O que você fez: resumo claro e objetivo das entregas realizadas durante esse período.');
-  doc.listaItem('O que falta: obrigatório se o progresso for menor que 100%. Descreva os próximos passos.');
+  doc.listaItem('O que falta: obrigatório se o progresso for menor que 100%. Descreva os próximos passos (caso ocorra erro de preenchimento, o bot devolve seu rascunho em texto para você não perder o que escreveu).');
 
   doc.secao('4', 'Modo 2: Ponto Automático pela Call de Ponto (Canal de Voz)');
   doc.listaItem('Entrar no canal de voz: o bot abre seu ponto automaticamente no segundo em que você conecta.');
-  doc.listaItem('Escolha da tarefa por DM: o bot manda uma mensagem privada para você vincular sua demanda.');
+  doc.listaItem('Escolha ou criação da tarefa por DM: o bot manda uma mensagem privada para você selecionar sua demanda do Notion ou criar uma nova tarefa.');
   doc.listaItem('Sair do canal de voz: desconectar encerra seu ponto e envia a DM para relato das entregas.');
   doc.alerta(
     'Tolerância de Quedas de Conexão (Grace Period)',
@@ -149,10 +150,10 @@ async function gerarManualMembroPonto() {
   );
   await figura(doc, F.fluxoPontoVerificacao());
   doc.subsecao('1. Botão "Sim, continuo trabalhando" (Verde)');
-  doc.paragrafo('Clique para confirmar que está ativo. O ponto continua aberto e o contador de inatividade é zerado.');
+  doc.paragrafo('Clique para confirmar que está ativo. O ponto continua aberto, o contador de inatividade é zerado e a resposta exibe também um botão rápido caso queira fechar o ponto depois.');
 
   doc.subsecao('2. Botão "Não, já encerrei" (Vermelho)');
-  doc.paragrafo('Se você já parou de trabalhar, clique neste botão. O ponto é encerrado na hora exata e o formulário de relato é liberado.');
+  doc.paragrafo('Se você já parou de trabalhar, clique neste botão. O bot abre imediatamente o modal de relato (ou solicita a vinculação da tarefa pendente) para encerrar e registrar suas entregas na hora.');
 
   doc.subsecao('3. Regra dos 3 Avisos Sem Resposta (Inatividade)');
   doc.paragrafo(
@@ -333,14 +334,17 @@ async function gerarManualLiderAdvertenciasAtualizado() {
 }
 
 const { gerarManualMembroDeclaracao } = require('./gerarManualDeclaracao');
+const { gerarDocumentacaoCompleta } = require('./gerarDocumentacaoCompleta');
 
 (async () => {
-  console.log('Compilando manuais em PDF com fluxogramas visuais...');
+  console.log('Compilando manuais e documentação completa em PDF com fluxogramas visuais...');
   await gerarManualMembroAdvertencias();
   await gerarManualMembroPonto();
   await gerarManualLiderRHPonto();
   await gerarManualLiderAdvertenciasAtualizado();
   await gerarManualMembroDeclaracao();
-  console.log('Todos os 5 manuais com fluxos foram compilados com sucesso!');
+  await gerarDocumentacaoCompleta();
+  console.log('Todos os manuais e a documentação completa foram compilados com sucesso!');
 })();
+
 

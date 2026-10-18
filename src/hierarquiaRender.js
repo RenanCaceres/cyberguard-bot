@@ -205,7 +205,7 @@ function desenharCardTime(ctx, time, x, y, largura, altura) {
 }
 
 async function renderizarHierarquia(dados) {
-  const { presidente, times } = dados;
+  const { presidente, vicePresidente, times } = dados;
 
   // --------------------------------------------------------------------
   // Layout para 5 times (ver ORDEM_TIMES em hierarquia.js):
@@ -255,33 +255,98 @@ async function renderizarHierarquia(dados) {
   let y = alturaTitulo;
   const centroX = LARGURA / 2;
 
-  desenharAvatarCircular(
-    ctx,
-    presidente.imagem,
-    centroX - AVATAR_TAMANHO_PRESIDENTE / 2,
-    y,
-    AVATAR_TAMANHO_PRESIDENTE,
-    COR_ACCENT,
-    7
-  );
-  ctx.font = 'bold 28px DejaVu-Bold, sans-serif';
-  ctx.fillStyle = COR_TEXTO;
-  ctx.fillText(presidente.nome, centroX, y + AVATAR_TAMANHO_PRESIDENTE + 36);
-  ctx.font = 'bold 17px DejaVu-Bold, sans-serif';
-  ctx.fillStyle = COR_ACCENT;
-  ctx.fillText('PRESIDENTE', centroX, y + AVATAR_TAMANHO_PRESIDENTE + 60);
+  if (vicePresidente) {
+    const offsetPresidencia = 240;
+    const xPresidente = centroX - offsetPresidencia;
+    const xVice = centroX + offsetPresidencia;
 
-  y += alturaPresidente;
+    // Presidente (esquerda)
+    desenharAvatarCircular(
+      ctx,
+      presidente.imagem,
+      xPresidente - AVATAR_TAMANHO_PRESIDENTE / 2,
+      y,
+      AVATAR_TAMANHO_PRESIDENTE,
+      COR_ACCENT,
+      7
+    );
+    ctx.font = 'bold 26px DejaVu-Bold, sans-serif';
+    ctx.fillStyle = COR_TEXTO;
+    ctx.fillText(presidente.nome, xPresidente, y + AVATAR_TAMANHO_PRESIDENTE + 36);
+    ctx.font = 'bold 17px DejaVu-Bold, sans-serif';
+    ctx.fillStyle = COR_ACCENT;
+    ctx.fillText('PRESIDENTE', xPresidente, y + AVATAR_TAMANHO_PRESIDENTE + 60);
 
-  const yTroncoTopo = y;
-  const yBarra = y + 30;
+    // Vice-Presidente (direita)
+    desenharAvatarCircular(
+      ctx,
+      vicePresidente.imagem,
+      xVice - AVATAR_TAMANHO_PRESIDENTE / 2,
+      y,
+      AVATAR_TAMANHO_PRESIDENTE,
+      COR_ACCENT,
+      7
+    );
+    ctx.font = 'bold 26px DejaVu-Bold, sans-serif';
+    ctx.fillStyle = COR_TEXTO;
+    ctx.fillText(vicePresidente.nome, xVice, y + AVATAR_TAMANHO_PRESIDENTE + 36);
+    ctx.font = 'bold 17px DejaVu-Bold, sans-serif';
+    ctx.fillStyle = COR_ACCENT;
+    ctx.fillText('VICE-PRESIDENTE', xVice, y + AVATAR_TAMANHO_PRESIDENTE + 60);
+
+    y += alturaPresidente;
+
+    const yTroncoTopo = y;
+    const yUniaoPresidencia = y + 10;
+    const yBarra = y + 32;
+    ctx.strokeStyle = COR_BORDA;
+    ctx.lineWidth = 3;
+
+    // Conector unindo Presidente e Vice-Presidente ao tronco central
+    ctx.beginPath();
+    ctx.moveTo(xPresidente, yTroncoTopo - 10);
+    ctx.lineTo(xPresidente, yUniaoPresidencia);
+    ctx.lineTo(xVice, yUniaoPresidencia);
+    ctx.lineTo(xVice, yTroncoTopo - 10);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(centroX, yUniaoPresidencia);
+    ctx.lineTo(centroX, yBarra);
+    ctx.stroke();
+  } else {
+    desenharAvatarCircular(
+      ctx,
+      presidente.imagem,
+      centroX - AVATAR_TAMANHO_PRESIDENTE / 2,
+      y,
+      AVATAR_TAMANHO_PRESIDENTE,
+      COR_ACCENT,
+      7
+    );
+    ctx.font = 'bold 28px DejaVu-Bold, sans-serif';
+    ctx.fillStyle = COR_TEXTO;
+    ctx.fillText(presidente.nome, centroX, y + AVATAR_TAMANHO_PRESIDENTE + 36);
+    ctx.font = 'bold 17px DejaVu-Bold, sans-serif';
+    ctx.fillStyle = COR_ACCENT;
+    ctx.fillText('PRESIDENTE', centroX, y + AVATAR_TAMANHO_PRESIDENTE + 60);
+
+    y += alturaPresidente;
+
+    const yTroncoTopo = y;
+    const yBarra = y + 32;
+    ctx.strokeStyle = COR_BORDA;
+    ctx.lineWidth = 3;
+
+    ctx.beginPath();
+    ctx.moveTo(centroX, yTroncoTopo - 10);
+    ctx.lineTo(centroX, yBarra);
+    ctx.stroke();
+  }
+
+  const yBarra = y + 32;
   ctx.strokeStyle = COR_BORDA;
   ctx.lineWidth = 3;
-
-  ctx.beginPath();
-  ctx.moveTo(centroX, yTroncoTopo - 10);
-  ctx.lineTo(centroX, yBarra);
-  ctx.stroke();
 
   const centrosColunas = [];
   for (let i = 0; i < COLUNAS_L1; i++) {

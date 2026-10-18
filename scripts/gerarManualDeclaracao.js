@@ -22,15 +22,15 @@ async function gerarManualMembroDeclaracao() {
   doc.cabecalhoDocumento(
     'Guia do Integrante | Documentos Oficiais',
     'Manual do Membro: Declaração de Voluntariado',
-    'Como emitir sua comprovação oficial de participação, entender o fluxo de assinatura digital com a coordenação e receber seu documento assinado.'
+    'Como emitir sua comprovação oficial de participação, regras de carga horária (Membros e Líderes), fluxo de assinatura digital no Gov.br e entrega automática por DM.'
   );
 
   doc.secao('1', 'O que é a Declaração de Voluntariado e sua Validade');
   doc.paragrafo(
-    'A Declaração de Voluntariado é o documento formal emitido pelo projeto de extensão CyberGuard (UTFPR - Câmpus Cornélio Procópio) que atesta a sua participação ativa no projeto, especificando a data oficial de ingresso, regime de carga horária semanal (10 horas) e o curso de graduação vinculado.'
+    'A Declaração de Voluntariado é o documento formal emitido pelo projeto de extensão CyberGuard (UTFPR - Câmpus Cornélio Procópio) que atesta a sua participação ativa no projeto, especificando a data oficial de ingresso, o curso de graduação vinculado e o regime de carga horária semanal correspondente à sua função (4 horas semanais para membros regulares ou 10 horas semanais para líderes).'
   );
   doc.paragrafo('Principais finalidades do documento:');
-  doc.listaItem('Aproveitamento em Atividades Complementares (AC) e extracurriculares na graduação da UTFPR.');
+  doc.listaItem('Aproveitamento em Atividades Complementares (AC) e horas de extensão na graduação da UTFPR.');
   doc.listaItem('Comprovação de experiência prática em segurança da informação para currículo profissional (LinkedIn, Lattes, portfólio).');
   doc.listaItem('Apresentação formal em processos seletivos de estágio, bolsas de pesquisa ou programas de pós-graduação.');
   doc.alerta(
@@ -39,11 +39,14 @@ async function gerarManualMembroDeclaracao() {
     'info'
   );
 
-  doc.secao('2', 'Requisitos Prévios para a Emissão');
+  doc.secao('2', 'Requisitos Prévios e Regra de Carga Horária (4h vs. 10h)');
   doc.paragrafo('Para que a emissão automatizada ocorra sem impedimentos, o integrante deve atender aos seguintes critérios:');
-  doc.listaItem('Cadastro no Banco de Dados: ter concluído o onboarding ou possuir registro ativo com Nome, RA e Curso.');
-  doc.listaItem('Data de Início Registrada: o sistema utiliza a data de início constante no seu termo de voluntariado arquivado.');
-  doc.listaItem('Sem Solicitação Pendente: o sistema permite uma solicitação aberta por vez, evitando duplicidade de e-mails.');
+  doc.listaItem('Cadastro no Banco de Dados: ter concluído o onboarding ou possuir registro ativo na tabela de membros com Nome Completo e RA.');
+  doc.listaItem('Data de Início Registrada: o sistema utiliza a data de início extraída do seu termo de voluntariado assinado (ou 05/2026 como padrão institucional caso não informada).');
+  doc.listaItem('Sem Solicitação Pendente: o sistema permite apenas 1 solicitação aberta por vez (status "aguardando_assinatura_professor"), evitando duplicidade de e-mails ao coordenador.');
+  doc.subsecao('Cálculo Automático da Carga Horária Semanal:');
+  doc.listaItem('Membros Regulares (4 horas semanais): atribuída automaticamente aos integrantes das áreas técnicas e operacionais.');
+  doc.listaItem('Líderes e Presidência (10 horas semanais): atribuída automaticamente a quem possui o cargo de liderança ("Líderes" / "Lideres") ou Presidência no servidor do Discord.');
   doc.alerta(
     'Dados Cadastrais Incompletos?',
     'Se ao executar o comando o bot informar que seus dados não foram localizados, entre em contato imediatamente com o RH no canal institucional do servidor para cadastramento ou retificação cadastral.',
@@ -57,16 +60,16 @@ async function gerarManualMembroDeclaracao() {
   );
   doc.subsecao('2. Confirmação de Dados e Protocolo');
   doc.paragrafo(
-    'O bot responderá de forma privada e efêmera (visível apenas para você) com o resumo dos seus dados:'
+    'O bot verificará seu cadastro e seu cargo no servidor, responderá de forma privada e efêmera (visível apenas para você) e exibirá o resumo oficial da emissão:'
   );
-  doc.listaItem('Código da Solicitação: protocolo único gerado (exemplo: #DECL-2525526-5107).');
-  doc.listaItem('Nome Completo, RA e Curso vinculados.');
-  doc.listaItem('Data de Início no projeto e Carga Horária semanal oficial (10 horas).');
-  doc.listaItem('Aviso de envio automático ao e-mail institucional do coordenador.');
+  doc.listaItem('Código da Solicitação: protocolo único rastreável no formato #DECL-<RA>-<4 dígitos> (ex.: #DECL-2525526-5107).');
+  doc.listaItem('Aluno, RA e Curso vinculados ao seu registro institucional.');
+  doc.listaItem('Início no Projeto e Carga Horária semanal calculada automaticamente (4 horas semanais ou 10 horas semanais).');
+  doc.listaItem('Confirmação do envio imediato ao e-mail institucional do coordenador.');
 
   doc.secao('4', 'Fluxo Completo de Tramitação e Assinatura');
   doc.paragrafo(
-    'O diagrama abaixo apresenta todas as etapas do processo, desde a solicitação inicial até a entrega final na sua DM:'
+    'O diagrama abaixo apresenta todas as etapas do processo, desde a solicitação inicial até a entrega final na sua DM e arquivamento no RH:'
   );
 
   // Inserção do fluxograma renderizado no Canvas
@@ -74,23 +77,23 @@ async function gerarManualMembroDeclaracao() {
 
   doc.subsecao('Etapas Detalhadas:');
   doc.listaItem('Etapa 1 - Solicitação: o integrante aciona o comando /declaracao solicitar no Discord.');
-  doc.listaItem('Etapa 2 - Geração: o bot preenche o template oficial da UTFPR, cria o PDF e registra o protocolo no banco.');
+  doc.listaItem('Etapa 2 - Geração: o bot identifica a carga horária (4h ou 10h), preenche o template oficial da UTFPR com a data por extenso, converte para PDF via LibreOffice e registra o protocolo no PostgreSQL.');
   doc.listaItem('Etapa 3 - Disparo por E-mail: o PDF gerado é enviado via SMTP com instruções ao Prof. André Luiz Przybysz.');
-  doc.listaItem('Etapa 4 - Assinatura Gov.br: o coordenador assina digitalmente no portal Gov.br e responde o e-mail com anexo.');
-  doc.listaItem('Etapa 5 - Captura IMAP: o bot checa a caixa a cada 1 minuto, localiza o e-mail pelo código e baixa o PDF.');
-  doc.listaItem('Etapa 6 - Entrega e Arquivo: o bot entrega o PDF assinado na DM do aluno e notifica o RH no canal interno.');
+  doc.listaItem('Etapa 4 - Assinatura Gov.br: o coordenador assina digitalmente no portal Gov.br e responde ao mesmo e-mail anexando o PDF assinado.');
+  doc.listaItem('Etapa 5 - Captura IMAP: o bot monitora a caixa de entrada a cada 1 minuto (e sob demanda), localiza a resposta pelo código #DECL-, valida o cabeçalho binário (%PDF) e arquiva o documento.');
+  doc.listaItem('Etapa 6 - Entrega e Arquivo: o bot envia o PDF assinado na DM do aluno, marca o e-mail como lido e posta cópia comprobatória no canal do RH.');
 
-  doc.secao('5', 'Como Acompanhar o Andamento');
+  doc.secao('5', 'Como Acompanhar o Andamento (/declaracao status)');
   doc.paragrafo(
-    'Você pode consultar o status da sua solicitação a qualquer momento usando o comando: /declaracao status'
+    'Você pode consultar o histórico das suas últimas 10 solicitações (incluindo status, data de início, carga horária registrada e RA) a qualquer momento usando o comando: /declaracao status'
   );
   doc.subsecao('Status Possíveis:');
-  doc.listaItem('[Aguardando] Aguardando assinatura do Prof. André: o documento foi enviado e aguarda a assinatura e devolutiva por e-mail.');
-  doc.listaItem('[OK] Assinada e Entregue: o coordenador já assinou, respondeu o e-mail e o documento foi enviado na sua DM.');
+  doc.listaItem('[Aguardando] Aguardando assinatura do Prof. André: o documento foi enviado e aguarda a assinatura e resposta por e-mail.');
+  doc.listaItem('[OK] Assinada e Entregue: o coordenador já assinou, respondeu ao e-mail e o documento foi enviado na sua DM.');
   doc.listaItem('[Erro] Cancelada: a solicitação foi cancelada por inconsistência de dados ou solicitação do RH.');
   doc.alerta(
-    'Dica de Sincronização em Tempo Real',
-    'Ao executar /declaracao status, o bot força uma verificação imediata na caixa de entrada do e-mail. Se o professor acabou de responder, seu documento será entregue no mesmo instante!',
+    'Sincronização Instantânea Sob Demanda',
+    'Ao executar /declaracao status, o bot força uma varredura IMAP imediata na caixa de entrada do e-mail antes de exibir a resposta. Se o professor acabou de responder, seu documento será baixado e entregue na sua DM no mesmo instante!',
     'sucesso'
   );
 
@@ -98,37 +101,43 @@ async function gerarManualMembroDeclaracao() {
   doc.tabela(
     [
       { nome: 'Parâmetro', largura: 130 },
-      { nome: 'Valor / Especificação', largura: 180 },
-      { nome: 'Observações', largura: 190 },
+      { nome: 'Valor / Especificação', largura: 175 },
+      { nome: 'Observações', largura: 195 },
     ],
     [
-      ['Carga Horária', '10 horas semanais', 'Carga padrão dos voluntários do CyberGuard'],
+      ['Carga Horária (Membro)', '4 horas semanais', 'Padrão para membros regulares das áreas'],
+      ['Carga Horária (Líder)', '10 horas semanais', 'Atribuída automaticamente a Líderes e Presidente'],
       ['Tipo de Assinatura', 'Digital Gov.br (ICP-Brasil)', 'Plena validade jurídica (Lei 14.063/2020)'],
-      ['Ciclo de Checagem', 'A cada 1 minuto (cron)', 'Monitoramento autônomo via protocolo IMAP'],
-      ['Prazo Típico', '1 a 3 dias úteis', 'Conforme disponibilidade de agenda do professor'],
-      ['Canal de Entrega', 'DM (Mensagem Direta)', 'Arquivo PDF oficial pronto para download'],
+      ['Ciclo de Checagem', 'A cada 1 min + sob demanda', 'Monitoramento autônomo via protocolo IMAP'],
+      ['Prazo Típico', '1 a 3 dias úteis', 'Conforme disponibilidade de agenda do coordenador'],
+      ['Canal de Entrega', 'DM do Aluno + Canal do RH', 'PDF assinado entregue no privado e arquivado'],
     ]
   );
 
   doc.secao('7', 'Perguntas Frequentes (FAQ) e Solução de Problemas');
   doc.subsecao('1. "O bot informou que meus dados cadastrais não foram encontrados"');
   doc.paragrafo(
-    'Isso ocorre caso você seja um membro legado ou tenha entrado no projeto por fluxo manual sem passar pelo onboarding do bot. Envie uma mensagem no canal do RH informando seu Nome Completo, RA, Curso e data aproximada de entrada para atualização no sistema.'
+    'Isso ocorre caso você seja um membro legado ou tenha entrado no projeto sem registro completo de Nome e RA na tabela de membros. Envie uma mensagem ao RH informando seu Nome Completo, RA, Curso e data de entrada para atualização no banco.'
   );
 
-  doc.subsecao('2. "Minha data de início está incorreta. Como corrigir?"');
+  doc.subsecao('2. "Sou líder, mas minha declaração saiu com 4 horas (ou vice-versa). Como proceder?"');
   doc.paragrafo(
-    'A data é extraída do termo de voluntariado formal assinado em seu ingresso. Caso identifique divergência antes da assinatura do professor, avise a equipe de Recursos Humanos para ajuste da data no banco de dados e posterior nova emissão.'
+    'O bot verifica automaticamente se você possui o cargo "Líderes" no Discord no exato momento da solicitação. Caso seu cargo ainda não tivesse sido atribuído no servidor quando você executou o comando, peça ao RH para ajustar seu cargo e cancelar a solicitação anterior antes de emitir uma nova.'
   );
 
-  doc.subsecao('3. "O professor assinou, mas não recebi nada na minha DM do Discord"');
+  doc.subsecao('3. "Minha data de início está incorreta. Como corrigir?"');
   doc.paragrafo(
-    'Verifique as configurações de privacidade do seu Discord: vá em "Configurações do Usuário" > "Privacidade e Segurança" > marque "Permitir mensagens diretas de membros do servidor". Em seguida, digite /declaracao status para reenfileirar o aviso.'
+    'A data de início é extraída automaticamente do seu termo de voluntariado assinado (mês/ano). Caso identifique divergência, avise a equipe de Recursos Humanos para atualização no banco de dados e nova emissão.'
   );
 
-  doc.subsecao('4. "Como validar a autenticidade da assinatura digital do documento?"');
+  doc.subsecao('4. "O professor assinou, mas não recebi nada na minha DM do Discord"');
   doc.paragrafo(
-    'Qualquer pessoa ou instituição pode verificar a integridade da assinatura acessando o Validador Oficial de Documentos do Governo Federal em: https://validar.iti.gov.br. Basta enviar o PDF para atestar a autenticidade da assinatura do Prof. André Luiz Przybysz.'
+    'Verifique se suas Mensagens Diretas estão abertas para membros do servidor ("Configurações do Usuário" > "Privacidade e Segurança"). Mesmo que sua DM estivesse fechada no momento da captura, uma cópia fica arquivada com o RH no servidor e na pasta institucional de declarações assinadas.'
+  );
+
+  doc.subsecao('5. "Como validar a autenticidade da assinatura digital do documento?"');
+  doc.paragrafo(
+    'Qualquer pessoa ou instituição pode verificar a integridade da assinatura acessando o Validador Oficial do Governo Federal (ITI) em: https://validar.iti.gov.br. Basta enviar o PDF recebido para atestar a assinatura do Prof. André Luiz Przybysz.'
   );
 
   const caminhoSaida = path.join(__dirname, '../docs/manuais/Manual_Membro_Declaracao_Voluntariado.pdf');

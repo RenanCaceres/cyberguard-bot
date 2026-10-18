@@ -93,6 +93,25 @@ async function adicionarCampoDataPreenchivel(caminhoPdf) {
 async function gerarTermo(membro) {
   const conteudo = fs.readFileSync(path.resolve(config.templateTermoPath), 'binary');
   const zip = new PizZip(conteudo);
+
+  const valorUtfpr = (membro.estudante_utfpr || 'Sim').trim().toLowerCase();
+  const ehUtfpr =
+    valorUtfpr !== 'não' && valorUtfpr !== 'nao' && valorUtfpr !== 'false' && valorUtfpr !== 'no';
+
+  if (ehUtfpr) {
+    // Quando o(a) aluno(a) é da UTFPR, removemos a linha extra "Instituição: {instituicao}"
+    // para manter a tabela no layout original; quando não é da UTFPR, a linha é exibida logo abaixo.
+    const docXmlFile = zip.file('word/document.xml');
+    if (docXmlFile) {
+      const xml = docXmlFile.asText();
+      const xmlSemLinhaInstituicao = xml.replace(
+        /<w:tr\b[^>]*>(?:(?!<\/w:tr>)[\s\S])*?\{instituicao\}[\s\S]*?<\/w:tr>/,
+        ''
+      );
+      zip.file('word/document.xml', xmlSemLinhaInstituicao);
+    }
+  }
+
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: true,
@@ -113,10 +132,13 @@ async function gerarTermo(membro) {
     nacionalidade: membro.nacionalidade,
     endereco: membro.endereco,
     endereço: membro.endereco,
-    cidade: membro.cidade,
+    cidade: membro.cidade || 'Cornélio Procópio',
     estado: membro.estado,
     telefone: membro.telefone,
     email: membro.email,
+    utfpr_sim: ehUtfpr ? '(x)' : '( )',
+    utfpr_nao: ehUtfpr ? '( )' : '(x)',
+    instituicao: ehUtfpr ? 'UTFPR' : membro.instituicao || '—',
   });
 
   const bufferDocx = doc.getZip().generate({ type: 'nodebuffer' });

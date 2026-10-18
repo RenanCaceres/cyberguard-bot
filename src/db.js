@@ -26,6 +26,8 @@ async function initSchema() {
     'telefone TEXT',
     'email TEXT',
     'area_interesse TEXT',
+    'estudante_utfpr TEXT',
+    'instituicao TEXT',
     'data_aprovacao TIMESTAMPTZ',
     'data_limite_assinatura TIMESTAMPTZ',
     'ultimo_lembrete TIMESTAMPTZ',
@@ -237,13 +239,15 @@ function atualizarDados(discordId, dados) {
     telefone,
     email,
     area_interesse,
+    estudante_utfpr = 'Sim',
+    instituicao = 'UTFPR',
   } = dados;
 
   return pool.query(
     `UPDATE membros SET
        nome=$2, ra=$3, curso=$4, periodo=$5, cpf=$6, data_nascimento=$7,
        nacionalidade=$8, endereco=$9, cidade=$10, estado=$11, telefone=$12, email=$13,
-       area_interesse=$14, status='pendente_aprovacao'
+       area_interesse=$14, estudante_utfpr=$15, instituicao=$16, status='pendente_aprovacao'
      WHERE discord_id=$1`,
     [
       discordId,
@@ -260,6 +264,8 @@ function atualizarDados(discordId, dados) {
       telefone,
       email,
       area_interesse,
+      estudante_utfpr,
+      instituicao,
     ]
   );
 }

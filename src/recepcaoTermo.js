@@ -156,17 +156,38 @@ async function handleMensagemDM(message) {
   const validacao = await validarTermoDevolvido(caminhoLocal);
 
   if (!validacao.valido) {
-    // Encaminha para o RH revisar manualmente com botões de aprovar/reprovar
-    await db.atualizarStatus(message.author.id, 'revisao_manual', {
-      termo_arquivo_path: caminhoLocal,
-    });
-    await encaminharParaRevisaoManual(message.client, membro, caminhoLocal, anexo.name, validacao.motivo);
+    if (validacao.revisarManualmente) {
+      // Apenas em anomalias técnicas raras (ex: assinatura criptográfica sem coordenadas legíveis)
+      await db.atualizarStatus(message.author.id, 'revisao_manual', {
+        termo_arquivo_path: caminhoLocal,
+      });
+      await encaminharParaRevisaoManual(message.client, membro, caminhoLocal, anexo.name, validacao.motivo);
+
+      await message.reply(
+        `Recebi seu termo de voluntariado! Porém, não foi possível confirmar alguns metadados técnicos automaticamente:\n` +
+          `> *${validacao.motivo}*\n\n` +
+          `Encaminhei o documento para a equipe do Recursos Humanos conferir. Aguarde a confirmação por aqui!`
+      );
+      return;
+    }
+
+    // Rejeição automática 100% assertiva direto para o membro corrigir e reenviar
+    if (membro.status !== 'aguardando_assinatura') {
+      await db.atualizarStatus(message.author.id, 'aguardando_assinatura');
+    }
+    if (fs.existsSync(caminhoLocal)) {
+      fs.unlink(caminhoLocal, () => {});
+    }
+
+    const citacaoMotivo = validacao.motivo
+      .split('\n')
+      .map((linha) => `> ${linha}`)
+      .join('\n');
 
     await message.reply(
-      `Recebi seu termo de voluntariado! Porém, não foi possível validá-lo automaticamente pelo seguinte motivo:\n` +
-      `> *${validacao.motivo}*\n\n` +
-      `Encaminhei o documento para a equipe do Recursos Humanos conferir manualmente. ` +
-      `Aguarde a confirmação por aqui!`
+      `❌ **Não foi possível validar o seu Termo de Voluntariado pelo(s) seguinte(s) motivo(s):**\n\n` +
+        `${citacaoMotivo}\n\n` +
+        `Por favor, corrija o documento, assine novamente pelo portal **gov.br** e envie o PDF corrigido aqui nesta DM!`
     );
     return;
   }

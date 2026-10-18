@@ -77,6 +77,71 @@ function obterMembrosDoTime(guild, nomeSecao) {
   return guild.members.cache.filter((m) => m.roles.cache.has(role.id));
 }
 
+async function resolverVicePresidente(guild, roleLider) {
+  let viceId = config.vicePresidenteId || '';
+
+  if (!viceId) {
+    try {
+      const { rows } = await db.pool.query(`
+        SELECT discord_id FROM membros
+        WHERE ra = '2618109' OR LOWER(nome) LIKE '%vitor hugo%prado%'
+        UNION ALL
+        SELECT discord_id FROM cadastro_legado
+        WHERE LOWER(nome) LIKE '%vitor hugo%prado%'
+        LIMIT 1
+      `);
+      if (rows[0]?.discord_id) {
+        viceId = String(rows[0].discord_id).trim();
+      }
+    } catch (err) {
+      console.error('[hierarquia] erro ao buscar Vice-Presidente no banco:', err.message);
+    }
+  }
+
+  let viceMember = null;
+  if (viceId) {
+    viceMember =
+      guild.members.cache.get(viceId) ?? (await guild.members.fetch(viceId).catch(() => null));
+  }
+
+  if (!viceMember) {
+    viceMember =
+      guild.members.cache.find((m) => {
+        const texto = `${m.displayName || ''} ${m.user?.globalName || ''} ${m.user?.username || ''}`
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '');
+        return texto.includes('vitor') && (texto.includes('prado') || texto.includes('hugo'));
+      }) ||
+      guild.members.cache.find((m) => {
+        if (!roleLider || !m.roles.cache.has(roleLider.id)) return false;
+        const texto = `${m.displayName || ''} ${m.user?.globalName || ''} ${m.user?.username || ''}`
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '');
+        return texto.includes('vitor');
+      }) ||
+      null;
+  }
+
+  if (viceMember) {
+    const pessoa = await montarPessoa(viceMember);
+    return {
+      ...pessoa,
+      nome:
+        pessoa.nome && pessoa.nome.toLowerCase().includes('vitor hugo')
+          ? pessoa.nome
+          : 'Vitor Hugo do Prado',
+    };
+  }
+
+  return {
+    id: viceId || 'vitor_hugo_do_prado',
+    nome: 'Vitor Hugo do Prado',
+    imagem: null,
+  };
+}
+
 async function coletarDadosHierarquia(guild) {
   const roleLider = guild.roles.cache.find((r) => r.name === config.roleLiderNome);
   const presidenteMember =
@@ -85,6 +150,9 @@ async function coletarDadosHierarquia(guild) {
   const presidente = presidenteMember
     ? await montarPessoa(presidenteMember)
     : { id: config.presidenteId, nome: 'Presidente', imagem: null };
+
+  const vicePresidente = await resolverVicePresidente(guild, roleLider);
+  const idsPresidencia = new Set([presidente.id, vicePresidente.id].filter(Boolean));
 
   const times = [];
 
@@ -95,8 +163,10 @@ async function coletarDadosHierarquia(guild) {
       continue;
     }
 
+    const membrosFiltrados = membrosDoTime.filter((m) => !idsPresidencia.has(m.id));
+
     const pessoas = await Promise.all(
-      membrosDoTime.map(async (m) => {
+      membrosFiltrados.map(async (m) => {
         const pessoa = await montarPessoa(m);
         const ehLider = (roleLider && m.roles.cache.has(roleLider.id)) || LIDERES_TIME[nomeSecao] === m.id;
         return { ...pessoa, lider: !!ehLider };
@@ -111,7 +181,7 @@ async function coletarDadosHierarquia(guild) {
     times.push({ nome: nomeSecao, cor: CORES_TIME[nomeSecao], membros: pessoas });
   }
 
-  return { presidente, times };
+  return { presidente, vicePresidente, times };
 }
 
 let atualizacaoPendente = null;
