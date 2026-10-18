@@ -24,6 +24,7 @@ const PERGUNTAS = [
     validator: validators.validarCPF,
     erro: 'Formato inválido. Use exatamente 111.222.333-44 (com pontos e traço).',
   },
+  { campo: 'estudante_utfpr', tipo: 'botoes_utfpr' },
   { campo: 'curso', texto: 'Qual seu **curso**?', validator: validators.naoVazio },
   {
     campo: 'periodo',
@@ -32,9 +33,18 @@ const PERGUNTAS = [
   },
   {
     campo: 'ra',
-    texto: 'Qual seu **RA**? (apenas números, sem pontos ou espaços)',
-    validator: validators.validarRA,
-    erro: 'O RA deve conter apenas números.',
+    texto: (respostas) =>
+      respostas.estudante_utfpr === 'Não'
+        ? 'Qual seu **RA ou matrícula**? (sem espaços)'
+        : 'Qual seu **RA**? (apenas números, sem pontos ou espaços)',
+    validator: (valor, respostas) =>
+      respostas.estudante_utfpr === 'Não'
+        ? validators.validarRAOuMatricula(valor)
+        : validators.validarRA(valor),
+    erro: (respostas) =>
+      respostas.estudante_utfpr === 'Não'
+        ? 'Informe um RA/matrícula válido (letras e/ou números, sem espaços).'
+        : 'O RA deve conter apenas números.',
   },
   {
     campo: 'endereco',
@@ -53,6 +63,8 @@ const LABELS = {
   data_nascimento: 'Data de nascimento',
   nacionalidade: 'Nacionalidade',
   cpf: 'CPF',
+  estudante_utfpr: 'Estudante da UTFPR',
+  instituicao: 'Instituição',
   curso: 'Curso',
   periodo: 'Período/semestre',
   ra: 'RA',
@@ -72,6 +84,75 @@ async function coletarResposta(dmChannel, userId) {
     errors: ['time'],
   });
   return collected.first().content.trim();
+}
+
+async function coletarInstituicao(dm, userId) {
+  await dm.send('Qual o nome da sua **instituição de ensino**?');
+  while (true) {
+    const resposta = await coletarResposta(dm, userId);
+    if (validators.naoVazio(resposta)) {
+      return resposta;
+    }
+    await dm.send('Por favor, informe o nome da sua instituição.');
+  }
+}
+
+async function coletarEstudanteUtfpr(dm, userId, respostas) {
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('utfpr_sim')
+      .setLabel('Sim')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId('utfpr_nao')
+      .setLabel('Não')
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  await dm.send({
+    content: 'Você é **estudante da UTFPR**?',
+    components: [row],
+  });
+
+  const interacao = await dm.awaitMessageComponent({
+    filter: (i) => i.user.id === userId && (i.customId === 'utfpr_sim' || i.customId === 'utfpr_nao'),
+    time: 10 * 60 * 1000,
+  });
+
+  const ehUtfpr = interacao.customId === 'utfpr_sim';
+  respostas.estudante_utfpr = ehUtfpr ? 'Sim' : 'Não';
+
+  await interacao.update({
+    content: `Você é **estudante da UTFPR**? **${respostas.estudante_utfpr}**`,
+    components: [],
+  });
+
+  if (ehUtfpr) {
+    respostas.instituicao = 'UTFPR';
+  } else {
+    respostas.instituicao = await coletarInstituicao(dm, userId);
+  }
+}
+
+async function coletarPerguntaTexto(dm, userId, pergunta, respostas) {
+  const textoPergunta =
+    typeof pergunta.texto === 'function' ? pergunta.texto(respostas) : pergunta.texto;
+  await dm.send(textoPergunta);
+
+  let valida = false;
+  while (!valida) {
+    const resposta = await coletarResposta(dm, userId);
+    if (!pergunta.validator || pergunta.validator(resposta, respostas)) {
+      respostas[pergunta.campo] = resposta;
+      valida = true;
+    } else {
+      const msgErro =
+        typeof pergunta.erro === 'function'
+          ? pergunta.erro(respostas)
+          : pergunta.erro || 'Formato inválido, tente novamente.';
+      await dm.send(msgErro);
+    }
+  }
 }
 
 async function coletarAreaInteresse(dm, userId) {
@@ -97,6 +178,7 @@ async function coletarAreaInteresse(dm, userId) {
 
 function montarResumo(respostas) {
   return Object.entries(LABELS)
+    .filter(([campo]) => campo !== 'instituicao' || respostas.estudante_utfpr === 'Não')
     .map(([campo, label]) => `**${label}:** ${respostas[campo] || '—'}`)
     .join('\n');
 }
@@ -128,11 +210,15 @@ async function pedirConfirmacao(dm, userId, respostas) {
   return interacao.customId;
 }
 
-async function escolherCampoParaCorrigir(dm, userId) {
+async function escolherCampoParaCorrigir(dm, userId, respostas) {
+  const opcoes = Object.entries(LABELS)
+    .filter(([campo]) => campo !== 'instituicao' || respostas.estudante_utfpr === 'Não')
+    .map(([campo, label]) => ({ label, value: campo }));
+
   const menu = new StringSelectMenuBuilder()
     .setCustomId('campo_corrigir')
     .setPlaceholder('Qual informação você quer corrigir?')
-    .addOptions(Object.entries(LABELS).map(([campo, label]) => ({ label, value: campo })));
+    .addOptions(opcoes);
 
   const row = new ActionRowBuilder().addComponents(menu);
   await dm.send({ content: 'Qual dado você quer corrigir?', components: [row] });
@@ -166,17 +252,10 @@ async function iniciarOnboarding(member) {
     );
 
     for (const pergunta of PERGUNTAS) {
-      await dm.send(pergunta.texto);
-
-      let valida = false;
-      while (!valida) {
-        const resposta = await coletarResposta(dm, user.id);
-        if (!pergunta.validator || pergunta.validator(resposta)) {
-          respostas[pergunta.campo] = resposta;
-          valida = true;
-        } else {
-          await dm.send(pergunta.erro || 'Formato inválido, tente novamente.');
-        }
+      if (pergunta.tipo === 'botoes_utfpr') {
+        await coletarEstudanteUtfpr(dm, user.id, respostas);
+      } else {
+        await coletarPerguntaTexto(dm, user.id, pergunta, respostas);
       }
     }
 
@@ -191,26 +270,29 @@ async function iniciarOnboarding(member) {
         break;
       }
 
-      const campoEscolhido = await escolherCampoParaCorrigir(dm, user.id);
+      const campoEscolhido = await escolherCampoParaCorrigir(dm, user.id, respostas);
 
       if (campoEscolhido === 'area_interesse') {
         respostas.area_interesse = await coletarAreaInteresse(dm, user.id);
         continue;
       }
 
-      const pergunta = PERGUNTAS.find((p) => p.campo === campoEscolhido);
-      await dm.send(pergunta.texto);
-
-      let valida = false;
-      while (!valida) {
-        const resposta = await coletarResposta(dm, user.id);
-        if (!pergunta.validator || pergunta.validator(resposta)) {
-          respostas[pergunta.campo] = resposta;
-          valida = true;
-        } else {
-          await dm.send(pergunta.erro || 'Formato inválido, tente novamente.');
+      if (campoEscolhido === 'estudante_utfpr') {
+        await coletarEstudanteUtfpr(dm, user.id, respostas);
+        if (respostas.estudante_utfpr === 'Sim' && respostas.ra && !validators.validarRA(respostas.ra)) {
+          const perguntaRa = PERGUNTAS.find((p) => p.campo === 'ra');
+          await coletarPerguntaTexto(dm, user.id, perguntaRa, respostas);
         }
+        continue;
       }
+
+      if (campoEscolhido === 'instituicao') {
+        respostas.instituicao = await coletarInstituicao(dm, user.id);
+        continue;
+      }
+
+      const pergunta = PERGUNTAS.find((p) => p.campo === campoEscolhido);
+      await coletarPerguntaTexto(dm, user.id, pergunta, respostas);
     }
 
     await db.atualizarDados(user.id, respostas);
@@ -267,6 +349,8 @@ async function enviarParaAprovacaoRH(guild, discordId, dados) {
       { name: 'Data de nascimento', value: dados.data_nascimento || '—', inline: true },
       { name: 'Nacionalidade', value: dados.nacionalidade || '—', inline: true },
       { name: 'CPF', value: dados.cpf || '—' },
+      { name: 'Estudante da UTFPR', value: dados.estudante_utfpr || 'Sim', inline: true },
+      { name: 'Instituição', value: dados.instituicao || 'UTFPR', inline: true },
       { name: 'Curso', value: dados.curso || '—' },
       { name: 'Período', value: dados.periodo || '—', inline: true },
       { name: 'RA', value: dados.ra || '—', inline: true },

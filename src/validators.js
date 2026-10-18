@@ -31,8 +31,13 @@ function validarRA(valor) {
   return /^\d+$/.test(valor.trim());
 }
 
+function validarRAOuMatricula(valor) {
+  return /^[A-Za-z0-9./-]+$/.test(valor.trim());
+}
+
 function naoVazio(valor) {
   return valor.trim().length > 0;
 }
 
-module.exports = { validarCPF, validarData, validarEndereco, validarRA, naoVazio };
+module.exports = { validarCPF, validarData, validarEndereco, validarRA, validarRAOuMatricula, naoVazio };
+

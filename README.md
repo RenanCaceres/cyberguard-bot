@@ -41,75 +41,75 @@
 
 O **CyberGuard Bot** é uma plataforma abrangente de automação e governança para a iniciativa de cibersegurança e extensão universitária **CyberGuard UTFPR** (*Inteligência de Ameaças, Observatório de Segurança Cibernética e Educação Digital* - Câmpus Cornélio Procópio).
 
-Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a gestão de recursos humanos, controle de presença e horas, conformidade jurídica com termos de voluntariado institucional, aplicação transparente de processos disciplinares e geração autônoma de atas de reunião através de Inteligência Artificial Generativa.
+Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a gestão de recursos humanos, controle de presença e horas, conformidade jurídica com termos de voluntariado e declarações institucionais assinadas via Gov.br, aplicação transparente de processos disciplinares com amplo contraditório e geração autônoma de atas de reunião através de Inteligência Artificial Generativa.
 
 ---
 
 # ⚡ Funcionalidades Principais
 
 ### 🕒 1. Sistema de Ponto Eletrônico v2 & Gestão de Horas
-- **Painel Interativo (`/painel-ponto`)**: Interface com botões intuitivos para **Entrada**, **Saída**, visualização de **Meus Registros** e acesso rápido às ferramentas de gestão.
-- **Detecção Automática em Canal de Voz**: Conectar-se à sala de voz dedicada inicia o expediente automaticamente; desconectar-se encerra o registro calculando com precisão o tempo trabalhado.
-- **Checagem Ativa de Ociosidade**: Disparo de DMs periódicas (a cada 1 hora) questionando se o membro segue em atividade (`Sim` / `Não`). No 3º aviso consecutivo sem resposta (ou ao clicar em `Não`), o ponto é encerrado automaticamente com aviso de segurança.
-- **Ajuste de Horários pelo RH (`/ajustar-ponto`)**: Painel restrito à diretoria de RH para selecionar membro, data e corrigir horários através de modais nativos, com trilha de auditoria e notificação imediata enviada por DM ao colaborador.
+- **Painel Interativo (`/painel-ponto`)**: Interface com botões intuitivos para **Abrir ponto**, **Fechar ponto**, visualização da **Lista em serviço**, **Ranking**, **Resumo gerencial (Líderes)** e **Ajuste de ponto (RH)**.
+- **Criação de Tarefas no Notion pelo Discord**: Permite que o integrante selecione demandas em aberto ou crie uma nova tarefa diretamente no Notion (`➕ Criar tarefa no Notion` via modal com título e progresso inicial) no momento de abrir ou vincular seu ponto.
+- **Detecção Automática em Canal de Voz**: Conectar-se à sala de voz dedicada inicia o expediente automaticamente; desconectar-se conta com *grace period* de **60 segundos** contra quedas de conexão e encerra o registro solicitando o relato de entregas via DM.
+- **Checagem Ativa de Ociosidade (1 em 1 hora)**: Disparo de DMs periódicas questionando se o membro segue em atividade (`Sim, continuo trabalhando` / `Não, já encerrei`). Clicar em `Não` abre imediatamente o modal de relato para encerramento; ignorar 3 avisos consecutivos encerra o ponto automaticamente por inatividade (além do teto de segurança de **8 horas**).
+- **Ajuste de Horários e Importação pelo RH (`/ajustar-ponto`, `/importar-horas`)**: Painel e comandos restritos ao RH para corrigir horários (com travas de validação de até 24h, preservação do horário original e notificação imediata por DM) e importar saldos legados sem inflar o ranking semanal.
 - **Integração em Nuvem Multiplataforma**:
-  - **Notion API**: Sincronização em tempo real das horas computadas e progresso das tarefas de cada integrante.
-  - **Google Sheets API**: Espelhamento e persistência de logs brutos de auditoria em planilhas institucionais.
-  - **Histórico KoV**: Módulo integrado para ler histórico legado de canais e sincronizar centenas de registros retroativos.
-- **Ranking Visual Ilustrado com Pódio**: Geração dinâmica de banners com `@napi-rs/canvas` destacando Top 3 em pódio 3D estilizado com avatares, barras de progresso proporcionais, horas computadas e classificação geral.
+  - **Notion API (Tarefas & Membros)**: Atualização automática de status (`Em andamento` / `Concluído`), barra de progresso numérica, comentários de sessão e sincronização da base histórica de membros (`Ativo`, `Inativo`, `Expulso`).
+  - **Google Sheets API (3 Abas)**: Sincronização serializada com as abas `Raw Logs do Bot` (logs brutos com upsert), `Painel Transparente` (consolidado geral) e `Painel Transparente (Bot)` (exclusivo de horas do bot), utilizando resolução automática do **Nome Completo Real** do integrante.
+  - **Histórico KoV**: Módulo integrado para backfill retroativo e captura em tempo real de registros do bot legado KoV Ponto.
+- **Ranking Visual Ilustrado com Pódio**: Geração dinâmica de banners com `@napi-rs/canvas` destacando Top 3 em pódio estilizado com coroa, avatares, barras proporcionais e fechamento automático na virada de semana (segunda-feira 00:00).
 
 ---
 
-### 📝 2. Onboarding Automatizado & Assinatura Gov.br
-- **Coleta Guiada via DM**: Formulário interativo com validação estrita campo a campo (CPF com máscara, data de nascimento, RA, curso, endereço completo, contatos e seleção de área de interesse).
-- **Aprovação do RH**: Cards interativos no canal privado do RH com botões de aprovação/rejeição (incluindo captura obrigatória de justificativa).
+### 📝 2. Onboarding Automatizado & Assinatura Digital Gov.br
+- **Coleta Guiada via DM**: Formulário interativo de 13 etapas com validação estrita por expressões regulares (CPF com máscara, data de nascimento com validação de calendário real, RA numérico, endereço padronizado, contatos e seleção de área de interesse) e menu de retificação campo a campo antes do envio.
+- **Deliberação do RH e Memória de Recusas**: Cards no canal privado do RH com alerta automático caso o candidato já possua passagens anteriores na tabela `historico_recusas` (por Discord ID, RA ou Nome) e botões de aprovação/rejeição (com expulsão automática configurável).
 - **Geração Dinâmica de Documentos**:
-  - Injeção automática dos dados cadastrais no modelo oficial `.docx` via `docxtemplater`.
+  - Preenchimento automático do modelo oficial `.docx` via `docxtemplater`.
   - Conversão headless de `.docx` para `.pdf` via LibreOffice (`soffice`).
-  - Posicionamento dinâmico e injeção de campo AcroForm preenchível (`pdf-lib`) para a data de assinatura.
-- **Validação de Assinatura Digital ICP-Brasil / Gov.br**:
-  - Inspeção de integridade do arquivo devolvido por DM (`/Type /Sig`, `/ByteRange`).
-  - Extração do valor da data preenchida e conferência com o fuso institucional (`America/Sao_Paulo`).
-  - Encaminhamento automático do termo validado para arquivamento via e-mail corporativo (SMTP).
-  - Cron diário (`CRON_LEMBRETE`) para cobrança de prazos e notificação ao RH de pendências.
+  - Localização dinâmica de coordenadas (`pdfjs-dist`) e injeção de campo AcroForm preenchível (`data_assinatura` via `pdf-lib`).
+- **Validação Criptográfica ICP-Brasil / Gov.br 100% Assertiva**:
+  - Inspeção combinada (`pdf-lib` + `pdfjs-dist`) de integridade criptográfica (`/Type /Sig`, `/ByteRange`, `/Contents`) e posição geométrica do widget exatamente sobre a linha `"Voluntário(a)"` da tabela `"ACEITE E CONCORDÂNCIA"` (filtrando pela coluna esquerda `x ∈ [50, 120]` e seção de aceite para eliminar falsos positivos com o texto corrido).
+  - Extração estrita do campo `"Data:"` ao lado de `"Local: Cornélio Procópio"` (via AcroForm `data_assinatura`, anotações de texto ou linha horizontal achatada), sem confundir com o carimbo do Gov.br caso o aluno tenha esquecido de preencher a data no documento, validando calendário real, janela de **90 dias** e bloqueio de datas futuras.
+  - **Diagnóstico Completo e Reprovação Direta na DM**: Avalia simultaneamente assinatura e data; se houver qualquer erro (data em branco, assinatura na página/linha errada ou PDF impresso sem assinatura criptográfica), o bot **reprova automaticamente na DM do aluno** listando todos os ajustes necessários para reenvio imediato, sem sobrecarregar o RH com revisões manuais (mantendo o fallback `revisao_manual` apenas para anomalias técnicas de PDF).
+  - Arquivamento automático em subpastas setoriais (`docs/Termos-Voluntarios-Assinados/<Área>`), envio via SMTP com cópias (`CC`) e cron diário (`09:00`) de lembretes com opção de silenciamento manual pelo RH.
 
 ---
 
 ### 📜 3. Emissão de Declaração de Voluntariado & Assinatura Digital Gov.br
-- **Solicitação Autônoma no Discord (`/declaracao solicitar`)**: O acadêmico solicita sua declaração de participação com um único comando. O bot valida o cadastro (Nome, RA, Curso, Data de Início e regime de 10 horas semanais) e gera um código rastreável de protocolo (`#DECL-...`).
-- **Geração Dinâmica de Documento Oficial**: O bot mescla os dados cadastrais diretamente no template institucional da UTFPR e gera o PDF oficial com certificação de protocolo.
-- **Tramitação por E-mail Institucional (SMTP)**: O arquivo gerado é despachado automaticamente para a caixa de e-mail do Coordenador do Projeto (**Prof. André Luiz Przybysz**) com as instruções de assinatura digital.
-- **Assinatura Digital ICP-Brasil / Gov.br**: O coordenador assina o documento pelo portal Gov.br (com validade jurídica garantida pela Lei Federal nº 14.063/2020) e responde ao mesmo e-mail anexando o PDF assinado.
-- **Monitoramento e Captura Autônoma (IMAP)**: Um serviço em segundo plano checa a caixa de entrada a cada minuto, identifica a mensagem pelo código `#DECL-...`, faz o download do anexo assinado e valida sua integridade.
-- **Entrega Imediata na DM do Aluno**: Assim que o documento assinado é processado, o bot realiza a entrega do PDF final diretamente na DM do Discord do estudante e emite notificação comprobatória com cópia no canal do RH.
-- **Acompanhamento com Sincronização em Tempo Real (`/declaracao status`)**: Permite ao aluno acompanhar a situação do documento (`Aguardando assinatura` ou `Assinada e Entregue`), disparando uma checagem IMAP imediata na caixa de entrada para detecção instantânea.
+- **Solicitação Autônoma no Discord (`/declaracao solicitar`)**: O acadêmico solicita sua declaração de participação com um único comando. O bot valida o cadastro (Nome Completo, RA, Curso e Data de Início), impede solicitações duplicadas em aberto e gera um protocolo único rastreável (`#DECL-<RA>-<4 dígitos>`).
+- **Cálculo Automático de Carga Horária (4h vs. 10h)**:
+  - **Membros Regulares (`4 horas semanais`)**: atribuída automaticamente aos integrantes das áreas técnicas e operacionais.
+  - **Líderes e Presidência (`10 horas semanais`)**: atribuída automaticamente a quem possui o cargo de liderança (`Líderes`) ou Presidência no servidor.
+- **Geração Dinâmica e Tramitação por E-mail (SMTP)**: O bot preenche o template institucional da UTFPR com a data por extenso, converte para PDF via LibreOffice e envia automaticamente ao Coordenador do Projeto (**Prof. André Luiz Przybysz**).
+- **Monitoramento e Captura Autônoma (IMAP)**: Um serviço em segundo plano checa a caixa de entrada a cada 1 minuto, localiza a resposta do coordenador pelo protocolo `#DECL-...`, valida o cabeçalho binário `%PDF` do anexo assinado pelo Gov.br (Lei Federal nº 14.063/2020) e arquiva em `DeclaracoesAssinadas/`.
+- **Entrega Imediata na DM e Cópia ao RH**: O PDF assinado é entregue diretamente na DM do estudante e uma cópia comprobatória é postada no canal do RH.
+- **Acompanhamento com Sincronização em Tempo Real (`/declaracao status`)**: Lista as últimas 10 solicitações do aluno (status, data de início, carga horária de 4h/10h e RA) e força uma varredura IMAP imediata na caixa de entrada.
 
 ---
 
 ### ⚖️ 4. Sistema Disciplinar & Advertências com Contraditório
-- **Gestão de Infrações (`/advertir`, `/painel-advertencias`)**: Abertura de advertências categorizadas por severidade (*Leve*, *Média*, *Grave*), com descrição, evidências anexadas e histórico associado.
-- **Fila de Advertências Automática**: Caso o membro já possua uma advertência aguardando ciência/análise, novas advertências aplicadas entram automaticamente na **fila (`na_fila`)** e são disparadas sozinhas assim que a anterior é concluída (com opção de gerenciamento manual pelo painel `⏳ Fila de Advertências`).
-- **Progressão e Reincidência Automática**: Cálculo automático do agravamento da categoria em caso de reincidência (inclusive validando advertências em andamento/fila e revalidando antes do disparo).
+- **Gestão de Infrações (`/advertir`, `/painel-advertencias`)**: Abertura de advertências categorizadas por severidade (*Leve*, *Média*, *Grave*), com catálogo visual paginado de membros, descrição e evidências anexadas.
+- **Fila de Advertências Automática (`na_fila`) e Revalidação Dinâmica**: Caso o membro já possua uma advertência pendente de ciência/análise, novas advertências entram automaticamente na fila e são disparadas sozinhas assim que a anterior é concluída (revalidando dinamicamente se eventual reincidência segue válida ou se deve ser revertida caso a anterior tenha sido perdoada/cancelada).
+- **Progressão e Reincidência Automática**: Agravamento automático da categoria em caso de reincidência na mesma severidade (*Leve -> Média*, *Média -> Grave*, *Grave -> Votação de Expulsão*).
 - **Garantia de Contraditório e Ampla Defesa**:
-  - Envio imediato da notificação ao membro com formulário para manifestação de justificativa/defesa no prazo regulamentar de **7 dias**.
-  - Expiração automática de registros ativos após **90 dias** de conduta regular.
-- **Consulta Transparente (`/minhas-advertencias`)**: Permite que qualquer membro consulte o status, justificativas e prazos de suas próprias advertências de forma privada.
+  - Prazo regulamentar de **7 dias** para manifestação (`Ciente` ou `Não concordo` com justificativa de até 1.500 caracteres), reiniciando o prazo a cada rodada de `Contra-Argumentar`.
+  - Expiração automática de registros ativos após **90 dias** de vigência (`06:00` cron).
+- **Consulta Transparente (`/minhas-advertencias`, `/advertencias`)**: Histórico individual privado para membros e visão geral de auditoria para a liderança.
 
 ---
 
 ### 🎙️ 5. Atas de Reunião com Inteligência Artificial (Gemini)
-- **Gravação de Áudio Integrada (`/reuniao`)**: Captura áudio de salas de voz via Discord/OBS com suporte a múltiplos participantes simultâneos.
-- **Transcrição e Resumo via Gemini AI**: Processamento do áudio com a API do Google Gemini (`gemini-2.5-flash`), sintetizando:
-  - Resumo executivo da pauta.
-  - Principais deliberações e discussões levantadas.
-  - Matriz de decisões e *action items* com responsáveis atribuídos.
-- **Exportação em PDF e Histórico SQL**: Geração de documento formal de Ata em PDF e arquivamento indexado no PostgreSQL.
+- **Gravação por Falante Individual (`/reuniao iniciar`, `/reuniao finalizar`)**: Captura streams Opus individuais por participante em chamadas de voz (corte após 1s de silêncio e filtro mínimo de 0,3s contra ruídos).
+- **Otimização de Áudio e Transcrição via Gemini 2.5 Flash**: Downsampling automático de 48kHz Estéreo para **16kHz Mono 16-bit**, concatenação em lotes com espaçamento de 500ms de silêncio, backoff exponencial contra rate limits e síntese estruturada (Resumo, Decisões, Itens de ação e Pontos discutidos).
+- **Retenção Inteligente de Backups e Reprocessamento (`/reuniao historico`, `/reuniao reprocessar`)**: Caso a cota diária da API seja atingida, os áudios e o `manifest.json` são preservados por **7 dias** (com limpeza diária às `04:00`), permitindo reprocessar e atualizar a ata em PDF assim que a cota normalizar.
 
 ---
 
-### 👥 6. Hierarquia Visual & Identidade do Servidor
-- **Organograma Dinâmico Renderizado**: Geração de imagem gráfica com `@napi-rs/canvas` refletindo a estrutura viva do servidor (Presidente, Purple Team, Líderes e membros dos times setoriais).
-- **Cartões de Boas-Vindas e Despedida**: Geração automática de cards ilustrados com avatar e nome dos membros em eventos de entrada e saída.
+### 👥 6. Hierarquia Visual, Cartões & Governança de Saídas
+- **Organograma Dinâmico Renderizado (`2400px`)**: Geração de imagem gráfica com `@napi-rs/canvas` refletindo a estrutura viva do servidor (Presidente, Líderes destacados com estrela dourada e membros dos 5 times: *Social Media & Copy*, *Recursos Humanos*, *Design*, *Hardware Hacking* e *Hacking Ético* — unificando Red Team e Blue Team), com conectores ortogonais que não cruzam sobre os cards.
+- **Cartões de Boas-Vindas e Despedida**: Geração automática de cards ilustrados (`1000x320px`) em eventos de aprovação e saída.
+- **Reconciliação de Saídas e Integração Notion**: Detecção de saídas ocorridas até mesmo com o bot offline (`catchUp.js`), inspeção do Audit Log do Discord para diferenciar saída voluntária (`Inativo`) de expulsão/banimento (`Expulso`) no banco de Membros do Notion e alerta automático ao RH para revogação de acesso do e-mail no Workspace.
 
 ---
 
@@ -124,31 +124,33 @@ flowchart TD
     end
 
     subgraph Core [" CyberGuard Bot Core (Node.js) "]
-        Onboarding[Onboarding & Gov.br Engine]
-        Declaracao[Declarações & IMAP Worker]
-        Ponto[Ponto Eletrônico v2 & Idle Checker]
-        Disciplinar[Módulo de Advertências & Contraditório]
-        Reuniao[Áudio Recorder & Gemini Engine]
+        Onboarding[Onboarding, Validação Gov.br & Revisão RH]
+        Declaracao[Declarações 4h/10h & IMAP Worker]
+        Ponto[Ponto Eletrônico v2, Voz & Idle Checker]
+        Disciplinar[Advertências, Fila & Contraditório]
+        Reuniao[Áudio Recorder 16kHz & Gemini Engine]
         CanvasRender[Renderizador Gráfico Canvas]
     end
 
     subgraph Integracoes [" Serviços & Nuvem "]
-        Postgres[(PostgreSQL)]
-        Notion[(Notion API)]
-        Sheets[(Google Sheets API)]
-        Gemini[(Google Gemini AI)]
+        Postgres[(PostgreSQL - 12 Tabelas)]
+        Notion[(Notion API - Tarefas & Membros)]
+        Sheets[(Google Sheets API - 3 Abas)]
+        Gemini[(Google Gemini 2.5 Flash)]
         SMTP[(Serviço de E-mail SMTP)]
         IMAP[(Servidor IMAP / Leitura)]
         LibreOffice[LibreOffice Headless]
     end
 
-    User -->|DMs & Slash Commands| Core
-    Voice -->|Conexão / Desconexão| Ponto
-    RH -->|Painéis de Controle & Modais| Core
+    User -->|DMs, Modais & Slash Commands| Core
+    Voice -->|Conexão / Desconexão / Voz| Ponto
+    Voice -->|Streams Opus por Falante| Reuniao
+    RH -->|Painéis, Aprovações & Ajustes| Core
 
     Onboarding --> LibreOffice
     Onboarding --> SMTP
     Onboarding --> Sheets
+    Onboarding --> Notion
     Declaracao --> LibreOffice
     Declaracao --> SMTP
     Declaracao --> IMAP
@@ -157,6 +159,7 @@ flowchart TD
     Ponto --> Sheets
     Ponto --> CanvasRender
     Disciplinar --> Postgres
+    Disciplinar --> CanvasRender
     Reuniao --> Gemini
     Reuniao --> Postgres
     Core --> Postgres
@@ -179,12 +182,12 @@ flowchart TD
 | Camada | Ferramenta / Biblioteca | Descrição |
 | :--- | :--- | :--- |
 | **Runtime & Base** | `Node.js (v18+)` | Ambiente de execução assíncrono |
-| **Discord Engine** | `discord.js (v14)` & `@discordjs/voice` | Gateway de eventos, componentes interativos, modais e voz |
-| **Banco de Dados** | `PostgreSQL` & `pg` | Armazenamento relacional de membros, pontos, advertências e atas |
-| **Inteligência Artificial** | `@google/generative-ai` | Transcrição e estruturação inteligente de atas com Gemini 2.5 |
-| **Integração em Nuvem** | `Google APIs` & `Notion Client` | Sincronização contínua com Google Sheets e banco de dados do Notion |
-| **Processamento de Docs** | `docxtemplater`, `pizzip`, `pdf-lib` | Automação e manipulação de arquivos DOCX e PDF com AcroForms |
-| **Renderização Gráfica** | `@napi-rs/canvas` | Criação server-side de rankings, organogramas e cartões comemorativos |
+| **Discord Engine** | `discord.js (v14)`, `@discordjs/voice`, `prism-media` | Gateway de eventos, componentes interativos, modais e captura Opus |
+| **Banco de Dados** | `PostgreSQL` & `pg` | Persistência relacional de 12 tabelas com índices parciais únicos |
+| **Inteligência Artificial** | `@google/generative-ai` | Transcrição em lotes e estruturação de atas com Gemini 2.5 Flash |
+| **Integração em Nuvem** | `google-spreadsheet`, `google-auth-library`, `Notion API` | Sincronização contínua com Google Sheets (3 abas) e Notion (Tarefas/Membros) |
+| **Processamento de Docs** | `docxtemplater`, `pizzip`, `pdf-lib`, `pdfjs-dist` | Automação de DOCX/PDF, injeção de AcroForms e validação de objetos `/Sig` |
+| **Renderização Gráfica** | `@napi-rs/canvas` | Criação server-side de rankings, organogramas, catálogos e cartões |
 | **Serviços de Sistema** | `node-cron`, `nodemailer`, `imapflow`, `LibreOffice` | Agendamentos periódicos, disparo SMTP, escuta IMAP e conversão PDF |
 
 ---
@@ -193,65 +196,19 @@ flowchart TD
 
 | Comando | Acesso | Descrição |
 | :--- | :--- | :--- |
-| `/declaracao solicitar` | Qualquer Membro | Solicita emissão da declaração oficial de voluntariado com dados e protocolo |
-| `/declaracao status` | Qualquer Membro | Consulta o andamento da declaração e sincroniza respostas de e-mail em tempo real |
-| `/painel-ponto` | Membros & RH | Abre o painel interativo de registro de ponto e consulta de horas |
-| `/ajustar-ponto` | Exclusivo RH | Permite ajustar horários de registros passados com notificação em DM |
-| `/importar-horas` | Exclusivo RH | Importa e recalcula históricos consolidados de membros |
-| `/painel-advertencias` | Liderança & RH | Painel administrativo para emissão e gestão do processo disciplinar |
-| `/advertir` | Liderança & RH | Registra uma advertência formal contra um membro |
-| `/minhas-advertencias` | Qualquer Membro | Consulta privada via DM/Ephemerous do histórico de advertências do usuário |
-| `/advertencias` | Liderança & RH | Exibe o resumo geral de ocorrências disciplinares ativas |
-| `/reuniao` | Líderes de Reunião | Inicia a gravação e transcrição inteligente de reuniões em canal de voz |
-
----
-
-# 🚀 Instalação e Execução
-
-### 1. Pré-requisitos
-- **Node.js** v18 ou superior instalado.
-- Servidor **PostgreSQL** ativo.
-- **LibreOffice** (para conversão headless de `.docx` para `.pdf`):
-  ```bash
-  sudo apt update && sudo apt install -y libreoffice --no-install-recommends
-  ```
-
-### 2. Clonar o Repositório e Instalar Dependências
-```bash
-git clone https://github.com/RenanCaceres/cyberguard-bot.git
-cd cyberguard-bot
-npm install
-```
-
-### 3. Configurar as Variáveis de Ambiente
-Copie o modelo de variáveis de ambiente e preencha as configurações do seu servidor e integrações:
-```bash
-cp .env.example .env
-nano .env # ou seu editor preferido
-```
-
-### 4. Criar o Banco de Dados
-```bash
-sudo -u postgres createdb cyberguard_bot
-```
-> O bot inicializa as tabelas e schemas automaticamente no primeiro start (`db.initSchema()`).
-
-### 5. Registrar os Slash Commands no Discord
-```bash
-node deploy-commands.js
-```
-
-### 6. Iniciar a Aplicação
-**Modo Desenvolvimento:**
-```bash
-npm run dev
-```
-
-**Modo Produção (PM2):**
-```bash
-pm2 start src/index.js --name cyberguard-bot
-pm2 save
-```
+| `/declaracao solicitar` | Qualquer Membro | Solicita emissão da declaração oficial (4h membro / 10h líder) com protocolo `#DECL-` |
+| `/declaracao status` | Qualquer Membro | Consulta o andamento das últimas 10 declarações e sincroniza respostas IMAP na hora |
+| `/painel-ponto` | Administrador | Publica o painel interativo de registro de ponto, criação de tarefas Notion e gestão |
+| `/ajustar-ponto` | Exclusivo RH | Permite ajustar horários de pontos fechados (máx. 24h) com auditoria e aviso em DM |
+| `/importar-horas` | Exclusivo RH | Importa ou substitui saldos consolidados de membros sem inflar o ranking semanal |
+| `/painel-advertencias` | Liderança & RH | Publica o painel administrativo para abertura, fila e gestão do processo disciplinar |
+| `/advertir` | Liderança & RH | Registra uma advertência formal (*Leve*, *Média* ou *Grave*) contra um membro |
+| `/minhas-advertencias` | Qualquer Membro | Consulta privada (ephemeral) do histórico de advertências do próprio usuário |
+| `/advertencias` | Liderança & RH | Exibe o histórico geral ou filtrado por membro de ocorrências disciplinares (incluindo fila) |
+| `/reuniao iniciar` | Membros em Voz | Inicia a gravação de áudio individualizada por participante na sala de voz atual |
+| `/reuniao finalizar` | Membros em Voz | Encerra a gravação, transcreve em lotes via Gemini AI e gera a Ata formal em PDF |
+| `/reuniao historico` | Qualquer Membro | Lista as últimas atas de reunião registradas no servidor (1 a 25 registros) |
+| `/reuniao reprocessar` | Qualquer Membro | Reprocessa o backup de áudio de uma ata (retido por 7 dias) em caso de falha de cota |
 
 ---
 
@@ -263,33 +220,44 @@ pm2 save
 | `DISCORD_CLIENT_ID` | `123456789...` | Application Client ID do bot |
 | `GUILD_ID` | `987654321...` | ID do servidor do Discord |
 | `DATABASE_URL` | `postgresql://usr:pwd@localhost:5432/cyberguard_bot` | URL de conexão com o PostgreSQL |
-| `CHANNEL_RH_ID` | `154...` | ID do canal privado para avisos e aprovações do RH |
-| `ROLE_RH_NOME` | `Recursos Humanos` | Nome exato do cargo de RH com privilégios administrativos |
-| `ROLE_APROVADO_NOME` | `Membro` | Cargo atribuído automaticamente após aprovação do onboarding |
-| `AREAS_INTERESSE` | `Design,Hacking Ético,Social Media...` | Lista de cargos das áreas de atuação disponíveis |
-| `PONTO_VOICE_CHANNEL_ID`| `151...` | ID da sala de voz para bater ponto automático |
-| `PONTO_ROLE_RH_ID` | `154...` | ID do cargo de RH autorizado a ajustar registros de ponto |
-| `PONTO_SHEET_ID` | `1AbC...` | ID da planilha do Google para registro de horas |
+| `CHANNEL_RH_ID` | `154...` | ID do canal privado para aprovações, revisões de termos e alertas do RH |
+| `CHANNEL_BOASVINDAS_ID` | `150...` | ID do canal para postagem dos cartões gráficos de entrada e saída |
+| `HIERARQUIA_CHANNEL_ID` | `150...` | ID do canal onde o organograma visual (`hierarquia.png`) é mantido |
+| `PRESIDENTE_ID` | `3717...` | Discord ID do Presidente do projeto (topo da hierarquia e carga 10h) |
+| `ROLE_RH_NOME` | `Recursos Humanos` | Nome do cargo de RH com privilégios de aprovação e revisão de termos |
+| `ROLE_LIDER_NOME` | `Líderes` | Nome do cargo de liderança (destaque na hierarquia e declaração de 10h) |
+| `ROLE_HACKING_ETICO_ID` | `1502772363178147860` | ID do cargo unificado de Hacking Ético |
+| `AREAS_INTERESSE` | `Social Media & Copy,Recursos Humanos,Design,Hardware Hacking,Hacking Ético` | Lista de áreas disponíveis no onboarding |
+| `PONTO_VOICE_CHANNEL_ID`| `151...` | ID da sala de voz monitorada para abertura/fechamento automático de ponto |
+| `PONTO_ROLE_RH_ID` | `154...` | ID do cargo de RH autorizado a ajustar ponto e importar horas |
+| `PONTO_ROLE_LIDERES_ID` | `154...` | ID do cargo de Líderes autorizado a consultar o Resumo e Histórico |
+| `PONTO_LOG_CHANNEL_ID` | `154...` | ID do canal de logs de auditoria do ponto eletrônico |
+| `PONTO_RANKING_CHANNEL_ID`| `154...` | ID do canal onde o Ranking Semanal ao vivo é atualizado |
+| `PONTO_SHEET_ID` | `1AbC...` | ID da planilha do Google para sincronização das 3 abas de horas |
 | `NOTION_TOKEN` | `secret_...` | Token de integração da API do Notion |
-| `NOTION_DATA_SOURCE_ID`| `3e5c7...` | ID da database/tabela de membros no Notion |
+| `NOTION_DATA_SOURCE_ID` | `3e5c7...` | ID do Data Source de tarefas no Notion (API `2025-09-03`) |
+| `NOTION_MEMBROS_DB_ID` | `3f8c7...` | ID do Database histórico de membros no Notion (`Ativo`/`Inativo`/`Expulso`) |
 | `GEMINI_API_KEY` | `AIza...` | Chave de API do Google Gemini para transcrição de atas |
-| `CANAL_ADVERTENCIAS_ID` | `154...` | Canal restrito onde ocorrem as notificações de moderação |
-| `AUTORES_ADVERTENCIA_IDS`| `3717...,7366...` | IDs dos membros autorizados a emitir advertências |
+| `CANAL_ADVERTENCIAS_ID` | `154...` | Canal restrito onde ocorrem as notificações e deliberações disciplinares |
+| `AUTORES_ADVERTENCIA_IDS`| `3717...,7366...` | IDs dos líderes autorizados a emitir e julgar advertências |
+| `EMAIL_TERMOS_DESTINATARIO`| `natassyasilva@utfpr.edu.br` | Destinatário principal dos termos de voluntariado assinados |
+| `EMAIL_TERMOS_CC` | `renan.2004@...,andrequeiroz@...` | Lista de e-mails em cópia (CC) no envio dos termos assinados |
 | `EMAIL_PROFESSOR_COORDENADOR` | `andre.przybysz@utfpr.edu.br` | E-mail do professor coordenador que assina as declarações |
-| `IMAP_HOST` | `imap.gmail.com` | Host do servidor IMAP para leitura autônoma das respostas |
-| `IMAP_PORT` | `993` | Porta de conexão segura IMAP com suporte a TLS |
-| `IMAP_USER` / `IMAP_PASS` | `bot@utfpr...`, `app-pass` | Usuário e Senha de App da conta de e-mail monitorada |
+| `IMAP_HOST` / `IMAP_PORT` | `imap.gmail.com` / `993` | Servidor e porta IMAP TLS para leitura autônoma das declarações assinadas |
+| `IMAP_USER` / `IMAP_PASS` | `bot@utfpr...`, `app-pass` | Credenciais IMAP/SMTP da conta institucional do bot |
 
 ---
 
-# 📄 Manuais Operacionais em PDF
+# 📄 Documentação Completa & Manuais Operacionais em PDF
 
-A pasta `docs/manuais/` conta com documentações e manuais completos gerados para o projeto:
-- 📜 **`Manual_Membro_Declaracao_Voluntariado.pdf`**: Guia para membros sobre emissão de declarações de voluntariado, fluxo de assinatura digital no Gov.br, prazos e entrega por DM.
-- 📘 **`Manual_Membro_Ponto.pdf`**: Guia para membros sobre o ponto manual, registro por voz e confirmação de presença.
-- 📕 **`Manual_Membro_Advertencias.pdf`**: Direitos, prazos e fluxo de contraditório para membros advertidos.
-- 📗 **`Manual_Lider_RH_Ponto.pdf`**: Manual administrativo de ajuste de ponto, regras do RH e auditoria de horas.
-- 📙 **`Manual_Lider_Advertencias_Atualizado.pdf`**: Procedimentos operacionais para abertura de advertências e expulsão.
+A pasta `docs/manuais/` (e `docs/`) conta com a documentação técnica completa do sistema e os manuais operacionais ilustrados com fluxogramas gerados automaticamente via `node scripts/gerarManuais.js`:
+
+- 📘 **`Documentacao_Completa_CyberGuard_Bot.pdf`** *(também em `docs/Documentacao_Completa_CyberGuard_Bot.pdf`)*: Especificação técnica e operacional completa de todos os módulos, regras de negócio, expressões regulares, validações, esquemas das 12 tabelas SQL, máquinas de estado, permissões, crons e integrações do bot.
+- 📜 **`Manual_Membro_Declaracao_Voluntariado.pdf`**: Guia atualizado para membros e líderes sobre emissão de declarações de voluntariado (regra automática de **4h semanais** para membros e **10h semanais** para líderes), fluxo de assinatura digital no Gov.br, sincronização instantânea (`/declaracao status`) e entrega por DM.
+- 🕒 **`Manual_Membro_Ponto.pdf`**: Guia para membros sobre o ponto manual, criação de tarefas no Notion pelo Discord, registro automático por voz (com tolerância de 60s), confirmação periódica de atividade (1h) e ranking.
+- 📕 **`Manual_Membro_Advertencias.pdf`**: Direitos, prazos de 7 e 90 dias e fluxo de contraditório para membros advertidos.
+- 📗 **`Manual_Lider_RH_Ponto.pdf`**: Manual administrativo de ajuste de ponto pelo RH, importação de horas, painel de resumo de líderes e auditoria nas 3 abas da planilha.
+- 📙 **`Manual_Lider_Advertencias_Atualizado.pdf`**: Procedimentos operacionais para abertura de advertências, fila automática, reincidência e votação de expulsão.
 
 ---
 
@@ -311,3 +279,13 @@ Desenvolvido por **Renan Cáceres**
 </a>
 
 </div>
+
+---
+
+# 🔒 Licença & Direitos de Uso
+
+Este projeto e todo o seu código-fonte são de autoria e propriedade intelectual única e exclusiva de **Renan Cáceres**.
+
+> [!IMPORTANT]
+> **Código Proprietário / Sem Licença Aberta (Todos os direitos reservados)**  
+> Não é permitida a cópia, clonagem para fins de redistribuição, reprodução, modificação ou qualquer forma de uso comercial ou não autorizado deste código-fonte sem a autorização prévia e expressa por escrito do autor.

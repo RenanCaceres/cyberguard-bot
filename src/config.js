@@ -5,6 +5,7 @@ module.exports = {
   clientId: process.env.DISCORD_CLIENT_ID,
   hierarquiaChannelId: process.env.HIERARQUIA_CHANNEL_ID || '',
   presidenteId: process.env.PRESIDENTE_ID || '',
+  vicePresidenteId: process.env.VICE_PRESIDENTE_ID || process.env.PURPLE_TEAM_ID || '',
   purpleTeamId: process.env.PURPLE_TEAM_ID || '',
   roleHackingEticoId: process.env.ROLE_HACKING_ETICO_ID || '1502772363178147860',
   categoriaHackingEticoId: process.env.CATEGORIA_HACKING_ETICO_ID || '1518448843279302696',
@@ -14,10 +15,28 @@ module.exports = {
   channelBoasVindasId: process.env.CHANNEL_BOASVINDAS_ID || '',
   roleRhNome: process.env.ROLE_RH_NOME || 'Recursos Humanos',
   roleAprovadoNome: process.env.ROLE_APROVADO_NOME || '',
-  areasInteresse: (process.env.AREAS_INTERESSE || 'Social Media & Copy,Recursos Humanos,Design,Hardware Hacking,Hacking Ético')
-    .split(',')
-    .map((a) => a.trim())
-    .filter(Boolean),
+  areasInteresse: (() => {
+    const brutas = (
+      process.env.AREAS_INTERESSE ||
+      'Social Media & Copy,Recursos Humanos,Design,Hardware Hacking,Hacking Ético'
+    )
+      .split(',')
+      .map((a) => a.trim())
+      .filter(Boolean);
+
+    const normalizadas = brutas.map((area) => {
+      const a = area.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (a === 'red team' || a === 'blue team' || a === 'observatorio' || a === 'hacking etico') {
+        return 'Hacking Ético';
+      }
+      if (a === 'social media' || a === 'social media & copy') {
+        return 'Social Media & Copy';
+      }
+      return area;
+    });
+
+    return Array.from(new Set(normalizadas));
+  })(),
   expulsarAoRejeitar: process.env.EXPULSAR_AO_REJEITAR !== 'false',
   whatsappLink: process.env.WHATSAPP_LINK,
   whatsappLinksArea: (() => {

@@ -320,7 +320,7 @@ function fluxoDeclaracao() {
 
   const passos = [
     { linhas: ['1. Aluno solicita declaração', 'comando /declaracao solicitar no Discord'], tema: 'azul', w: 360, h: 60 },
-    { linhas: ['2. Bot valida cadastro e gera documento', 'dados (RA, curso, data) + PDF via template UTFPR'], tema: 'laranja', w: 420, h: 60 },
+    { linhas: ['2. Bot valida cadastro e gera documento', 'dados (RA, curso, 4h ou 10h) + PDF oficial UTFPR'], tema: 'laranja', w: 420, h: 60 },
     { linhas: ['3. Disparo de e-mail ao Coordenador', 'envia o PDF ao Prof. André Luiz Przybysz via SMTP'], tema: 'laranja', w: 420, h: 60 },
     { linhas: ['4. Assinatura Digital no Gov.br', 'professor assina pelo gov.br e responde o e-mail'], tema: 'azul', w: 420, h: 60 },
     { linhas: ['5. Leitura IMAP e validação automática', 'bot detecta #DECL-, baixa o anexo e valida PDF'], tema: 'laranja', w: 420, h: 60 },
