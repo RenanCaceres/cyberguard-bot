@@ -2,13 +2,14 @@
 
 const fs = require('fs');
 const path = require('path');
-const { JWT } = require('google-auth-library');
+const { JWT, OAuth2Client } = require('google-auth-library');
 const config = require('./config');
 
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
 const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
 
 let authClient = null;
+let oauthClient = null;
 const folderCache = new Map();
 
 function normalizarAreaSubpasta(area) {
@@ -25,28 +26,41 @@ function normalizarAreaSubpasta(area) {
 }
 
 function obterAuth() {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
+
+  // 1. Prioridade: OAuth2 do usuário (com cota normal de armazenamento no Meu Drive)
+  if (clientId && clientSecret && refreshToken) {
+    if (!oauthClient) {
+      oauthClient = new OAuth2Client(clientId, clientSecret);
+      oauthClient.setCredentials({ refresh_token: refreshToken });
+    }
+    return oauthClient;
+  }
+
+  // 2. Fallback: Service Account (para Shared Drives / Sheets)
   const email = config.googleSheets?.serviceAccountEmail;
   const key = config.googleSheets?.privateKey;
 
-  if (!email || !key) {
-    return null;
+  if (email && key) {
+    if (!authClient) {
+      authClient = new JWT({
+        email,
+        key,
+        scopes: ['https://www.googleapis.com/auth/drive'],
+      });
+    }
+    return authClient;
   }
 
-  if (!authClient) {
-    authClient = new JWT({
-      email,
-      key,
-      scopes: ['https://www.googleapis.com/auth/drive'],
-    });
-  }
-
-  return authClient;
+  return null;
 }
 
 async function obterToken() {
   const client = obterAuth();
   if (!client) {
-    throw new Error('Credenciais da Service Account do Google não configuradas (GOOGLE_SERVICE_ACCOUNT_EMAIL / GOOGLE_PRIVATE_KEY).');
+    throw new Error('Nenhuma credencial do Google configurada (OAuth2 ou Service Account).');
   }
   const res = await client.getAccessToken();
   return typeof res === 'string' ? res : res?.token;
