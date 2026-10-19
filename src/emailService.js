@@ -16,7 +16,11 @@ async function encaminharTermoAssinado(membro, caminhoArquivo, nomeArquivoOrigin
   const copias =
     config.smtp.emailTermosCc && config.smtp.emailTermosCc.length > 0
       ? config.smtp.emailTermosCc
-      : ['renan.2004@alunos.utfpr.edu.br', 'andrequeiroz@alunos.utfpr.edu.br'];
+      : [
+          'renan.2004@alunos.utfpr.edu.br',
+          'andrequeiroz@alunos.utfpr.edu.br',
+          'vitorprado@alunos.utfpr.edu.br',
+        ];
 
   await transporter.sendMail({
     from: config.smtp.from || config.smtp.user,

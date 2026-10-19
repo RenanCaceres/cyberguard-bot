@@ -244,7 +244,7 @@ flowchart TD
 | `CANAL_ADVERTENCIAS_ID` | `154...` | Canal restrito onde ocorrem as notificações e deliberações disciplinares |
 | `AUTORES_ADVERTENCIA_IDS`| `3717...,7366...` | IDs dos líderes autorizados a emitir e julgar advertências |
 | `EMAIL_TERMOS_DESTINATARIO`| `natassyasilva@utfpr.edu.br` | Destinatário principal dos termos de voluntariado assinados |
-| `EMAIL_TERMOS_CC` | `renan.2004@...,andrequeiroz@...` | Lista de e-mails em cópia (CC) no envio dos termos assinados |
+| `EMAIL_TERMOS_CC` | `renan.2004@...,andrequeiroz@...,vitorprado@...` | Lista de e-mails em cópia (CC) no envio dos termos assinados |
 | `EMAIL_PROFESSOR_COORDENADOR` | `andre.przybysz@utfpr.edu.br` | E-mail do professor coordenador que assina as declarações |
 | `GOOGLE_DRIVE_TERMOS_FOLDER_ID` | `1x72R9VOG9Y4T_OUze91ierP3pFML10XB` | ID da pasta raiz no Google Drive para termos de voluntariado assinados |
 | `GOOGLE_DRIVE_DECLARACOES_FOLDER_ID` | `1GeSr3AdrCqJ583pc28hl9MlB_Owo3nj6` | ID da pasta no Google Drive para declarações de voluntariado assinadas |
