@@ -246,8 +246,8 @@ flowchart TD
 | `EMAIL_TERMOS_DESTINATARIO`| `natassyasilva@utfpr.edu.br` | Destinatário principal dos termos de voluntariado assinados |
 | `EMAIL_TERMOS_CC` | `renan.2004@...,andrequeiroz@...,vitorprado@...` | Lista de e-mails em cópia (CC) no envio dos termos assinados |
 | `EMAIL_PROFESSOR_COORDENADOR` | `andre.przybysz@utfpr.edu.br` | E-mail do professor coordenador que assina as declarações |
-| `GOOGLE_DRIVE_TERMOS_FOLDER_ID` | `1x72R9VOG9Y4T_OUze91ierP3pFML10XB` | ID da pasta raiz no Google Drive para termos de voluntariado assinados |
-| `GOOGLE_DRIVE_DECLARACOES_FOLDER_ID` | `1GeSr3AdrCqJ583pc28hl9MlB_Owo3nj6` | ID da pasta no Google Drive para declarações de voluntariado assinadas |
+| `GOOGLE_DRIVE_TERMOS_FOLDER_ID` | `1NqvkQ5xh5PiCVWD_vS5p19gCn2hQaP0Y` | ID da pasta raiz no Google Drive para termos de voluntariado assinados |
+| `GOOGLE_DRIVE_DECLARACOES_FOLDER_ID` | `19BNim9PFAwjOkhx4P-ZqVNa6GEGb8aOL` | ID da pasta no Google Drive para declarações de voluntariado assinadas |
 | `IMAP_HOST` / `IMAP_PORT` | `imap.gmail.com` / `993` | Servidor e porta IMAP TLS para leitura autônoma das declarações assinadas |
 | `IMAP_USER` / `IMAP_PASS` | `bot@utfpr...`, `app-pass` | Credenciais IMAP/SMTP da conta institucional do bot |
 

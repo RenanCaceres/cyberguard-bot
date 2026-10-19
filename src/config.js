@@ -54,8 +54,8 @@ module.exports = {
     privateKey: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
   },
   googleDrive: {
-    termosFolderId: process.env.GOOGLE_DRIVE_TERMOS_FOLDER_ID || '1x72R9VOG9Y4T_OUze91ierP3pFML10XB',
-    declaracoesFolderId: process.env.GOOGLE_DRIVE_DECLARACOES_FOLDER_ID || '1GeSr3AdrCqJ583pc28hl9MlB_Owo3nj6',
+    termosFolderId: process.env.GOOGLE_DRIVE_TERMOS_FOLDER_ID || '1NqvkQ5xh5PiCVWD_vS5p19gCn2hQaP0Y',
+    declaracoesFolderId: process.env.GOOGLE_DRIVE_DECLARACOES_FOLDER_ID || '19BNim9PFAwjOkhx4P-ZqVNa6GEGb8aOL',
   },
   kov: {
     logChannelId: process.env.KOV_LOG_CHANNEL_ID || '',
