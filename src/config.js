@@ -53,6 +53,10 @@ module.exports = {
     serviceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '',
     privateKey: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
   },
+  googleDrive: {
+    termosFolderId: process.env.GOOGLE_DRIVE_TERMOS_FOLDER_ID || '1x72R9VOG9Y4T_OUze91ierP3pFML10XB',
+    declaracoesFolderId: process.env.GOOGLE_DRIVE_DECLARACOES_FOLDER_ID || '1GeSr3AdrCqJ583pc28hl9MlB_Owo3nj6',
+  },
   kov: {
     logChannelId: process.env.KOV_LOG_CHANNEL_ID || '',
     botId: process.env.KOV_BOT_ID || '', // opcional: restringe a um bot específico
