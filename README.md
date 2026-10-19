@@ -72,7 +72,7 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
   - Inspeção combinada (`pdf-lib` + `pdfjs-dist`) de integridade criptográfica (`/Type /Sig`, `/ByteRange`, `/Contents`) e posição geométrica do widget exatamente sobre a linha `"Voluntário(a)"` da tabela `"ACEITE E CONCORDÂNCIA"` (filtrando pela coluna esquerda `x ∈ [50, 120]` e seção de aceite para eliminar falsos positivos com o texto corrido).
   - Extração estrita do campo `"Data:"` ao lado de `"Local: Cornélio Procópio"` (via AcroForm `data_assinatura`, anotações de texto ou linha horizontal achatada), sem confundir com o carimbo do Gov.br caso o aluno tenha esquecido de preencher a data no documento, validando calendário real, janela de **90 dias** e bloqueio de datas futuras.
   - **Diagnóstico Completo e Reprovação Direta na DM**: Avalia simultaneamente assinatura e data; se houver qualquer erro (data em branco, assinatura na página/linha errada ou PDF impresso sem assinatura criptográfica), o bot **reprova automaticamente na DM do aluno** listando todos os ajustes necessários para reenvio imediato, sem sobrecarregar o RH com revisões manuais (mantendo o fallback `revisao_manual` apenas para anomalias técnicas de PDF).
-  - Arquivamento automático em subpastas setoriais (`docs/Termos-Voluntarios-Assinados/<Área>`), envio via SMTP com cópias (`CC`) e cron diário (`09:00`) de lembretes com opção de silenciamento manual pelo RH.
+  - **Arquivamento em Nuvem e Local**: O PDF validado é copiado localmente para subpastas setoriais (`docs/Termos-Voluntarios-Assinados/<Área>`) e sincronizado automaticamente no **Google Drive** em subpastas dinâmicas por área (`HackingEtico`, `Design`, `HardwareHacking`, `Recursos Humanos`, `SocialMedia`, `Líderes`, `Observatorio`), além de despacho SMTP para a coordenação com cópias (`CC`) e cron diário (`09:00`) de lembretes com opção de silenciamento manual pelo RH.
 
 ---
 
@@ -82,7 +82,7 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
   - **Membros Regulares (`4 horas semanais`)**: atribuída automaticamente aos integrantes das áreas técnicas e operacionais.
   - **Líderes e Presidência (`10 horas semanais`)**: atribuída automaticamente a quem possui o cargo de liderança (`Líderes`) ou Presidência no servidor.
 - **Geração Dinâmica e Tramitação por E-mail (SMTP)**: O bot preenche o template institucional da UTFPR com a data por extenso, converte para PDF via LibreOffice e envia automaticamente ao Coordenador do Projeto (**Prof. André Luiz Przybysz**).
-- **Monitoramento e Captura Autônoma (IMAP)**: Um serviço em segundo plano checa a caixa de entrada a cada 1 minuto, localiza a resposta do coordenador pelo protocolo `#DECL-...`, valida o cabeçalho binário `%PDF` do anexo assinado pelo Gov.br (Lei Federal nº 14.063/2020) e arquiva em `DeclaracoesAssinadas/`.
+- **Monitoramento e Captura Autônoma (IMAP)**: Um serviço em segundo plano checa a caixa de entrada a cada 1 minuto, localiza a resposta do coordenador pelo protocolo `#DECL-...`, valida o cabeçalho binário `%PDF` do anexo assinado pelo Gov.br (Lei Federal nº 14.063/2020), arquiva em `DeclaracoesAssinadas/` e faz o upload automático para a pasta de declarações no **Google Drive**.
 - **Entrega Imediata na DM e Cópia ao RH**: O PDF assinado é entregue diretamente na DM do estudante e uma cópia comprobatória é postada no canal do RH.
 - **Acompanhamento com Sincronização em Tempo Real (`/declaracao status`)**: Lista as últimas 10 solicitações do aluno (status, data de início, carga horária de 4h/10h e RA) e força uma varredura IMAP imediata na caixa de entrada.
 
@@ -136,6 +136,7 @@ flowchart TD
         Postgres[(PostgreSQL - 12 Tabelas)]
         Notion[(Notion API - Tarefas & Membros)]
         Sheets[(Google Sheets API - 3 Abas)]
+        Drive[(Google Drive API - Armazenamento de PDFs)]
         Gemini[(Google Gemini 2.5 Flash)]
         SMTP[(Serviço de E-mail SMTP)]
         IMAP[(Servidor IMAP / Leitura)]
@@ -150,10 +151,12 @@ flowchart TD
     Onboarding --> LibreOffice
     Onboarding --> SMTP
     Onboarding --> Sheets
+    Onboarding --> Drive
     Onboarding --> Notion
     Declaracao --> LibreOffice
     Declaracao --> SMTP
     Declaracao --> IMAP
+    Declaracao --> Drive
     Declaracao --> Postgres
     Ponto --> Notion
     Ponto --> Sheets
@@ -185,7 +188,7 @@ flowchart TD
 | **Discord Engine** | `discord.js (v14)`, `@discordjs/voice`, `prism-media` | Gateway de eventos, componentes interativos, modais e captura Opus |
 | **Banco de Dados** | `PostgreSQL` & `pg` | Persistência relacional de 12 tabelas com índices parciais únicos |
 | **Inteligência Artificial** | `@google/generative-ai` | Transcrição em lotes e estruturação de atas com Gemini 2.5 Flash |
-| **Integração em Nuvem** | `google-spreadsheet`, `google-auth-library`, `Notion API` | Sincronização contínua com Google Sheets (3 abas) e Notion (Tarefas/Membros) |
+| **Integração em Nuvem** | `google-spreadsheet`, `google-auth-library`, `Notion API` | Sincronização contínua com Google Sheets (3 abas), Google Drive API (termos e declarações) e Notion |
 | **Processamento de Docs** | `docxtemplater`, `pizzip`, `pdf-lib`, `pdfjs-dist` | Automação de DOCX/PDF, injeção de AcroForms e validação de objetos `/Sig` |
 | **Renderização Gráfica** | `@napi-rs/canvas` | Criação server-side de rankings, organogramas, catálogos e cartões |
 | **Serviços de Sistema** | `node-cron`, `nodemailer`, `imapflow`, `LibreOffice` | Agendamentos periódicos, disparo SMTP, escuta IMAP e conversão PDF |
@@ -243,6 +246,8 @@ flowchart TD
 | `EMAIL_TERMOS_DESTINATARIO`| `natassyasilva@utfpr.edu.br` | Destinatário principal dos termos de voluntariado assinados |
 | `EMAIL_TERMOS_CC` | `renan.2004@...,andrequeiroz@...` | Lista de e-mails em cópia (CC) no envio dos termos assinados |
 | `EMAIL_PROFESSOR_COORDENADOR` | `andre.przybysz@utfpr.edu.br` | E-mail do professor coordenador que assina as declarações |
+| `GOOGLE_DRIVE_TERMOS_FOLDER_ID` | `1x72R9VOG9Y4T_OUze91ierP3pFML10XB` | ID da pasta raiz no Google Drive para termos de voluntariado assinados |
+| `GOOGLE_DRIVE_DECLARACOES_FOLDER_ID` | `1GeSr3AdrCqJ583pc28hl9MlB_Owo3nj6` | ID da pasta no Google Drive para declarações de voluntariado assinadas |
 | `IMAP_HOST` / `IMAP_PORT` | `imap.gmail.com` / `993` | Servidor e porta IMAP TLS para leitura autônoma das declarações assinadas |
 | `IMAP_USER` / `IMAP_PASS` | `bot@utfpr...`, `app-pass` | Credenciais IMAP/SMTP da conta institucional do bot |
 

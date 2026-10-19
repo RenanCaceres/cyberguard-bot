@@ -5,6 +5,7 @@ const { ImapFlow } = require('imapflow');
 const cron = require('node-cron');
 const config = require('./config');
 const db = require('./db');
+const { fazerUploadDeclaracao } = require('./driveService');
 
 const transporter = nodemailer.createTransport({
   host: config.smtp.host,
@@ -146,6 +147,19 @@ async function verificarRespostasDeclaracoes(client) {
           const nomeArquivo = `declaracao_assinada_${declaracao.ra}_${codigo}.pdf`;
           const caminhoPdfAssinado = path.join(dirDestino, nomeArquivo);
           fs.writeFileSync(caminhoPdfAssinado, bufferPdf);
+
+          // Salva no Google Drive (pasta de declarações)
+          try {
+            const driveRes = await fazerUploadDeclaracao({
+              caminhoArquivo: caminhoPdfAssinado,
+              nomeArquivo,
+            });
+            if (driveRes) {
+              console.log(`[declaracao-imap] Declaração ${codigo} sincronizada no Google Drive: ${driveRes.name}`);
+            }
+          } catch (errDrive) {
+            console.error(`[declaracao-imap] Erro ao enviar declaração ${codigo} para o Google Drive:`, errDrive.message);
+          }
 
           // Marca como concluída no banco de dados
           await db.atualizarDeclaracaoConcluida(codigo, caminhoPdfAssinado);

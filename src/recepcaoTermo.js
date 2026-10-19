@@ -14,6 +14,7 @@ const config = require('./config');
 const db = require('./db');
 const { encaminharTermoAssinado } = require('./emailService');
 const { validarTermoDevolvido } = require('./dataAssinatura');
+const { fazerUploadTermo } = require('./driveService');
 
 function temPermissaoRh(member) {
   if (!member) return false;
@@ -36,6 +37,7 @@ function obterSubpastaArea(area) {
   if (a.includes('humano') || a.includes('rh')) return 'Recursos Humanos';
   if (a.includes('social') || a.includes('copy')) return 'SocialMedia';
   if (a.includes('lider')) return 'Líderes';
+  if (a.includes('observatorio')) return 'Observatorio';
   return 'Geral';
 }
 
@@ -69,17 +71,36 @@ async function concluirTermoAssinado({ membro, caminhoArquivo, nomeOriginal }) {
     console.error('Erro ao salvar cópia permanente do termo assinado:', errSalvar);
   }
 
-  // 3. Atualizar status no banco
+  // 3. Salvar no Google Drive
+  let driveUpload = null;
+  try {
+    const nomeUpload = caminhoPermanente
+      ? path.basename(caminhoPermanente)
+      : nomeOriginal || `termo_assinado_${membro.ra || membro.discord_id}.pdf`;
+
+    driveUpload = await fazerUploadTermo({
+      caminhoArquivo: caminhoPermanente || caminhoArquivo,
+      nomeArquivo: nomeUpload,
+      area: membro.area_interesse,
+    });
+    if (driveUpload) {
+      console.log(`[drive] Termo de ${membro.nome} sincronizado no Google Drive: ${driveUpload.name}`);
+    }
+  } catch (errDrive) {
+    console.error('Erro ao enviar termo assinado para o Google Drive:', errDrive.message);
+  }
+
+  // 4. Atualizar status no banco
   await db.atualizarStatus(membro.discord_id, 'concluido', {
     termo_arquivo_path: caminhoPermanente || caminhoArquivo,
   });
 
-  // 4. Limpar o temporário se diferente do permanente
+  // 5. Limpar o temporário se diferente do permanente
   if (caminhoArquivo && caminhoPermanente && caminhoArquivo !== caminhoPermanente && fs.existsSync(caminhoArquivo)) {
     fs.unlink(caminhoArquivo, () => {});
   }
 
-  return { emailEnviado, erroEmailMsg, caminhoPermanente };
+  return { emailEnviado, erroEmailMsg, caminhoPermanente, driveUpload };
 }
 
 async function encaminharParaRevisaoManual(client, membro, caminhoArquivo, nomeOriginal, motivo) {
