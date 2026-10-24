@@ -5,6 +5,7 @@ const { gerarTermo } = require('./termService');
 const { adicionarLinhaPlanilha } = require('./sheetsService');
 const { postarCartao } = require('./cartaoServidor');
 const { TEXTO_MANUAL_CONDUTA } = require('./manualConduta');
+const { adicionarMembroWorkspace } = require('./notionWorkspace');
 
 function membroTemRoleRh(interactionMember) {
   return interactionMember.roles.cache.some((r) => r.name === config.roleRhNome);
@@ -167,10 +168,22 @@ async function handleAprovacaoInteraction(interaction) {
   }
 
   if (config.channelRhId && membroAtualizado.email) {
+    let statusNotionWorkspace = '';
+    try {
+      const resWorkspace = await adicionarMembroWorkspace(membroAtualizado.email);
+      if (resWorkspace.sucesso) {
+        statusNotionWorkspace = '\n✅ *Acesso ao Workspace do Notion liberado automaticamente!*';
+      } else {
+        statusNotionWorkspace = `\n⚠️ *Aviso Workspace Notion:* ${resWorkspace.mensagem}`;
+      }
+    } catch (errWs) {
+      statusNotionWorkspace = `\n⚠️ *Não foi possível adicionar automaticamente ao Workspace:* ${errWs.message}`;
+    }
+
     try {
       const canalRh = await interaction.guild.channels.fetch(config.channelRhId);
       await canalRh.send({
-        content: `🔑 **Liberação de Acesso ao Notion:**\nO integrante **${membroAtualizado.nome}** (<@${discordId}> - RA: \`${membroAtualizado.ra || 'N/A'}\`) foi aprovado no onboarding!\n📧 **E-mail:** \`${membroAtualizado.email}\`\n📌 *O cadastro foi registrado como Ativo no Notion. Adicione este e-mail aos convidados do Workspace no Notion para conceder o acesso.*`,
+        content: `🔑 **Liberação de Acesso ao Notion:**\nO integrante **${membroAtualizado.nome}** (<@${discordId}> - RA: \`${membroAtualizado.ra || 'N/A'}\`) foi aprovado no onboarding!\n📧 **E-mail:** \`${membroAtualizado.email}\`\n📌 *O cadastro foi registrado como Ativo no Notion.*${statusNotionWorkspace}`,
       });
     } catch (errRhNotif) {
       console.error('Erro ao notificar canal do RH sobre e-mail Notion:', errRhNotif.message);
