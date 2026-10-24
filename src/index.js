@@ -192,6 +192,21 @@ client.on('guildMemberRemove', async (member) => {
       console.error('Erro ao atualizar saída no Notion:', errNotion.message);
     }
 
+    let statusRevogacaoWs = '';
+    if (registro && registro.email) {
+      try {
+        const { removerMembroWorkspace } = require('./notionWorkspace');
+        const resWs = await removerMembroWorkspace(registro.email);
+        if (resWs.sucesso) {
+          statusRevogacaoWs = '\n✅ *Acesso ao Workspace do Notion revogado automaticamente!*';
+        } else {
+          statusRevogacaoWs = `\n⚠️ *Revogação Workspace Notion:* ${resWs.mensagem}`;
+        }
+      } catch (errWs) {
+        statusRevogacaoWs = `\n⚠️ *Não foi possível revogar automaticamente no Workspace Notion:* ${errWs.message}`;
+      }
+    }
+
     if (config.channelRhId) {
       try {
         const canalRh = await member.guild.channels.fetch(config.channelRhId);
@@ -199,7 +214,7 @@ client.on('guildMemberRemove', async (member) => {
         const tipoAviso = foiExpulso ? '🚫 **Expulsão do Servidor — Revogação Notion:**' : '🚪 **Saída do Servidor — Revogação Notion:**';
         const statusTexto = foiExpulso ? 'Expulso' : 'Inativo';
         await canalRh.send({
-          content: `${tipoAviso}\nO integrante **${nome}** (<@${member.id}>) ${foiExpulso ? 'foi expulso do' : 'saiu do'} servidor.\n📧 **E-mail:** ${emailInfo}\n⚠️ *O cadastro no Notion foi alterado para ${statusTexto}. Remova o acesso de convidado deste e-mail nas configurações do Workspace do Notion.*`,
+          content: `${tipoAviso}\nO integrante **${nome}** (<@${member.id}>) ${foiExpulso ? 'foi expulso do' : 'saiu do'} servidor.\n📧 **E-mail:** ${emailInfo}\n⚠️ *O cadastro no Notion foi alterado para ${statusTexto}.*${statusRevogacaoWs}`,
         });
       } catch (errRhAviso) {
         console.error('Erro ao alertar RH sobre saída do membro:', errRhAviso.message);
