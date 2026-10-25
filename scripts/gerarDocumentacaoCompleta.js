@@ -304,7 +304,18 @@ async function gerarDocumentacaoCompleta() {
 
   doc.subsecao('8.2. Cartões de Entrada/Saída e Sincronização de Desligamento no Notion');
   doc.listaItem('Cartões Ilustrados (cartaoServidor.js): gera banners 1000x320px em PNG ("EMBARCOU NO SERVIDOR" em azul com mascote sorrindo na aprovação do onboarding; "DESEMBARCOU DO SERVIDOR" em âmbar com mascote triste na saída).');
-  doc.listaItem('Detecção de Expulsão via Audit Log e Revogação Notion (guildMemberRemove): quando um membro sai do servidor, o bot inspeciona os últimos 5 registros do Audit Log (actions 20 Kick e 22 Ban nos últimos 30s). Atualiza o cadastro do membro no Notion (notionMembros.js) para Status = "Expulso" (se kick/ban) ou "Inativo" (saída voluntária) com a Data de Saída, e envia alerta no canal do RH informando o e-mail para remoção do acesso de convidado no Workspace do Notion.');
+  doc.listaItem('Detecção de Expulsão via Audit Log e Revogação Notion (guildMemberRemove): quando um membro sai do servidor, o bot inspeciona os últimos 5 registros do Audit Log (actions 20 Kick e 22 Ban nos últimos 30s). Atualiza o cadastro do membro no Notion (notionMembros.js) para Status = "Expulso" (se kick/ban) ou "Inativo" (saída voluntária) com a Data de Saída, e executa a revogação automática da conta no Workspace Notion.');
+
+  doc.subsecao('8.3. Gestão Automatizada de Membros do Notion Workspace (src/notionWorkspace.js)');
+  doc.paragrafo(
+    'O bot implementa automação direta de gestão do Workspace institucional no Notion através de endpoints v3 autenticados (token_v2, NOTION_SPACE_ID e NOTION_ACTIVE_USER_ID), eliminando as restrições da API pública oficial que impedem a gestão autônoma de membros:'
+  );
+  doc.listaItem('Adição Automática ao Workspace (addMembersToSpace): imediatamente após a aprovação do onboarding e validação do termo pelo RH (src/approval.js), o bot resolve o ID do membro por e-mail (ou provisiona via createEmailUser) e adiciona o integrante diretamente como Membro oficial do espaço.');
+  doc.listaItem('Revogação Automática no Desligamento (removeUsersFromSpace): caso o integrante saia por conta própria ou seja expulso (src/index.js), o bot revoga o acesso imediatamente do Workspace, preservando o histórico de tarefas já concluídas.');
+  doc.listaItem('Governança e Estrutura de Papéis:');
+  doc.listaItem('• Coordenação Docente: Prof. Dr. André Luiz Przybysz e Profa. Dra. Natássya Barlate Floro da Silva possuem assento permanente como professores orientadores.', { nivel: 2, marcador: '-' });
+  doc.listaItem('• Administração & Presidência: Renan Cáceres Anselmo e André Queiroz atuam como Workspace Owners / Administradores gerais.', { nivel: 2, marcador: '-' });
+  doc.listaItem('• Membros Acadêmicos: integrantes ativos distribuídos entre as 5 áreas operacionais (Social Media, RH, Design, Hardware Hacking e Hacking Ético), com controle de regularização de termos assinados (ex.: membro Gabriel Lima Mira em processo de formalização documental) e expurgo automático de contas desligadas (ex.: Pedro Lucas desativado após saída do Discord).', { nivel: 2, marcador: '-' });
 
   // =========================================================================
   // SEÇÃO 9: REFERÊNCIA CONSOLIDADA (BANCO DE DADOS, CRONS E VARIÁVEIS)
@@ -368,6 +379,20 @@ async function gerarDocumentacaoCompleta() {
       ['/advertencias [membro]', 'AUTORES_ADVERTENCIA_IDS', 'Consulta histórico disciplinar completo do servidor ou de um membro (incluindo fila).'],
       ['/minhas-advertencias', 'Qualquer Membro', 'Exibe histórico privado das próprias advertências (ocultando itens ainda "na_fila").'],
       ['/reuniao iniciar | finalizar | historico | reprocessar', 'Membros em Canal de Voz', 'Grava áudio por falante, transcreve em lotes com Gemini 2.5 Flash, gera ata em PDF e reprocessa backups.'],
+    ]
+  );
+
+  doc.subsecao('9.4. Variáveis de Ambiente da Gestão de Workspace (.env)');
+  doc.tabela(
+    [
+      { nome: 'Chave de Configuração', largura: 160 },
+      { nome: 'Exemplo / Formato', largura: 135 },
+      { nome: 'Finalidade Técnica', largura: 205 },
+    ],
+    [
+      ['NOTION_TOKEN_V2', 'v03%3AeyJhbGciOi...', 'Cookie de sessão privada com privilégios de Workspace Owner para endpoints v3.'],
+      ['NOTION_SPACE_ID', '5dec798f-d407-811a-...', 'UUID do Workspace CyberGuard no Notion (addMembers / removeUsers).'],
+      ['NOTION_ACTIVE_USER_ID', 'cbb538d8-97c7-463b-...', 'UUID do usuário autenticado remetente das ações administrativas.'],
     ]
   );
 

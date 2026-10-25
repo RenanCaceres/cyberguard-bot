@@ -109,7 +109,17 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
 ### 👥 6. Hierarquia Visual, Cartões & Governança de Saídas
 - **Organograma Dinâmico Renderizado (`2400px`)**: Geração de imagem gráfica com `@napi-rs/canvas` refletindo a estrutura viva do servidor (Presidente, Líderes destacados com estrela dourada e membros dos 5 times: *Social Media & Copy*, *Recursos Humanos*, *Design*, *Hardware Hacking* e *Hacking Ético* — unificando Red Team e Blue Team), com conectores ortogonais que não cruzam sobre os cards.
 - **Cartões de Boas-Vindas e Despedida**: Geração automática de cards ilustrados (`1000x320px`) em eventos de aprovação e saída.
-- **Reconciliação de Saídas e Integração Notion**: Detecção de saídas ocorridas até mesmo com o bot offline (`catchUp.js`), inspeção do Audit Log do Discord para diferenciar saída voluntária (`Inativo`) de expulsão/banimento (`Expulso`) no banco de Membros do Notion e alerta automático ao RH para revogação de acesso do e-mail no Workspace.
+- **Reconciliação de Saídas e Integração Notion**: Detecção de saídas ocorridas até mesmo com o bot offline (`catchUp.js`), inspeção do Audit Log do Discord para diferenciar saída voluntária (`Inativo`) de expulsão/banimento (`Expulso`) no banco de Membros do Notion e revogação imediata de acesso do e-mail no Workspace do Notion.
+
+---
+
+### 🏢 7. Gestão Integrada do Notion Workspace (API v3 Interna)
+- **Provisionamento e Convite Automático**: Ao aprovar um voluntário no onboarding e validar seu termo assinado via Gov.br, o bot resolve sua conta por e-mail (ou provisiona o usuário via `createEmailUser`) e o adiciona como **Membro oficial** no Workspace do Notion (`addMembersToSpace`).
+- **Revogação Instantânea de Acesso**: Ao detectar a saída ou expulsão de um integrante (`guildMemberRemove`), o bot remove automaticamente a conta do espaço de trabalho do Notion (`removeUsersFromSpace`), garantindo a segurança de dados e impedindo que ex-integrantes mantenham acesso a documentos internos e tarefas.
+- **Governança e Estrutura de Perfis**:
+  - **Coordenação Docente (Permanente)**: Prof. Dr. André Luiz Przybysz e Profa. Dra. Natássya Barlate Floro da Silva atuam com assento permanente como professores orientadores do projeto.
+  - **Administração / Workspace Owners**: Presidência e Tech Lead (Renan Cáceres Anselmo e André Queiroz) gerenciam a infraestrutura e os espaços de equipe.
+  - **Membros Acadêmicos**: Integrantes ativos distribuídos entre as 5 frentes operacionais (Social Media & Copy, Recursos Humanos, Design, Hardware Hacking e Hacking Ético), com controle estrito de conformidade jurídica (rastreando membros em regularização como Gabriel Lima Mira e expurgando contas de ex-membros desligados como Pedro Lucas).
 
 ---
 
@@ -237,7 +247,10 @@ flowchart TD
 | `PONTO_LOG_CHANNEL_ID` | `154...` | ID do canal de logs de auditoria do ponto eletrônico |
 | `PONTO_RANKING_CHANNEL_ID`| `154...` | ID do canal onde o Ranking Semanal ao vivo é atualizado |
 | `PONTO_SHEET_ID` | `1AbC...` | ID da planilha do Google para sincronização das 3 abas de horas |
-| `NOTION_TOKEN` | `secret_...` | Token de integração da API do Notion |
+| `NOTION_TOKEN` | `secret_...` | Token de integração da API pública oficial do Notion |
+| `NOTION_TOKEN_V2` | `v03%3AeyJhbGciOi...` | Cookie de sessão com permissão de Workspace Owner para gestão de membros via API v3 |
+| `NOTION_SPACE_ID` | `5dec798f-d407-811a-...` | ID do Workspace CyberGuard no Notion |
+| `NOTION_ACTIVE_USER_ID` | `cbb538d8-97c7-463b-...` | ID do usuário administrador executor das requisições v3 |
 | `NOTION_DATA_SOURCE_ID` | `3e5c7...` | ID do Data Source de tarefas no Notion (API `2025-09-03`) |
 | `NOTION_MEMBROS_DB_ID` | `3f8c7...` | ID do Database histórico de membros no Notion (`Ativo`/`Inativo`/`Expulso`) |
 | `GEMINI_API_KEY` | `AIza...` | Chave de API do Google Gemini para transcrição de atas |
