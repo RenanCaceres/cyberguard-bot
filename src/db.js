@@ -268,11 +268,26 @@ function criarMembro(discordId) {
     .then((r) => descriptografarMembro(r.rows[0]));
 }
 
-function registrarAceiteTermoCiencia(discordId) {
-  return pool.query(
-    'UPDATE membros SET termo_ciencia_aceito_em = now() WHERE discord_id = $1',
+async function registrarAceiteTermoCiencia(discordId, nomeFallback = null) {
+  const res = await pool.query(
+    'UPDATE membros SET termo_ciencia_aceito_em = now() WHERE discord_id = $1 RETURNING *',
     [discordId]
   );
+  if (res.rowCount > 0) return descriptografarMembro(res.rows[0]);
+
+  const { rows: legRows } = await pool
+    .query('SELECT * FROM cadastro_legado WHERE discord_id = $1', [discordId])
+    .catch(() => ({ rows: [] }));
+  const leg = legRows[0] || {};
+
+  const ins = await pool.query(
+    `INSERT INTO membros (discord_id, nome, ra, data_inicio, status, termo_ciencia_aceito_em)
+     VALUES ($1, $2, $3, $4, 'concluido', now())
+     ON CONFLICT (discord_id) DO UPDATE SET termo_ciencia_aceito_em = now()
+     RETURNING *`,
+    [discordId, leg.nome || nomeFallback || null, leg.ra || null, leg.data_inicio || '05/2026']
+  );
+  return descriptografarMembro(ins.rows[0]);
 }
 
 function atualizarDados(discordId, dados) {
