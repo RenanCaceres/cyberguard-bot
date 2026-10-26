@@ -259,125 +259,132 @@ module.exports = {
 
       await interaction.deferReply({ ephemeral: true });
 
-      const guild = interaction.guild;
-      const membrosGuild = await guild.members.fetch();
-      const mapaNomes = await db.obterMapaNomesReais().catch(() => new Map());
+      try {
+        const guild = interaction.guild;
+        const membrosGuild = await guild.members.list({ limit: 1000 }).catch(() => guild.members.cache);
+        const mapaNomes = await db.obterMapaNomesReais().catch(() => new Map());
 
-      const { rows: todosDb } = await db.pool.query(
-        'SELECT discord_id, nome, termo_ciencia_aceito_em FROM membros'
-      );
-      const mapaDb = new Map(todosDb.map((r) => [r.discord_id, r]));
+        const { rows: todosDb } = await db.pool.query(
+          'SELECT discord_id, nome, termo_ciencia_aceito_em FROM membros'
+        );
+        const mapaDb = new Map(todosDb.map((r) => [r.discord_id, r]));
 
-      const alvos = [];
-      const jaAceitaram = [];
+        const alvos = [];
+        const jaAceitaram = [];
 
-      for (const gm of membrosGuild.values()) {
-        if (!ehMembroDoProjetoNoServidor(gm)) continue;
-        const reg = mapaDb.get(gm.id);
-        if (reg && reg.termo_ciencia_aceito_em) {
-          jaAceitaram.push(gm);
-        } else {
-          alvos.push(gm);
-        }
-      }
-
-      await interaction.editReply({
-        content:
-          `📨 Iniciando envio do Termo de Ciência LGPD via DM para **${alvos.length}** integrante(s) pendente(s) ` +
-          `(${jaAceitaram.length} já possuem aceite registrado)... Aguarde a conclusão do diagnóstico.`,
-      });
-
-      const embedTermoDm = new EmbedBuilder()
-        .setTitle('🛡️ Termo de Ciência e Privacidade de Dados (LGPD)')
-        .setDescription(
-          `Olá! Como você já faz parte do **Projeto CyberGuard (UTFPR)**, estamos atualizando nosso registro formal de conformidade com a **LGPD (Lei nº 13.709/2018)**.\n\n` +
-            TERMO_CIENCIA_TEXTO +
-            `\n\n👇 **Clique no botão verde abaixo para confirmar sua ciência e registrar seu aceite:**`
-        )
-        .setColor(0x57f287)
-        .setFooter({ text: 'Projeto CyberGuard — UTFPR | Lei nº 13.709/2018' });
-
-      const rowBotaoDm = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId('lgpd_aceite_retroativo')
-          .setLabel('✅ Li e concordo com o Termo de Ciência (LGPD)')
-          .setStyle(ButtonStyle.Success)
-      );
-
-      const enviados = [];
-      const dmFechada = [];
-
-      for (const gm of alvos) {
-        const nomeReal = mapaNomes.get(gm.id) || gm.displayName || gm.user.username;
-        try {
-          await gm.user.send({
-            embeds: [embedTermoDm],
-            components: [rowBotaoDm],
-          });
-          enviados.push({ id: gm.id, tag: gm.user.tag, nome: nomeReal });
-        } catch (errDm) {
-          dmFechada.push({
-            id: gm.id,
-            tag: gm.user.tag,
-            nome: nomeReal,
-            codigo: errDm.code || errDm.message,
-          });
-        }
-        // Pausa de 1.1s para respeitar rate-limit de DMs do Discord
-        await new Promise((r) => setTimeout(r, 1100));
-      }
-
-      const listaDmFechadaTexto =
-        dmFechada.length > 0
-          ? dmFechada
-              .map((u) => `• **${u.nome}** (<@${u.id}> — \`${u.tag}\`)`)
-              .join('\n')
-              .slice(0, 1020)
-          : '🎉 Nenhum! Todos os membros pendentes estão com a DM aberta e receberam o termo.';
-
-      const embedRelatorio = new EmbedBuilder()
-        .setTitle('📊 Relatório de Disparo do Termo LGPD (DM)')
-        .setDescription(
-          'O bot verificou todos os membros ativos do servidor (exceto bots e Entusiastas) e disparou a solicitação de aceite do Termo de Ciência e Privacidade.'
-        )
-        .addFields(
-          {
-            name: '✅ Já haviam aceitado antes',
-            value: `${jaAceitaram.length} membro(s)`,
-            inline: true,
-          },
-          {
-            name: '📩 DMs enviadas agora',
-            value: `${enviados.length} membro(s)`,
-            inline: true,
-          },
-          {
-            name: '🔒 DMs Fechadas / Bloqueadas',
-            value: `${dmFechada.length} membro(s)`,
-            inline: true,
-          },
-          {
-            name: '⚠️ Casos Específicos — Membros com DM Fechada',
-            value: listaDmFechadaTexto,
-            inline: false,
+        for (const gm of membrosGuild.values()) {
+          if (!ehMembroDoProjetoNoServidor(gm)) continue;
+          const reg = mapaDb.get(gm.id);
+          if (reg && reg.termo_ciencia_aceito_em) {
+            jaAceitaram.push(gm);
+          } else {
+            alvos.push(gm);
           }
-        )
-        .setColor(dmFechada.length > 0 ? 0xfee75c : 0x57f287)
-        .setFooter({
-          text: 'Dica: Quem estiver com DM fechada também pode aceitar digitando /meus-dados privacidade no servidor.',
-        })
-        .setTimestamp();
+        }
 
-      await interaction.editReply({
-        content: '✅ **Disparo e verificação de DMs concluídos!**',
-        embeds: [embedRelatorio],
-      });
+        await interaction.editReply({
+          content:
+            `📨 Iniciando envio do Termo de Ciência LGPD via DM para **${alvos.length}** integrante(s) pendente(s) ` +
+            `(${jaAceitaram.length} já possuem aceite registrado)... Aguarde a conclusão do diagnóstico.`,
+        });
 
-      if (config.channelRhId) {
-        try {
-          const canalRh = await interaction.client.channels.fetch(config.channelRhId);
-          await canalRh.send({ embeds: [embedRelatorio] });
-        } catch {}
+        const embedTermoDm = new EmbedBuilder()
+          .setTitle('🛡️ Termo de Ciência e Privacidade de Dados (LGPD)')
+          .setDescription(
+            `Olá! Como você já faz parte do **Projeto CyberGuard (UTFPR)**, estamos atualizando nosso registro formal de conformidade com a **LGPD (Lei nº 13.709/2018)**.\n\n` +
+              TERMO_CIENCIA_TEXTO +
+              `\n\n👇 **Clique no botão verde abaixo para confirmar sua ciência e registrar seu aceite:**`
+          )
+          .setColor(0x57f287)
+          .setFooter({ text: 'Projeto CyberGuard — UTFPR | Lei nº 13.709/2018' });
+
+        const rowBotaoDm = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId('lgpd_aceite_retroativo')
+            .setLabel('✅ Li e concordo com o Termo de Ciência (LGPD)')
+            .setStyle(ButtonStyle.Success)
+        );
+
+        const enviados = [];
+        const dmFechada = [];
+
+        for (const gm of alvos) {
+          const nomeReal = mapaNomes.get(gm.id) || gm.displayName || gm.user.username;
+          try {
+            await gm.user.send({
+              embeds: [embedTermoDm],
+              components: [rowBotaoDm],
+            });
+            enviados.push({ id: gm.id, tag: gm.user.tag, nome: nomeReal });
+          } catch (errDm) {
+            dmFechada.push({
+              id: gm.id,
+              tag: gm.user.tag,
+              nome: nomeReal,
+              codigo: errDm.code || errDm.message,
+            });
+          }
+          // Pausa de 1.1s para respeitar rate-limit de DMs do Discord
+          await new Promise((r) => setTimeout(r, 1100));
+        }
+
+        const listaDmFechadaTexto =
+          dmFechada.length > 0
+            ? dmFechada
+                .map((u) => `• **${u.nome}** (<@${u.id}> — \`${u.tag}\`)`)
+                .join('\n')
+                .slice(0, 1020)
+            : '🎉 Nenhum! Todos os membros pendentes estão com a DM aberta e receberam o termo.';
+
+        const embedRelatorio = new EmbedBuilder()
+          .setTitle('📊 Relatório de Disparo do Termo LGPD (DM)')
+          .setDescription(
+            'O bot verificou todos os membros ativos do servidor (exceto bots e Entusiastas) e disparou a solicitação de aceite do Termo de Ciência e Privacidade.'
+          )
+          .addFields(
+            {
+              name: '✅ Já haviam aceitado antes',
+              value: `${jaAceitaram.length} membro(s)`,
+              inline: true,
+            },
+            {
+              name: '📩 DMs enviadas agora',
+              value: `${enviados.length} membro(s)`,
+              inline: true,
+            },
+            {
+              name: '🔒 DMs Fechadas / Bloqueadas',
+              value: `${dmFechada.length} membro(s)`,
+              inline: true,
+            },
+            {
+              name: '⚠️ Casos Específicos — Membros com DM Fechada',
+              value: listaDmFechadaTexto,
+              inline: false,
+            }
+          )
+          .setColor(dmFechada.length > 0 ? 0xfee75c : 0x57f287)
+          .setFooter({
+            text: 'Dica: Quem estiver com DM fechada também pode aceitar digitando /meus-dados privacidade no servidor.',
+          })
+          .setTimestamp();
+
+        await interaction.editReply({
+          content: '✅ **Disparo e verificação de DMs concluídos!**',
+          embeds: [embedRelatorio],
+        });
+
+        if (config.channelRhId) {
+          try {
+            const canalRh = await interaction.client.channels.fetch(config.channelRhId);
+            await canalRh.send({ embeds: [embedRelatorio] });
+          } catch {}
+        }
+      } catch (err) {
+        console.error('[meus-dados] Erro em enviar-termo-dm:', err);
+        await interaction.editReply({
+          content: `❌ Ocorreu um erro ao processar o disparo de DMs: \`${err.message}\``,
+        });
       }
       return;
     }
@@ -393,48 +400,55 @@ module.exports = {
 
       await interaction.deferReply({ ephemeral: true });
 
-      const guild = interaction.guild;
-      const membrosGuild = await guild.members.fetch();
-      const mapaNomes = await db.obterMapaNomesReais().catch(() => new Map());
+      try {
+        const guild = interaction.guild;
+        const membrosGuild = await guild.members.list({ limit: 1000 }).catch(() => guild.members.cache);
+        const mapaNomes = await db.obterMapaNomesReais().catch(() => new Map());
 
-      const { rows: todosDb } = await db.pool.query(
-        'SELECT discord_id, nome, termo_ciencia_aceito_em FROM membros'
-      );
-      const mapaDb = new Map(todosDb.map((r) => [r.discord_id, r]));
+        const { rows: todosDb } = await db.pool.query(
+          'SELECT discord_id, nome, termo_ciencia_aceito_em FROM membros'
+        );
+        const mapaDb = new Map(todosDb.map((r) => [r.discord_id, r]));
 
-      const aceitos = [];
-      const pendentes = [];
+        const aceitos = [];
+        const pendentes = [];
 
-      for (const gm of membrosGuild.values()) {
-        if (!ehMembroDoProjetoNoServidor(gm)) continue;
-        const nomeReal = mapaNomes.get(gm.id) || gm.displayName || gm.user.username;
-        const reg = mapaDb.get(gm.id);
-        if (reg && reg.termo_ciencia_aceito_em) {
-          const dataStr = new Date(reg.termo_ciencia_aceito_em).toLocaleDateString('pt-BR');
-          aceitos.push(`• **${nomeReal}** (<@${gm.id}>) — *${dataStr}*`);
-        } else {
-          pendentes.push(`• **${nomeReal}** (<@${gm.id}>)`);
-        }
-      }
-
-      const embedStatus = new EmbedBuilder()
-        .setTitle('📋 Status de Aceite do Termo de Ciência (LGPD)')
-        .addFields(
-          {
-            name: `✅ Aceite Confirmado (${aceitos.length})`,
-            value: aceitos.length > 0 ? aceitos.join('\n').slice(0, 1020) : 'Nenhum até o momento.',
-            inline: false,
-          },
-          {
-            name: `⏳ Aguardando Aceite (${pendentes.length})`,
-            value: pendentes.length > 0 ? pendentes.join('\n').slice(0, 1020) : '🎉 Todos os membros já aceitaram!',
-            inline: false,
+        for (const gm of membrosGuild.values()) {
+          if (!ehMembroDoProjetoNoServidor(gm)) continue;
+          const nomeReal = mapaNomes.get(gm.id) || gm.displayName || gm.user.username;
+          const reg = mapaDb.get(gm.id);
+          if (reg && reg.termo_ciencia_aceito_em) {
+            const dataStr = new Date(reg.termo_ciencia_aceito_em).toLocaleDateString('pt-BR');
+            aceitos.push(`• **${nomeReal}** (<@${gm.id}>) — *${dataStr}*`);
+          } else {
+            pendentes.push(`• **${nomeReal}** (<@${gm.id}>)`);
           }
-        )
-        .setColor(pendentes.length === 0 ? 0x57f287 : 0x5865f2)
-        .setTimestamp();
+        }
 
-      await interaction.editReply({ embeds: [embedStatus] });
+        const embedStatus = new EmbedBuilder()
+          .setTitle('📋 Status de Aceite do Termo de Ciência (LGPD)')
+          .addFields(
+            {
+              name: `✅ Aceite Confirmado (${aceitos.length})`,
+              value: aceitos.length > 0 ? aceitos.join('\n').slice(0, 1020) : 'Nenhum até o momento.',
+              inline: false,
+            },
+            {
+              name: `⏳ Aguardando Aceite (${pendentes.length})`,
+              value: pendentes.length > 0 ? pendentes.join('\n').slice(0, 1020) : '🎉 Todos os membros já aceitaram!',
+              inline: false,
+            }
+          )
+          .setColor(pendentes.length === 0 ? 0x57f287 : 0x5865f2)
+          .setTimestamp();
+
+        await interaction.editReply({ embeds: [embedStatus] });
+      } catch (err) {
+        console.error('[meus-dados] Erro em status-aceite:', err);
+        await interaction.editReply({
+          content: `❌ Ocorreu um erro ao consultar o status de aceites: \`${err.message}\``,
+        });
+      }
       return;
     }
   },
