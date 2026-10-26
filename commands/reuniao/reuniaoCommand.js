@@ -1,8 +1,17 @@
-const { SlashCommandBuilder, ChannelType, EmbedBuilder } = require('discord.js');
+const {
+  SlashCommandBuilder,
+  ChannelType,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  PermissionFlagsBits,
+} = require('discord.js');
 const { joinVoiceChannel, VoiceConnectionStatus, entersState } = require('@discordjs/voice');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
+const config = require('../../src/config');
 const MeetingRecorder = require('./recorder');
 const { transcreverLote, gerarAta, esperar, ehCotaDiariaEsgotada } = require('./gemini');
 const { salvarAta, listarAtas, buscarAtaPorId, atualizarAtaReprocessada } = require('./db');
@@ -10,6 +19,53 @@ const { gerarPdfAta } = require('./pdfGenerator');
 const { PASTA_BACKUPS, DIAS_RETENCAO } = require('./limpezaBackup');
 
 const gravacoesAtivas = new Map();
+
+function usuarioTemPermissaoReuniao(member) {
+  if (!member) return false;
+  if (member.permissions?.has(PermissionFlagsBits.Administrator)) return true;
+  if (member.id === config.presidenteId || member.id === config.vicePresidenteId) return true;
+
+  const roleLiderId = process.env.PONTO_ROLE_LIDERES_ID;
+  const roleRhId = process.env.PONTO_ROLE_RH_ID;
+
+  return member.roles?.cache?.some(
+    (r) =>
+      r.name === config.roleLiderNome ||
+      r.name === 'Líderes' ||
+      r.name === 'Lideres' ||
+      r.name === config.roleRhNome ||
+      (roleLiderId && r.id === roleLiderId) ||
+      (roleRhId && r.id === roleRhId)
+  );
+}
+
+function construirComponentesOptOut() {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('reuniao_optout')
+        .setLabel('🔇 Não gravar minha voz (Opt-out)')
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId('reuniao_optin')
+        .setLabel('🔊 Permitir gravação')
+        .setStyle(ButtonStyle.Secondary)
+    ),
+  ];
+}
+
+function construirEmbedAvisoGravacao(canalVozNome, titulo) {
+  return new EmbedBuilder()
+    .setTitle(`🔴 Gravação de Reunião Ativa — ${titulo}`)
+    .setDescription(
+      `O áudio do canal de voz **${canalVozNome}** está sendo capturado neste momento com a **finalidade exclusiva** de transcrição automatizada e geração de ata acadêmica/institucional via Inteligência Artificial (Google Gemini).\n\n` +
+        `🔒 **Privacidade e Retenção (LGPD):**\n` +
+        `• Os arquivos de áudio são temporários e descartados imediatamente após a transcrição (ou em até ${DIAS_RETENCAO} dias em caso de falha de cota da API).\n` +
+        `• **Direito de Oposição (Opt-out):** Caso não deseje que sua voz seja capturada ou transcrita nesta sessão, clique no botão **🔇 Não gravar minha voz** abaixo a qualquer momento.`
+    )
+    .setColor(0xed4245)
+    .setTimestamp();
+}
 
 const data = new SlashCommandBuilder()
   .setName('reuniao')
@@ -52,6 +108,16 @@ async function execute(interaction) {
   const sub = interaction.options.getSubcommand();
   const guildId = interaction.guildId;
 
+  if (sub === 'iniciar' || sub === 'finalizar' || sub === 'reprocessar') {
+    if (!usuarioTemPermissaoReuniao(interaction.member)) {
+      return interaction.reply({
+        content:
+          '❌ **Acesso restrito:** Apenas membros da Liderança (`Líderes`), Recursos Humanos (`RH`), Presidência ou Administradores podem iniciar, encerrar ou reprocessar gravações de reuniões.',
+        ephemeral: true,
+      });
+    }
+  }
+
   if (sub === 'iniciar') return iniciar(interaction, guildId);
   if (sub === 'finalizar') return finalizar(interaction, guildId);
   if (sub === 'historico') return historico(interaction, guildId);
@@ -90,22 +156,47 @@ async function iniciar(interaction, guildId) {
   const recorder = new MeetingRecorder(connection, tempDir);
   recorder.start();
 
+  const titulo = interaction.options.getString('titulo') || `Reunião em ${canalVoz.name}`;
+
   gravacoesAtivas.set(guildId, {
     recorder,
     connection,
     tempDir,
-    titulo: interaction.options.getString('titulo') || `Reunião em ${canalVoz.name}`,
+    titulo,
     canalTexto: interaction.channel,
     canalVozId: canalVoz.id,
     canalVozNome: canalVoz.name,
     iniciadoEm: new Date(),
   });
 
-  return interaction.editReply(
-    `🔴 Gravando a reunião em **${canalVoz.name}**.\n` +
-      'Todos os participantes estão sendo gravados a partir de agora — avise o pessoal do canal.\n' +
-      'Quando terminar, use `/reuniao finalizar`.'
-  );
+  const embedAviso = construirEmbedAvisoGravacao(canalVoz.name, titulo);
+  const componentesOptOut = construirComponentesOptOut();
+
+  // Notifica os participantes presentes no chat do próprio canal de voz (caso diferente do canal do comando)
+  try {
+    const mencoesParticipantes = canalVoz.members
+      .filter((m) => !m.user.bot)
+      .map((m) => `<@${m.id}>`)
+      .join(' ');
+
+    if (canalVoz.id !== interaction.channelId && typeof canalVoz.send === 'function') {
+      await canalVoz.send({
+        content: mencoesParticipantes
+          ? `⚠️ **Aviso de Gravação (LGPD):** ${mencoesParticipantes}`
+          : '⚠️ **Aviso de Gravação (LGPD):**',
+        embeds: [embedAviso],
+        components: componentesOptOut,
+      });
+    }
+  } catch (errAvisoVoz) {
+    console.warn('[reuniao] Não foi possível enviar aviso no chat do canal de voz:', errAvisoVoz.message);
+  }
+
+  return interaction.editReply({
+    content: `🔴 Gravando a reunião em **${canalVoz.name}**. Quando terminar, use \`/reuniao finalizar\`.`,
+    embeds: [embedAviso],
+    components: componentesOptOut,
+  });
 }
 
 function salvarManifest(tempDir, contexto) {
@@ -407,4 +498,72 @@ async function historico(interaction, guildId) {
   await interaction.editReply({ embeds: [embed] });
 }
 
-module.exports = { data, execute };
+async function handleReuniaoInteraction(interaction) {
+  if (!interaction.isButton()) return false;
+  if (interaction.customId !== 'reuniao_optout' && interaction.customId !== 'reuniao_optin') {
+    return false;
+  }
+
+  const gravacao = gravacoesAtivas.get(interaction.guildId);
+  if (!gravacao) {
+    await interaction.reply({
+      content: 'ℹ️ Não há nenhuma gravação de reunião ativa neste momento.',
+      ephemeral: true,
+    });
+    return true;
+  }
+
+  if (interaction.customId === 'reuniao_optout') {
+    gravacao.recorder.ignorarUsuario(interaction.user.id);
+    await interaction.reply({
+      content:
+        '🔇 **Opt-out ativado (LGPD):** Sua voz **não será gravada nem transcrita** nesta reunião, e eventuais trechos já capturados nesta sessão foram removidos.',
+      ephemeral: true,
+    });
+    return true;
+  }
+
+  if (interaction.customId === 'reuniao_optin') {
+    gravacao.recorder.permitirUsuario(interaction.user.id);
+    await interaction.reply({
+      content: '🔊 **Gravação autorizada:** Sua voz voltará a ser incluída na transcrição desta reunião.',
+      ephemeral: true,
+    });
+    return true;
+  }
+
+  return false;
+}
+
+async function handleVoiceStateUpdate(oldState, newState) {
+  try {
+    if (newState.member?.user?.bot) return;
+    if (oldState.channelId === newState.channelId || !newState.channelId) return;
+
+    const gravacao = gravacoesAtivas.get(newState.guild.id);
+    if (!gravacao || gravacao.canalVozId !== newState.channelId) return;
+
+    const canalAlvo =
+      newState.channel && typeof newState.channel.send === 'function'
+        ? newState.channel
+        : gravacao.canalTexto;
+
+    if (!canalAlvo) return;
+
+    await canalAlvo.send({
+      content:
+        `🔴 Olá <@${newState.id}>! Este canal de voz (**${gravacao.canalVozNome}**) está com **gravação ativa** para transcrição e geração de ata via IA (Google Gemini). ` +
+        `Caso não deseje que sua voz seja gravada, utilize o botão abaixo:`,
+      components: construirComponentesOptOut(),
+    });
+  } catch (err) {
+    console.warn('[reuniao] Erro ao notificar novo participante na call gravada:', err.message);
+  }
+}
+
+module.exports = {
+  data,
+  execute,
+  handleReuniaoInteraction,
+  handleVoiceStateUpdate,
+};

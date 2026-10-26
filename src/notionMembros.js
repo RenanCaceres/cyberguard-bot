@@ -173,9 +173,9 @@ async function registrarMembroAtivo(membro) {
 }
 
 /**
- * Atualiza o status do membro para Inativo ao sair do Discord
+ * Atualiza o status do membro para Inativo ao sair do Discord (apenas Ativo ou Inativo conforme LGPD)
  */
-async function registrarSaidaMembro(discordId, { nome = null, ra = null, expulso = false } = {}) {
+async function registrarSaidaMembro(discordId, { nome = null, ra = null } = {}) {
   const { dbId, token } = cfg();
   if (!token || !dbId) return;
 
@@ -187,7 +187,7 @@ async function registrarSaidaMembro(discordId, { nome = null, ra = null, expulso
     }
 
     const dataHojeIso = new Date().toISOString().split('T')[0];
-    const novoStatus = expulso ? 'Expulso' : 'Inativo';
+    const novoStatus = 'Inativo';
 
     const propriedades = {
       Status: { select: { name: novoStatus } },

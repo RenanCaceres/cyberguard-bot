@@ -123,7 +123,11 @@ async function processarSaidasPerdidas(client, membrosAtuais) {
             tipo: 'abandonado',
             motivo: `Saiu do servidor antes de concluir o processo (status: ${registro.status}) — detectado retroativamente no boot`,
           });
-          await db.removerMembro(registro.discord_id);
+          if (registro.nome || registro.ra) {
+            await db.atualizarStatus(registro.discord_id, 'abandonado', { saida_processada: true });
+          } else {
+            await db.removerMembro(registro.discord_id);
+          }
         } catch (errArquivo) {
           console.error('Erro ao arquivar abandono retroativo de', registro.discord_id, errArquivo);
         }

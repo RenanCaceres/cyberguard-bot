@@ -21,8 +21,8 @@ const CORES_TIME = {
 };
 
 const LIDERES_TIME = {
-  'Hacking Ético': '710682125074169956', // Christopher Ribeiro Paiva Oliveira
-  Design: '602207814034915348', // Fernanda Menan Gomes de Oliveira
+  'Hacking Ético': '710682125074169956',
+  Design: '602207814034915348',
 };
 
 async function baixarAvatar(discordUser) {

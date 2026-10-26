@@ -9,6 +9,7 @@ const painelPontoCommand = require('./commands/painel-ponto/painelPontoCommand')
 const ajustarPontoCommand = require('./commands/ajustar-ponto/ajustarPontoCommand');
 const importarHorasCommand = require('./commands/importar-horas/importarHorasCommand');
 const declaracaoCommand = require('./commands/declaracao/declaracaoCommand');
+const meusDadosCommand = require('./commands/meus-dados/meusDadosCommand');
 
 const comandos = [
   reuniaoCommand.data.toJSON(),
@@ -20,6 +21,7 @@ const comandos = [
   ajustarPontoCommand.data.toJSON(),
   importarHorasCommand.data.toJSON(),
   declaracaoCommand.data.toJSON(),
+  meusDadosCommand.data.toJSON(),
 ];
 
 const rest = new REST({ version: '10' }).setToken(config.discordToken);

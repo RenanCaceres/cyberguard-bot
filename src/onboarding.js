@@ -8,6 +8,25 @@ const {
 const db = require('./db');
 const config = require('./config');
 const validators = require('./validators');
+const { mascararCPF } = require('./cryptoUtils');
+
+const TERMO_CIENCIA_TEXTO =
+  'Em conformidade com a **Lei Geral de Proteção de Dados Pessoais (LGPD — Lei nº 13.709/2018)**, ' +
+  'informamos como seus dados pessoais serão tratados pelo **Projeto CyberGuard (UTFPR)**:\n\n' +
+  '📌 **1. Finalidade Exclusiva (Art. 6º, I da LGPD):**\n' +
+  'Os dados solicitados a seguir serão utilizados **apenas para fins de registros e acadêmicos** ' +
+  '(formalização do Termo de Adesão ao Serviço Voluntário conforme a Lei nº 9.608/1998, emissão de declarações/certificados ' +
+  'de horas de extensão junto à UTFPR e controle interno de membros), **vedando qualquer outro tipo de uso**.\n\n' +
+  '🔒 **2. Segurança, Criptografia e Arquivamento (Art. 16 e Art. 46 da LGPD):**\n' +
+  'Seus dados cadastrais (como CPF, data de nascimento, endereço e telefone) são armazenados com **criptografia de ponta (AES-256-GCM)** ' +
+  'no banco de dados e **permanecerão arquivados de forma segura** para fins de registro histórico institucional e comprovação ' +
+  'acadêmica, mesmo após eventual saída ou desligamento do projeto.\n\n' +
+  '👥 **3. Acesso Restrito:**\n' +
+  'Apenas a Coordenação Docente, Diretoria e equipe de Recursos Humanos (RH) possuem acesso administrativo às informações ' +
+  'necessárias para gestão do projeto e envio documental à UTFPR.\n\n' +
+  '⚖️ **4. Direitos do Titular (Art. 18 da LGPD):**\n' +
+  'A qualquer momento no servidor, você poderá utilizar o comando `/meus-dados` (100% privado) para visualizar seus dados, ' +
+  'atualizar informações cadastrais ou entrar em contato com o RH sobre sua privacidade.';
 
 const PERGUNTAS = [
   { campo: 'nome', texto: 'Qual seu **nome completo**?', validator: validators.naoVazio },
@@ -233,6 +252,51 @@ async function escolherCampoParaCorrigir(dm, userId, respostas) {
   return campo;
 }
 
+async function solicitarTermoCiencia(dm, userId) {
+  const embed = new EmbedBuilder()
+    .setTitle('🛡️ Termo de Ciência e Privacidade de Dados (LGPD)')
+    .setDescription(TERMO_CIENCIA_TEXTO)
+    .setColor(0x2b2d31)
+    .setFooter({ text: 'Lei Geral de Proteção de Dados Pessoais — Lei nº 13.709/2018' });
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('lgpd_aceitar')
+      .setLabel('✅ Concordo e continuar')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId('lgpd_recusar')
+      .setLabel('❌ Não concordo')
+      .setStyle(ButtonStyle.Danger)
+  );
+
+  await dm.send({
+    embeds: [embed],
+    components: [row],
+  });
+
+  const interacao = await dm.awaitMessageComponent({
+    filter: (i) => i.user.id === userId && (i.customId === 'lgpd_aceitar' || i.customId === 'lgpd_recusar'),
+    time: 10 * 60 * 1000,
+  });
+
+  if (interacao.customId === 'lgpd_recusar') {
+    await interacao.update({
+      content:
+        '❌ **Termo de Ciência recusado.** Como os dados solicitados são estritamente necessários para a emissão do Termo de Adesão ao Serviço Voluntário e registros acadêmicos na UTFPR, o cadastro não pôde ser prosseguido. Caso mude de ideia, entre em contato com o RH.',
+      components: [],
+    });
+    return false;
+  }
+
+  await interacao.update({
+    content: '✅ **Termo de Ciência e Privacidade aceito!** Iniciando o preenchimento cadastral...',
+    components: [],
+  });
+  await db.registrarAceiteTermoCiencia(userId);
+  return true;
+}
+
 async function iniciarOnboarding(member) {
   const { user } = member;
   let respostas = {};
@@ -242,14 +306,21 @@ async function iniciarOnboarding(member) {
     await db.criarMembro(user.id);
 
     await dm.send(
-      `Olá, ${user.username}! Bem-vindo(a) ao servidor do CyberGuard. ` +
-        `Antes de liberar seu acesso à comunidade, preciso confirmar alguns dados com você ` +
-        `Irei solicitar alguns dados sensíveis, que serão necessário ` +
-        `pra já deixar o termo de voluntariado quase pronto.
-        ` +
-        `Esses dados apenas os admins do discord terão acesso ` + 
-        `Seus dados estão seguros conosco!`
+      `Olá, **${user.username}**! Bem-vindo(a) ao servidor do **CyberGuard**. ` +
+        `Antes de liberar seu acesso à comunidade e emitirmos seu Termo de Voluntariado, ` +
+        `por favor leia e confirme o Termo de Ciência e Privacidade abaixo:`
     );
+
+    const aceitouTermo = await solicitarTermoCiencia(dm, user.id);
+    if (!aceitouTermo) {
+      const regExistente = await db.getMembro(user.id);
+      if (regExistente && (regExistente.nome || regExistente.cpf)) {
+        await db.atualizarStatus(user.id, 'abandonado', { saida_processada: true });
+      } else {
+        await db.removerMembro(user.id);
+      }
+      return;
+    }
 
     for (const pergunta of PERGUNTAS) {
       if (pergunta.tipo === 'botoes_utfpr') {
@@ -297,7 +368,7 @@ async function iniciarOnboarding(member) {
 
     await db.atualizarDados(user.id, respostas);
     await dm.send(
-      'Obrigado! Seus dados foram enviados para o RH. ' +
+      'Obrigado! Seus dados foram criptografados e enviados para análise do RH. ' +
         'Assim que forem aprovados, você receberá o link da comunidade e o termo para assinar.'
     );
 
@@ -312,7 +383,12 @@ async function iniciarOnboarding(member) {
           tipo: 'abandonado',
           motivo: 'Não respondeu dentro do prazo durante o preenchimento dos dados',
         });
-        await db.removerMembro(user.id);
+        const regExistente = await db.getMembro(user.id);
+        if (regExistente && (regExistente.nome || regExistente.cpf)) {
+          await db.atualizarStatus(user.id, 'abandonado', { saida_processada: true });
+        } else {
+          await db.removerMembro(user.id);
+        }
       } catch (errArquivo) {
         console.error('Erro ao arquivar abandono por timeout de', user.id, errArquivo);
       }
@@ -348,7 +424,7 @@ async function enviarParaAprovacaoRH(guild, discordId, dados) {
       { name: 'Nome', value: dados.nome || '—' },
       { name: 'Data de nascimento', value: dados.data_nascimento || '—', inline: true },
       { name: 'Nacionalidade', value: dados.nacionalidade || '—', inline: true },
-      { name: 'CPF', value: dados.cpf || '—' },
+      { name: 'CPF (Mascarado LGPD)', value: mascararCPF(dados.cpf) },
       { name: 'Estudante da UTFPR', value: dados.estudante_utfpr || 'Sim', inline: true },
       { name: 'Instituição', value: dados.instituicao || 'UTFPR', inline: true },
       { name: 'Curso', value: dados.curso || '—' },
@@ -390,4 +466,4 @@ async function enviarParaAprovacaoRH(guild, discordId, dados) {
   await canalRh.send({ embeds: [embed], components: [row] });
 }
 
-module.exports = { iniciarOnboarding };
+module.exports = { iniciarOnboarding, TERMO_CIENCIA_TEXTO };

@@ -15,7 +15,28 @@ class MeetingRecorder {
     this.tempDir = tempDir;
     this.utterances = []; // { userId, filePath, startTime }
     this.activeStreams = new Set();
+    this.ignoredUsers = new Set(); // Usuários que optaram por não ter a voz gravada (LGPD Opt-out)
     this._onSpeakingStart = this._onSpeakingStart.bind(this);
+  }
+
+  ignorarUsuario(userId) {
+    this.ignoredUsers.add(userId);
+    // Remove eventuais trechos já capturados desse usuário nesta sessão
+    const manter = [];
+    for (const u of this.utterances) {
+      if (u.userId === userId) {
+        try {
+          fs.rmSync(u.filePath, { force: true });
+        } catch {}
+      } else {
+        manter.push(u);
+      }
+    }
+    this.utterances = manter;
+  }
+
+  permitirUsuario(userId) {
+    this.ignoredUsers.delete(userId);
   }
 
   start() {
@@ -24,6 +45,7 @@ class MeetingRecorder {
   }
 
   _onSpeakingStart(userId) {
+    if (this.ignoredUsers.has(userId)) return; // opt-out LGPD ativo para este usuário
     if (this.activeStreams.has(userId)) return; // já gravando esse usuário
     this.activeStreams.add(userId);
 
@@ -44,8 +66,8 @@ class MeetingRecorder {
     pipeline(opusStream, decoder, outStream, (err) => {
       this.activeStreams.delete(userId);
 
-      if (err) {
-        console.error(`[reuniao] erro ao gravar áudio de ${userId}:`, err.message);
+      if (err || this.ignoredUsers.has(userId)) {
+        if (err) console.error(`[reuniao] erro ao gravar áudio de ${userId}:`, err.message);
         fs.rmSync(filePath, { force: true });
         return;
       }

@@ -49,7 +49,7 @@ async function main() {
     }
   }
 
-  // Para membros cadastrados pelo bot sem termo legado (ex: Christopher, Fernanda Menan):
+  // Para membros cadastrados pelo bot sem termo legado:
   // usa o mês/ano de aprovação ou criação no banco
   const { rows: semData } = await db.pool.query(
     `SELECT id, discord_id, nome, created_at FROM membros WHERE (data_inicio IS NULL OR TRIM(data_inicio) = '' OR data_inicio = '05/2026')`

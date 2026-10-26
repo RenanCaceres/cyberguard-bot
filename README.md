@@ -61,9 +61,11 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
 
 ---
 
-### 📝 2. Onboarding Automatizado & Assinatura Digital Gov.br
+### 📝 2. Onboarding Automatizado, Privacidade (LGPD) & Assinatura Digital Gov.br
+- **Termo de Ciência e Privacidade (LGPD — Lei nº 13.709/2018)**: Etapa inicial obrigatória na DM com aceite explícito (`Concordo` / `Não concordo`), informando que os dados coletados são utilizados **exclusivamente para fins de registros e acadêmicos** junto ao projeto CyberGuard e à UTFPR (vedando qualquer outro uso), com registro da data/hora do aceite (`termo_ciencia_aceito_em`).
+- **Criptografia de Dados em Repouso (`AES-256-GCM`)**: Campos sensíveis (`cpf`, `data_nascimento`, `nacionalidade`, `endereco`, `cidade`, `estado` e `telefone`) são criptografados com chave dedicada de 256 bits e IV aleatório antes de serem persistidos no PostgreSQL, permanecendo arquivados de forma segura para histórico institucional mesmo após eventual saída ou desligamento.
 - **Coleta Guiada via DM**: Formulário interativo de 13 etapas com validação estrita por expressões regulares (CPF com máscara, data de nascimento com validação de calendário real, RA numérico, endereço padronizado, contatos e seleção de área de interesse) e menu de retificação campo a campo antes do envio.
-- **Deliberação do RH e Memória de Recusas**: Cards no canal privado do RH com alerta automático caso o candidato já possua passagens anteriores na tabela `historico_recusas` (por Discord ID, RA ou Nome) e botões de aprovação/rejeição (com expulsão automática configurável).
+- **Deliberação do RH, Mascaramento e Sanitização**: Cards no canal privado do RH com CPF mascarado (`***.222.333-**`), alerta automático caso o candidato já possua passagens anteriores na tabela `historico_recusas` e sanitização automática do card após a decisão do RH (ocultando endereço, telefone e CPF do histórico do chat).
 - **Geração Dinâmica de Documentos**:
   - Preenchimento automático do modelo oficial `.docx` via `docxtemplater`.
   - Conversão headless de `.docx` para `.pdf` via LibreOffice (`soffice`).
@@ -73,6 +75,7 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
   - Extração estrita do campo `"Data:"` ao lado de `"Local: Cornélio Procópio"` (via AcroForm `data_assinatura`, anotações de texto ou linha horizontal achatada), sem confundir com o carimbo do Gov.br caso o aluno tenha esquecido de preencher a data no documento, validando calendário real, janela de **90 dias** e bloqueio de datas futuras.
   - **Diagnóstico Completo e Reprovação Direta na DM**: Avalia simultaneamente assinatura e data; se houver qualquer erro (data em branco, assinatura na página/linha errada ou PDF impresso sem assinatura criptográfica), o bot **reprova automaticamente na DM do aluno** listando todos os ajustes necessários para reenvio imediato, sem sobrecarregar o RH com revisões manuais (mantendo o fallback `revisao_manual` apenas para anomalias técnicas de PDF).
   - **Arquivamento em Nuvem e Local**: O PDF validado é copiado localmente para subpastas setoriais (`docs/Termos-Voluntarios-Assinados/<Área>`) e sincronizado automaticamente no **Google Drive** em subpastas dinâmicas por área (`HackingEtico`, `Design`, `HardwareHacking`, `Recursos Humanos`, `SocialMedia`, `Líderes`, `Observatorio`), além de despacho SMTP para a coordenação com cópias (`CC`) e cron diário (`09:00`) de lembretes com opção de silenciamento manual pelo RH.
+- **Trilha de Entusiastas da Comunidade (Sem Compromisso)**: Monitoramento inteligente de convites via `GatewayIntentBits.GuildInvites`. Usuários que ingressam por links gerados em canais ou categorias de "Entusiastas" (ou códigos definidos em `INVITE_ENTUSIASTA_CODES`) recebem imediatamente o cargo **`Entusiasta`** e boas-vindas na DM, com o onboarding formal e burocrático de voluntariado totalmente dispensado.
 
 ---
 
@@ -100,26 +103,28 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
 ---
 
 ### 🎙️ 5. Atas de Reunião com Inteligência Artificial (Gemini)
-- **Gravação por Falante Individual (`/reuniao iniciar`, `/reuniao finalizar`)**: Captura streams Opus individuais por participante em chamadas de voz (corte após 1s de silêncio e filtro mínimo de 0,3s contra ruídos).
+- **Gravação por Falante Individual e Controle de Acesso (`/reuniao iniciar`, `/reuniao finalizar`)**: Restrito à Liderança, RH, Presidência e Administradores. Captura streams Opus individuais por participante em chamadas de voz (corte após 1s de silêncio e filtro mínimo de 0,3s contra ruídos).
+- **Aviso Ativo e Direito de Oposição / Opt-out (LGPD)**: Ao iniciar a gravação (ou quando um membro ingressa na call em andamento), o bot publica um alerta no chat do canal de voz com o botão **`🔇 Não gravar minha voz (Opt-out)`**, permitindo que qualquer participante desative imediatamente a captura da própria voz na sessão.
 - **Otimização de Áudio e Transcrição via Gemini 2.5 Flash**: Downsampling automático de 48kHz Estéreo para **16kHz Mono 16-bit**, concatenação em lotes com espaçamento de 500ms de silêncio, backoff exponencial contra rate limits e síntese estruturada (Resumo, Decisões, Itens de ação e Pontos discutidos).
-- **Retenção Inteligente de Backups e Reprocessamento (`/reuniao historico`, `/reuniao reprocessar`)**: Caso a cota diária da API seja atingida, os áudios e o `manifest.json` são preservados por **7 dias** (com limpeza diária às `04:00`), permitindo reprocessar e atualizar a ata em PDF assim que a cota normalizar.
+- **Retenção Inteligente de Backups e Reprocessamento (`/reuniao historico`, `/reuniao reprocessar`)**: Caso a cota diária da API seja atingida, os áudios e o `manifest.json` são preservados por **7 dias** (com limpeza diária automática às `04:00`), permitindo reprocessar e atualizar a ata em PDF assim que a cota normalizar.
 
 ---
 
 ### 👥 6. Hierarquia Visual, Cartões & Governança de Saídas
 - **Organograma Dinâmico Renderizado (`2400px`)**: Geração de imagem gráfica com `@napi-rs/canvas` refletindo a estrutura viva do servidor (Presidente, Líderes destacados com estrela dourada e membros dos 5 times: *Social Media & Copy*, *Recursos Humanos*, *Design*, *Hardware Hacking* e *Hacking Ético* — unificando Red Team e Blue Team), com conectores ortogonais que não cruzam sobre os cards.
 - **Cartões de Boas-Vindas e Despedida**: Geração automática de cards ilustrados (`1000x320px`) em eventos de aprovação e saída.
-- **Reconciliação de Saídas e Integração Notion**: Detecção de saídas ocorridas até mesmo com o bot offline (`catchUp.js`), inspeção do Audit Log do Discord para diferenciar saída voluntária (`Inativo`) de expulsão/banimento (`Expulso`) no banco de Membros do Notion e revogação imediata de acesso do e-mail no Workspace do Notion.
+- **Reconciliação de Saídas e Integração Notion**: Detecção de saídas ocorridas até mesmo com o bot offline (`catchUp.js`), atualizando o status do integrante no banco de Membros do Notion exclusivamente para **`Inativo`** (`Ativo` / `Inativo`) e revogando imediatamente o acesso do e-mail no Workspace do Notion.
 
 ---
 
-### 🏢 7. Gestão Integrada do Notion Workspace (API v3 Interna)
+### 🏢 7. Gestão Integrada do Notion Workspace (API v3 Interna) & Portal LGPD (`/meus-dados`)
 - **Provisionamento e Convite Automático**: Ao aprovar um voluntário no onboarding e validar seu termo assinado via Gov.br, o bot resolve sua conta por e-mail (ou provisiona o usuário via `createEmailUser`) e o adiciona como **Membro oficial** no Workspace do Notion (`addMembersToSpace`).
 - **Revogação Instantânea de Acesso**: Ao detectar a saída ou expulsão de um integrante (`guildMemberRemove`), o bot remove automaticamente a conta do espaço de trabalho do Notion (`removeUsersFromSpace`), garantindo a segurança de dados e impedindo que ex-integrantes mantenham acesso a documentos internos e tarefas.
+- **Portal de Direitos do Titular (`/meus-dados`)**: Comando 100% efêmero (Art. 18 da LGPD) que permite a qualquer integrante consultar seus dados armazenados (`/meus-dados visualizar`), retificar dados de contato, endereço e curso/período via Modal (`/meus-dados atualizar`) ou abrir solicitações de privacidade ao RH (`/meus-dados privacidade`).
 - **Governança e Estrutura de Perfis**:
   - **Coordenação Docente (Permanente)**: Prof. Dr. André Luiz Przybysz e Profa. Dra. Natássya Barlate Floro da Silva atuam com assento permanente como professores orientadores do projeto.
   - **Administração / Workspace Owners**: Presidência e Tech Lead (Renan Cáceres Anselmo e André Queiroz) gerenciam a infraestrutura e os espaços de equipe.
-  - **Membros Acadêmicos**: Integrantes ativos distribuídos entre as 5 frentes operacionais (Social Media & Copy, Recursos Humanos, Design, Hardware Hacking e Hacking Ético), com controle estrito de conformidade jurídica (rastreando membros em regularização como Gabriel Lima Mira e expurgando contas de ex-membros desligados como Pedro Lucas).
+  - **Membros Acadêmicos**: Integrantes ativos distribuídos entre as 5 frentes operacionais (Social Media & Copy, Recursos Humanos, Design, Hardware Hacking e Hacking Ético), com controle estrito de conformidade documental e revogação automática de contas desligadas.
 
 ---
 
@@ -218,10 +223,13 @@ flowchart TD
 | `/advertir` | Liderança & RH | Registra uma advertência formal (*Leve*, *Média* ou *Grave*) contra um membro |
 | `/minhas-advertencias` | Qualquer Membro | Consulta privada (ephemeral) do histórico de advertências do próprio usuário |
 | `/advertencias` | Liderança & RH | Exibe o histórico geral ou filtrado por membro de ocorrências disciplinares (incluindo fila) |
-| `/reuniao iniciar` | Membros em Voz | Inicia a gravação de áudio individualizada por participante na sala de voz atual |
-| `/reuniao finalizar` | Membros em Voz | Encerra a gravação, transcreve em lotes via Gemini AI e gera a Ata formal em PDF |
+| `/meus-dados visualizar` | Qualquer Membro | Exibe de forma 100% privada (efêmera) todos os dados cadastrais armazenados pelo bot (LGPD Art. 18) |
+| `/meus-dados atualizar` | Qualquer Membro | Permite retificar dados de contato, endereço, curso e período via Modal interativo |
+| `/meus-dados privacidade` | Qualquer Membro | Exibe o Termo de Ciência LGPD e permite enviar solicitações formais de privacidade ao RH |
+| `/reuniao iniciar` | Liderança, RH & Admin | Inicia a gravação de áudio individualizada por participante na sala de voz com botão de Opt-out |
+| `/reuniao finalizar` | Liderança, RH & Admin | Encerra a gravação, transcreve em lotes via Gemini AI e gera a Ata formal em PDF |
 | `/reuniao historico` | Qualquer Membro | Lista as últimas atas de reunião registradas no servidor (1 a 25 registros) |
-| `/reuniao reprocessar` | Qualquer Membro | Reprocessa o backup de áudio de uma ata (retido por 7 dias) em caso de falha de cota |
+| `/reuniao reprocessar` | Liderança, RH & Admin | Reprocessa o backup de áudio de uma ata (retido por 7 dias) em caso de falha de cota |
 
 ---
 
@@ -239,6 +247,9 @@ flowchart TD
 | `PRESIDENTE_ID` | `3717...` | Discord ID do Presidente do projeto (topo da hierarquia e carga 10h) |
 | `ROLE_RH_NOME` | `Recursos Humanos` | Nome do cargo de RH com privilégios de aprovação e revisão de termos |
 | `ROLE_LIDER_NOME` | `Líderes` | Nome do cargo de liderança (destaque na hierarquia e declaração de 10h) |
+| `ROLE_APROVADO_NOME` | `Membro CyberGuard` | Nome do cargo unificado atribuído aos voluntários aprovados |
+| `ROLE_ENTUSIASTA_NOME` | `Entusiasta` | Nome do cargo atribuído automaticamente aos membros sem compromisso formal |
+| `INVITE_ENTUSIASTA_CODES` | `xyz,abc...` | (Opcional) Lista de códigos de convite específicos de entusiastas |
 | `ROLE_HACKING_ETICO_ID` | `1502772363178147860` | ID do cargo unificado de Hacking Ético |
 | `AREAS_INTERESSE` | `Social Media & Copy,Recursos Humanos,Design,Hardware Hacking,Hacking Ético` | Lista de áreas disponíveis no onboarding |
 | `PONTO_VOICE_CHANNEL_ID`| `151...` | ID da sala de voz monitorada para abertura/fechamento automático de ponto |

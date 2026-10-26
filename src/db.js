@@ -1,6 +1,40 @@
 const { Pool } = require('pg');
+const {
+  CAMPOS_SENSIVEIS_MEMBRO,
+  estaCriptografado,
+  criptografar,
+  criptografarObjetoMembro,
+  descriptografarMembro,
+} = require('./cryptoUtils');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+async function criptografarDadosLegadosBanco() {
+  try {
+    const { rows } = await pool.query('SELECT * FROM membros');
+    let migrados = 0;
+    for (const row of rows) {
+      const sets = [];
+      const valores = [row.id];
+      let idx = 2;
+      for (const campo of CAMPOS_SENSIVEIS_MEMBRO) {
+        if (row[campo] && !estaCriptografado(row[campo])) {
+          sets.push(`${campo} = $${idx++}`);
+          valores.push(criptografar(row[campo]));
+        }
+      }
+      if (sets.length > 0) {
+        await pool.query(`UPDATE membros SET ${sets.join(', ')} WHERE id = $1`, valores);
+        migrados++;
+      }
+    }
+    if (migrados > 0) {
+      console.log(`[db/lgpd] ${migrados} registro(s) de membro(s) tiveram os campos sensíveis criptografados em repouso (AES-256-GCM).`);
+    }
+  } catch (err) {
+    console.error('[db/lgpd] Erro ao criptografar registros legados:', err.message);
+  }
+}
 
 async function initSchema() {
   await pool.query(`
@@ -33,6 +67,7 @@ async function initSchema() {
     'ultimo_lembrete TIMESTAMPTZ',
     'termo_arquivo_path TEXT',
     'data_inicio TEXT',
+    'termo_ciencia_aceito_em TIMESTAMPTZ',
   ];
 
   for (const coluna of colunas) {
@@ -206,25 +241,42 @@ async function initSchema() {
   await pool.query('CREATE INDEX IF NOT EXISTS idx_declaracoes_codigo ON declaracoes_solicitadas (codigo)');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_declaracoes_discord_id ON declaracoes_solicitadas (discord_id)');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_declaracoes_status ON declaracoes_solicitadas (status)');
+
+  // Migra automaticamente quaisquer dados sensíveis ainda em texto puro para AES-256-GCM (LGPD Art. 46)
+  await criptografarDadosLegadosBanco();
 }
 
 function getMembro(discordId) {
   return pool
     .query('SELECT * FROM membros WHERE discord_id = $1', [discordId])
-    .then((r) => r.rows[0] || null);
+    .then((r) => descriptografarMembro(r.rows[0] || null));
 }
 
 function criarMembro(discordId) {
   return pool
     .query(
-      `INSERT INTO membros (discord_id, status) VALUES ($1, 'coletando_dados')
-       ON CONFLICT (discord_id) DO NOTHING RETURNING *`,
+      `INSERT INTO membros (discord_id, status, saida_processada) VALUES ($1, 'coletando_dados', false)
+       ON CONFLICT (discord_id) DO UPDATE SET
+         status = CASE
+           WHEN membros.status IN ('rejeitado', 'abandonado', 'coletando_dados') THEN 'coletando_dados'
+           ELSE membros.status
+         END,
+         saida_processada = false
+       RETURNING *`,
       [discordId]
     )
-    .then((r) => r.rows[0]);
+    .then((r) => descriptografarMembro(r.rows[0]));
+}
+
+function registrarAceiteTermoCiencia(discordId) {
+  return pool.query(
+    'UPDATE membros SET termo_ciencia_aceito_em = now() WHERE discord_id = $1',
+    [discordId]
+  );
 }
 
 function atualizarDados(discordId, dados) {
+  const dadosSeguros = criptografarObjetoMembro(dados);
   const {
     nome,
     ra,
@@ -241,7 +293,7 @@ function atualizarDados(discordId, dados) {
     area_interesse,
     estudante_utfpr = 'Sim',
     instituicao = 'UTFPR',
-  } = dados;
+  } = dadosSeguros;
 
   return pool.query(
     `UPDATE membros SET
@@ -270,10 +322,36 @@ function atualizarDados(discordId, dados) {
   );
 }
 
+/**
+ * Atualiza campos específicos de um membro (usado no comando /meus-dados atualizar - LGPD Art. 18, III),
+ * aplicando criptografia automática nos campos sensíveis.
+ */
+function atualizarDadosParciaisMembro(discordId, camposObj = {}) {
+  const permitidos = ['email', 'telefone', 'endereco', 'cidade', 'estado', 'curso', 'periodo'];
+  const filtrados = {};
+  for (const chave of permitidos) {
+    if (Object.prototype.hasOwnProperty.call(camposObj, chave) && camposObj[chave] !== undefined) {
+      filtrados[chave] = camposObj[chave];
+    }
+  }
+  const seguros = criptografarObjetoMembro(filtrados);
+  const chaves = Object.keys(seguros);
+  if (chaves.length === 0) return Promise.resolve();
+
+  const sets = chaves.map((campo, idx) => `${campo} = $${idx + 2}`).join(', ');
+  const valores = chaves.map((campo) => seguros[campo]);
+
+  return pool.query(
+    `UPDATE membros SET ${sets} WHERE discord_id = $1`,
+    [discordId, ...valores]
+  );
+}
+
 function atualizarStatus(discordId, status, extraFields = {}) {
-  const campos = Object.keys(extraFields);
+  const extraSeguros = criptografarObjetoMembro(extraFields);
+  const campos = Object.keys(extraSeguros);
   const setExtra = campos.map((campo, i) => `${campo} = $${i + 3}`).join(', ');
-  const valores = campos.map((campo) => extraFields[campo]);
+  const valores = campos.map((campo) => extraSeguros[campo]);
 
   return pool.query(
     `UPDATE membros SET status=$2 ${setExtra ? ', ' + setExtra : ''} WHERE discord_id=$1`,
@@ -286,7 +364,7 @@ function listarAguardandoAssinatura() {
     .query(
       `SELECT * FROM membros WHERE status = 'aguardando_assinatura' AND lembrete_resolvido_manualmente = false`
     )
-    .then((r) => r.rows);
+    .then((r) => r.rows.map((row) => descriptografarMembro(row)));
 }
 
 /** RH marca que já verificou manualmente e não quer mais receber lembrete desse membro. */
@@ -675,7 +753,9 @@ module.exports = {
   initSchema,
   getMembro,
   criarMembro,
+  registrarAceiteTermoCiencia,
   atualizarDados,
+  atualizarDadosParciaisMembro,
   atualizarStatus,
   listarAguardandoAssinatura,
   removerMembro,

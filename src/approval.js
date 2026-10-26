@@ -1,4 +1,5 @@
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const fs = require('fs');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const config = require('./config');
 const db = require('./db');
 const { gerarTermo } = require('./termService');
@@ -6,6 +7,24 @@ const { adicionarLinhaPlanilha } = require('./sheetsService');
 const { postarCartao } = require('./cartaoServidor');
 const { TEXTO_MANUAL_CONDUTA } = require('./manualConduta');
 const { adicionarMembroWorkspace } = require('./notionWorkspace');
+
+function construirEmbedResumidoRH(membro, aprovado, responsavelUsername) {
+  return new EmbedBuilder()
+    .setTitle(aprovado ? '✅ Solicitação de entrada — Aprovada' : '❌ Solicitação de entrada — Rejeitada')
+    .setDescription(
+      '🔒 *Os dados pessoais sensíveis (CPF, endereço, telefone e data de nascimento) foram ocultados deste histórico do canal em conformidade com a LGPD (Art. 6º, III e Art. 46) e encontram-se arquivados com criptografia no banco de dados.*'
+    )
+    .addFields(
+      { name: 'Discord', value: `<@${membro.discord_id}>`, inline: true },
+      { name: 'Nome', value: membro.nome || '—', inline: true },
+      { name: 'RA', value: membro.ra || '—', inline: true },
+      { name: 'Curso / Período', value: `${membro.curso || '—'} (${membro.periodo || '—'})`, inline: true },
+      { name: 'Área solicitada', value: membro.area_interesse || '—', inline: true },
+      { name: 'Processado por', value: responsavelUsername || 'RH', inline: true }
+    )
+    .setColor(aprovado ? 0x57f287 : 0xed4245)
+    .setTimestamp();
+}
 
 function membroTemRoleRh(interactionMember) {
   return interactionMember.roles.cache.some((r) => r.name === config.roleRhNome);
@@ -109,7 +128,14 @@ async function handleAprovacaoInteraction(interaction) {
       }
     }
 
-    await db.removerMembro(discordId);
+    // Mantém os dados arquivados (criptografados) no banco em vez de excluir (conforme diretriz de registro acadêmico)
+    await db.atualizarStatus(discordId, 'rejeitado', { saida_processada: true });
+
+    await interaction.editReply({
+      content: `❌ Rejeitado por ${interaction.user.username}${statusExpulsao}`,
+      embeds: [construirEmbedResumidoRH(membro, false, interaction.user.username)],
+      components: [],
+    });
 
     await interaction.channel.send(
       `❌ Rejeitado por ${interaction.user.username}${statusExpulsao}\nMotivo registrado: ${motivo}`
@@ -207,6 +233,9 @@ async function handleAprovacaoInteraction(interaction) {
     files: [caminhoTermo],
   });
 
+  // Remove o arquivo temporário em texto claro do disco local (LGPD Art. 46)
+  fs.unlink(caminhoTermo, () => {});
+
   try {
     await usuarioDiscord.send({
       files: [{ attachment: config.tutorialGovbrPath, name: 'tutorial_assinatura_govbr.pdf' }],
@@ -219,6 +248,7 @@ async function handleAprovacaoInteraction(interaction) {
 
   await interaction.editReply({
     content: `✅ Aprovado por ${interaction.user.username}`,
+    embeds: [construirEmbedResumidoRH(membroAtualizado, true, interaction.user.username)],
     components: [],
   });
 }

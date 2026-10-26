@@ -304,7 +304,7 @@ async function gerarDocumentacaoCompleta() {
 
   doc.subsecao('8.2. Cartões de Entrada/Saída e Sincronização de Desligamento no Notion');
   doc.listaItem('Cartões Ilustrados (cartaoServidor.js): gera banners 1000x320px em PNG ("EMBARCOU NO SERVIDOR" em azul com mascote sorrindo na aprovação do onboarding; "DESEMBARCOU DO SERVIDOR" em âmbar com mascote triste na saída).');
-  doc.listaItem('Detecção de Expulsão via Audit Log e Revogação Notion (guildMemberRemove): quando um membro sai do servidor, o bot inspeciona os últimos 5 registros do Audit Log (actions 20 Kick e 22 Ban nos últimos 30s). Atualiza o cadastro do membro no Notion (notionMembros.js) para Status = "Expulso" (se kick/ban) ou "Inativo" (saída voluntária) com a Data de Saída, e executa a revogação automática da conta no Workspace Notion.');
+  doc.listaItem('Detecção de Saída/Desligamento e Revogação Notion (guildMemberRemove): quando um membro sai do servidor, o bot inspeciona os últimos 5 registros do Audit Log (actions 20 Kick e 22 Ban nos últimos 30s), atualiza o cadastro do membro no Notion (notionMembros.js) para Status = "Inativo" (mantendo estritamente os estados "Ativo" ou "Inativo" conforme a LGPD) com a Data de Saída, e executa a revogação automática da conta no Workspace Notion.');
 
   doc.subsecao('8.3. Gestão Automatizada de Membros do Notion Workspace (src/notionWorkspace.js)');
   doc.paragrafo(
@@ -315,7 +315,7 @@ async function gerarDocumentacaoCompleta() {
   doc.listaItem('Governança e Estrutura de Papéis:');
   doc.listaItem('• Coordenação Docente: Prof. Dr. André Luiz Przybysz e Profa. Dra. Natássya Barlate Floro da Silva possuem assento permanente como professores orientadores.', { nivel: 2, marcador: '-' });
   doc.listaItem('• Administração & Presidência: Renan Cáceres Anselmo e André Queiroz atuam como Workspace Owners / Administradores gerais.', { nivel: 2, marcador: '-' });
-  doc.listaItem('• Membros Acadêmicos: integrantes ativos distribuídos entre as 5 áreas operacionais (Social Media, RH, Design, Hardware Hacking e Hacking Ético), com controle de regularização de termos assinados (ex.: membro Gabriel Lima Mira em processo de formalização documental) e expurgo automático de contas desligadas (ex.: Pedro Lucas desativado após saída do Discord).', { nivel: 2, marcador: '-' });
+  doc.listaItem('• Membros Acadêmicos: integrantes ativos distribuídos entre as 5 áreas operacionais (Social Media, RH, Design, Hardware Hacking e Hacking Ético), com controle de regularização de termos assinados e revogação automática de contas desligadas.', { nivel: 2, marcador: '-' });
 
   // =========================================================================
   // SEÇÃO 9: REFERÊNCIA CONSOLIDADA (BANCO DE DADOS, CRONS E VARIÁVEIS)

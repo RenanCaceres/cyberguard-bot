@@ -13,12 +13,19 @@ const painelAdvertenciasCommand = require('../commands/painel-advertencias/paine
 const minhasAdvertenciasCommand = require('../commands/minhas-advertencias/minhasAdvertenciasCommand');
 const advertenciasCommand = require('../commands/advertencias/advertenciasCommand');
 const declaracaoCommand = require('../commands/declaracao/declaracaoCommand');
+const meusDadosCommand = require('../commands/meus-dados/meusDadosCommand');
+const { iniciarLimpezaBackups } = require('../commands/reuniao/limpezaBackup');
 const { handleAdvertenciaInteraction, iniciarCronAdvertencias } = require('./advertencias');
 const { iniciarCronDeclaracoes } = require('./declaracaoEmail');
 const hierarquia = require('./hierarquia');
 const { popularCacheDeMembros } = require('./popularCache');
 const ponto = require('./ponto');
 const kovLogs = require('./kovLogs');
+const {
+  initInviteTracker,
+  rastrearConviteUsado,
+  atribuirCargoEntusiasta,
+} = require('./inviteTracker');
 
 const client = new Client({
   intents: [
@@ -28,6 +35,7 @@ const client = new Client({
     GatewayIntentBits.DirectMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildInvites,
   ],
   partials: [Partials.Channel, Partials.Message],
 });
@@ -37,9 +45,11 @@ client.once('ready', async () => {
   iniciarLembretes(client);
   iniciarCronAdvertencias(client);
   iniciarCronDeclaracoes(client);
+  iniciarLimpezaBackups();
   ponto.init(client)
     .then(() => kovLogs.init(client))
     .catch((e) => console.error('[ponto] init:', e));
+  await initInviteTracker(client);
   console.log(`Bot online como ${client.user.tag}`);
 
   try {
@@ -58,7 +68,20 @@ client.once('ready', async () => {
   }
 });
 
-client.on('guildMemberAdd', (member) => {
+client.on('guildMemberAdd', async (member) => {
+  try {
+    const infoConvite = await rastrearConviteUsado(member);
+    if (infoConvite.ehEntusiasta) {
+      console.log(
+        `[onboarding] Novo membro ${member.user.tag} entrou pelo convite de Entusiasta (${infoConvite.codigoConvite || 'categoria/canal'}). Dispensando onboarding de voluntário.`
+      );
+      await atribuirCargoEntusiasta(member);
+      return;
+    }
+  } catch (errConvite) {
+    console.error('[index] Erro ao verificar convite de novo membro:', errConvite);
+  }
+
   iniciarOnboarding(member).catch((err) => console.error('Erro no onboarding:', err));
 });
 
@@ -97,7 +120,14 @@ client.on('interactionCreate', async (interaction) => {
     return;
   }
 
+  if (interaction.isChatInputCommand() && interaction.commandName === 'meus-dados') {
+    meusDadosCommand.execute(interaction).catch((err) => console.error('Erro no comando /meus-dados:', err));
+    return;
+  }
+
   try {
+    if (await meusDadosCommand.handleMeusDadosInteraction(interaction)) return;
+    if (await reuniaoCommand.handleReuniaoInteraction(interaction)) return;
     if (await handleAdvertenciaInteraction(interaction)) return;
     if (await handleResolverLembrete(interaction)) return;
     if (await handleRevisaoTermoInteraction(interaction)) return;
@@ -105,6 +135,10 @@ client.on('interactionCreate', async (interaction) => {
   } catch (err) {
     console.error('Erro na interação do bot:', err);
   }
+});
+
+client.on('voiceStateUpdate', (oldState, newState) => {
+  reuniaoCommand.handleVoiceStateUpdate(oldState, newState);
 });
 
 client.on('guildMemberUpdate', (oldMember, newMember) => {
@@ -131,7 +165,12 @@ client.on('guildMemberRemove', async (member) => {
           tipo: 'abandonado',
           motivo: `Saiu do servidor antes de concluir o processo (status: ${registro.status})`,
         });
-        await db.removerMembro(member.id);
+        // Mantém os dados arquivados (criptografados) no banco caso já tenham sido preenchidos
+        if (registro.nome || registro.ra) {
+          await db.atualizarStatus(member.id, 'abandonado', { saida_processada: true });
+        } else {
+          await db.removerMembro(member.id);
+        }
       } catch (errArquivo) {
         console.error('Erro ao arquivar abandono ao sair do servidor:', errArquivo);
       }
@@ -212,7 +251,7 @@ client.on('guildMemberRemove', async (member) => {
         const canalRh = await member.guild.channels.fetch(config.channelRhId);
         const emailInfo = registro && registro.email ? `\`${registro.email}\`` : 'não registrado';
         const tipoAviso = foiExpulso ? '🚫 **Expulsão do Servidor — Revogação Notion:**' : '🚪 **Saída do Servidor — Revogação Notion:**';
-        const statusTexto = foiExpulso ? 'Expulso' : 'Inativo';
+        const statusTexto = 'Inativo';
         await canalRh.send({
           content: `${tipoAviso}\nO integrante **${nome}** (<@${member.id}>) ${foiExpulso ? 'foi expulso do' : 'saiu do'} servidor.\n📧 **E-mail:** ${emailInfo}\n⚠️ *O cadastro no Notion foi alterado para ${statusTexto}.*${statusRevogacaoWs}`,
         });

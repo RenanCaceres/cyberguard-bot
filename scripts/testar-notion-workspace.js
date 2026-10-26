@@ -27,7 +27,7 @@ async function main() {
 
   // Teste de consulta de usuário
   console.log('\n3. Testando resolução de ID de usuário por e-mail:');
-  const emailTeste = 'andrequeiroz@alunos.utfpr.edu.br';
+  const emailTeste = process.env.TEST_NOTION_EMAIL || 'exemplo@alunos.utfpr.edu.br';
   const userId = await obterUserIdPorEmail(emailTeste);
   console.log(`- E-mail: ${emailTeste} -> Notion User ID: ${userId || 'Não encontrado'}`);
 

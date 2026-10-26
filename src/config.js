@@ -15,6 +15,13 @@ module.exports = {
   channelBoasVindasId: process.env.CHANNEL_BOASVINDAS_ID || '',
   roleRhNome: process.env.ROLE_RH_NOME || 'Recursos Humanos',
   roleAprovadoNome: process.env.ROLE_APROVADO_NOME || '',
+  roleEntusiastaNome: process.env.ROLE_ENTUSIASTA_NOME || 'Entusiasta',
+  inviteEntusiastaCodes: (process.env.INVITE_ENTUSIASTA_CODES || process.env.INVITE_ENTUSIASTA_CODE || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+  channelEntusiastaId: process.env.CHANNEL_ENTUSIASTA_ID || '',
+  categoriaEntusiastaId: process.env.CATEGORIA_ENTUSIASTA_ID || '',
   areasInteresse: (() => {
     const brutas = (
       process.env.AREAS_INTERESSE ||

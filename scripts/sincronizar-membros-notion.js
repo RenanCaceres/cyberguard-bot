@@ -24,8 +24,8 @@ async function main() {
       console.log(`[Notion] Sincronizando membro desligado/inativo: ${m.nome || m.discord_id}...`);
       await registrarMembroAtivo(m); // Primeiro garante que a página existe
       await registrarSaidaMembro(m.discord_id, {
-        motivo: `Status: ${m.status || 'desligado'}`,
-        expulso: m.status === 'rejeitado',
+        nome: m.nome,
+        ra: m.ra,
       });
       egressos++;
     }
