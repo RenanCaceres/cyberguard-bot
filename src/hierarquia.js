@@ -20,10 +20,7 @@ const CORES_TIME = {
   'Hacking Ético': '#a468ff',
 };
 
-const LIDERES_TIME = {
-  'Hacking Ético': '710682125074169956',
-  Design: '602207814034915348',
-};
+const LIDERES_TIME = config.lideresTime || {};
 
 async function baixarAvatar(discordUser) {
   try {
@@ -60,8 +57,10 @@ async function montarPessoa(guildMember) {
 
 function obterMembrosDoTime(guild, nomeSecao) {
   if (nomeSecao === 'Hacking Ético') {
-    const roleIdEtico = config.roleHackingEticoId || '1502772363178147860';
-    const roleEtico = guild.roles.cache.get(roleIdEtico) || guild.roles.cache.find((r) => r.name === nomeSecao);
+    const roleIdEtico = config.roleHackingEticoId;
+    const roleEtico =
+      (roleIdEtico && guild.roles.cache.get(roleIdEtico)) ||
+      guild.roles.cache.find((r) => r.name === nomeSecao);
     const roleRed = guild.roles.cache.find((r) => r.name === 'Red Team');
     const roleBlue = guild.roles.cache.find((r) => r.name === 'Blue Team');
     return guild.members.cache.filter(
@@ -77,52 +76,12 @@ function obterMembrosDoTime(guild, nomeSecao) {
   return guild.members.cache.filter((m) => m.roles.cache.has(role.id));
 }
 
-async function resolverVicePresidente(guild, roleLider) {
-  let viceId = config.vicePresidenteId || '';
+async function resolverVicePresidente(guild) {
+  const viceId = config.vicePresidenteId || '';
+  if (!viceId) return null;
 
-  if (!viceId) {
-    try {
-      const { rows } = await db.pool.query(`
-        SELECT discord_id FROM membros
-        WHERE ra = '2618109' OR LOWER(nome) LIKE '%vitor hugo%prado%'
-        UNION ALL
-        SELECT discord_id FROM cadastro_legado
-        WHERE LOWER(nome) LIKE '%vitor hugo%prado%'
-        LIMIT 1
-      `);
-      if (rows[0]?.discord_id) {
-        viceId = String(rows[0].discord_id).trim();
-      }
-    } catch (err) {
-      console.error('[hierarquia] erro ao buscar Vice-Presidente no banco:', err.message);
-    }
-  }
-
-  let viceMember = null;
-  if (viceId) {
-    viceMember =
-      guild.members.cache.get(viceId) ?? (await guild.members.fetch(viceId).catch(() => null));
-  }
-
-  if (!viceMember) {
-    viceMember =
-      guild.members.cache.find((m) => {
-        const texto = `${m.displayName || ''} ${m.user?.globalName || ''} ${m.user?.username || ''}`
-          .toLowerCase()
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '');
-        return texto.includes('vitor') && (texto.includes('prado') || texto.includes('hugo'));
-      }) ||
-      guild.members.cache.find((m) => {
-        if (!roleLider || !m.roles.cache.has(roleLider.id)) return false;
-        const texto = `${m.displayName || ''} ${m.user?.globalName || ''} ${m.user?.username || ''}`
-          .toLowerCase()
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '');
-        return texto.includes('vitor');
-      }) ||
-      null;
-  }
+  const viceMember =
+    guild.members.cache.get(viceId) ?? (await guild.members.fetch(viceId).catch(() => null));
 
   if (viceMember) {
     const pessoa = await montarPessoa(viceMember);

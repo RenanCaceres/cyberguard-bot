@@ -125,7 +125,7 @@ async function gerarDocumentacaoCompleta() {
   doc.listaItem('1) Define status = "aguardando_assinatura", data_aprovacao = now() e data_limite_assinatura = now() + PRAZO_DIAS (padrão 7 dias).', { nivel: 2, marcador: '-' });
   doc.listaItem('2) Gera o PDF personalizado do Termo de Voluntariado com campo AcroForm preenchível.', { nivel: 2, marcador: '-' });
   doc.listaItem('3) Grava linha na planilha de cadastro (Google Sheets) e cadastra o membro como "Ativo" na base de Membros do Notion.', { nivel: 2, marcador: '-' });
-  doc.listaItem('4) Publica cartão gráfico de boas-vindas no canal CHANNEL_BOASVINDAS_ID e atribui os cargos no Discord (ROLE_APROVADO_NOME + área escolhida, usando fallback pelo ID 1502772363178147860 para Hacking Ético).', { nivel: 2, marcador: '-' });
+  doc.listaItem('4) Publica cartão gráfico de boas-vindas no canal CHANNEL_BOASVINDAS_ID e atribui os cargos no Discord (ROLE_APROVADO_NOME + área escolhida, usando fallback pelo ID ROLE_HACKING_ETICO_ID para Hacking Ético).', { nivel: 2, marcador: '-' });
   doc.listaItem('5) Envia lembrete no canal do RH com o e-mail do membro para liberação de acesso como convidado no Workspace do Notion.', { nivel: 2, marcador: '-' });
   doc.listaItem('6) Envia 3 mensagens na DM do aprovado: (a) Boas-vindas com links do WhatsApp Geral e da Área + Termo em PDF; (b) Tutorial de Assinatura Gov.br em PDF; (c) Manual de Conduta completo com link do Google Forms de free-time.', { nivel: 2, marcador: '-' });
 
@@ -299,7 +299,7 @@ async function gerarDocumentacaoCompleta() {
   doc.secao('8', 'Hierarquia Visual, Cartões de Servidor e Governança de Saídas');
   doc.subsecao('8.1. Organograma Dinâmico Renderizado (src/hierarquia.js & hierarquiaRender.js)');
   doc.listaItem('Estrutura Visual (2400px de largura): renderiza o card do Presidente no topo, conectado ortogonalmente a 5 times distribuídos em 2 linhas: Linha 1 (Social Media & Copy, Recursos Humanos, Design) e Linha 2 (Hardware Hacking e Hacking Ético). As linhas conectoras da Linha 2 descem pelos vãos laterais (xGap1 e xGap2) sem cruzar sobre o card de Recursos Humanos.');
-  doc.listaItem('Unificação Hacking Ético: agrupa automaticamente membros com o cargo Hacking Ético (ID 1502772363178147860 ou nome), Red Team ou Blue Team.');
+  doc.listaItem('Unificação Hacking Ético: agrupa automaticamente membros com o cargo Hacking Ético (ROLE_HACKING_ETICO_ID ou nome), Red Team ou Blue Team.');
   doc.listaItem('Destaque de Liderança e Debounce: identifica líderes pelo cargo "Líderes" ou mapa fixo LIDERES_TIME, posicionando-os no topo do card com estrela dourada (*). Aplica debounce de 4.000 ms em mudanças de cargos relevantes e edita a mesma mensagem fixa no canal HIERARQUIA_CHANNEL_ID (salva em bot_state).');
 
   doc.subsecao('8.2. Cartões de Entrada/Saída e Sincronização de Desligamento no Notion');
@@ -391,8 +391,8 @@ async function gerarDocumentacaoCompleta() {
     ],
     [
       ['NOTION_TOKEN_V2', 'v03%3AeyJhbGciOi...', 'Cookie de sessão privada com privilégios de Workspace Owner para endpoints v3.'],
-      ['NOTION_SPACE_ID', '5dec798f-d407-811a-...', 'UUID do Workspace CyberGuard no Notion (addMembers / removeUsers).'],
-      ['NOTION_ACTIVE_USER_ID', 'cbb538d8-97c7-463b-...', 'UUID do usuário autenticado remetente das ações administrativas.'],
+      ['NOTION_SPACE_ID', '00000000-0000-0000-...', 'UUID do Workspace CyberGuard no Notion (addMembers / removeUsers).'],
+      ['NOTION_ACTIVE_USER_ID', '00000000-0000-0000-...', 'UUID do usuário autenticado remetente das ações administrativas.'],
     ]
   );
 

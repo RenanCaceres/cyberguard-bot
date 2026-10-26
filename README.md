@@ -250,7 +250,7 @@ flowchart TD
 | `ROLE_APROVADO_NOME` | `Membro CyberGuard` | Nome do cargo unificado atribuído aos voluntários aprovados |
 | `ROLE_ENTUSIASTA_NOME` | `Entusiasta` | Nome do cargo atribuído automaticamente aos membros sem compromisso formal |
 | `INVITE_ENTUSIASTA_CODES` | `xyz,abc...` | (Opcional) Lista de códigos de convite específicos de entusiastas |
-| `ROLE_HACKING_ETICO_ID` | `1502772363178147860` | ID do cargo unificado de Hacking Ético |
+| `ROLE_HACKING_ETICO_ID` | `150...` | ID do cargo unificado de Hacking Ético |
 | `AREAS_INTERESSE` | `Social Media & Copy,Recursos Humanos,Design,Hardware Hacking,Hacking Ético` | Lista de áreas disponíveis no onboarding |
 | `PONTO_VOICE_CHANNEL_ID`| `151...` | ID da sala de voz monitorada para abertura/fechamento automático de ponto |
 | `PONTO_ROLE_RH_ID` | `154...` | ID do cargo de RH autorizado a ajustar ponto e importar horas |
@@ -260,10 +260,10 @@ flowchart TD
 | `PONTO_SHEET_ID` | `1AbC...` | ID da planilha do Google para sincronização das 3 abas de horas |
 | `NOTION_TOKEN` | `secret_...` | Token de integração da API pública oficial do Notion |
 | `NOTION_TOKEN_V2` | `v03%3AeyJhbGciOi...` | Cookie de sessão com permissão de Workspace Owner para gestão de membros via API v3 |
-| `NOTION_SPACE_ID` | `5dec798f-d407-811a-...` | ID do Workspace CyberGuard no Notion |
-| `NOTION_ACTIVE_USER_ID` | `cbb538d8-97c7-463b-...` | ID do usuário administrador executor das requisições v3 |
-| `NOTION_DATA_SOURCE_ID` | `3e5c7...` | ID do Data Source de tarefas no Notion (API `2025-09-03`) |
-| `NOTION_MEMBROS_DB_ID` | `3f8c7...` | ID do Database histórico de membros no Notion (`Ativo`/`Inativo`) |
+| `NOTION_SPACE_ID` | `00000000-0000-0000-...` | ID do Workspace CyberGuard no Notion |
+| `NOTION_ACTIVE_USER_ID` | `00000000-0000-0000-...` | ID do usuário administrador executor das requisições v3 |
+| `NOTION_DATA_SOURCE_ID` | `00000...` | ID do Data Source de tarefas no Notion (API `2025-09-03`) |
+| `NOTION_MEMBROS_DB_ID` | `00000...` | ID do Database histórico de membros no Notion (`Ativo`/`Inativo`) |
 | `DATA_ENCRYPTION_KEY` | `a1b2c3... (64 hex)` | Chave de 256 bits para criptografia `AES-256-GCM` de dados sensíveis no banco |
 | `GEMINI_API_KEY` | `AIza...` | Chave de API do Google Gemini para transcrição de atas |
 | `CANAL_ADVERTENCIAS_ID` | `154...` | Canal restrito onde ocorrem as notificações e deliberações disciplinares |
@@ -271,8 +271,8 @@ flowchart TD
 | `EMAIL_TERMOS_DESTINATARIO`| `coordenacao@utfpr.edu.br` | Destinatário principal dos termos de voluntariado assinados |
 | `EMAIL_TERMOS_CC` | `lider1@alunos.utfpr.edu.br,...` | Lista de e-mails em cópia (CC) no envio dos termos assinados |
 | `EMAIL_PROFESSOR_COORDENADOR` | `coordenador@utfpr.edu.br` | E-mail do professor coordenador que assina as declarações |
-| `GOOGLE_DRIVE_TERMOS_FOLDER_ID` | `1NqvkQ5xh5PiCVWD_vS5p19gCn2hQaP0Y` | ID da pasta raiz no Google Drive para termos de voluntariado assinados |
-| `GOOGLE_DRIVE_DECLARACOES_FOLDER_ID` | `19BNim9PFAwjOkhx4P-ZqVNa6GEGb8aOL` | ID da pasta no Google Drive para declarações de voluntariado assinadas |
+| `GOOGLE_DRIVE_TERMOS_FOLDER_ID` | `1PastaTermosId...` | ID da pasta raiz no Google Drive para termos de voluntariado assinados |
+| `GOOGLE_DRIVE_DECLARACOES_FOLDER_ID` | `1PastaDeclaracoesId...` | ID da pasta no Google Drive para declarações de voluntariado assinadas |
 | `IMAP_HOST` / `IMAP_PORT` | `imap.gmail.com` / `993` | Servidor e porta IMAP TLS para leitura autônoma das declarações assinadas |
 | `IMAP_USER` / `IMAP_PASS` | `bot@utfpr...`, `app-pass` | Credenciais IMAP/SMTP da conta institucional do bot |
 

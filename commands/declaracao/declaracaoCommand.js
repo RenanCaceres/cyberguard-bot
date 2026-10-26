@@ -1,3 +1,4 @@
+const fs = require('fs');
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const db = require('../../src/db');
 const { gerarDeclaracaoPdf } = require('../../src/declaracaoService');
@@ -161,6 +162,11 @@ module.exports = {
           }
         } catch (errEmail) {
           console.error('[declaracao] Erro ao disparar e-mail para o professor:', errEmail.message);
+        } finally {
+          // Remove o PDF temporário não assinado da pasta ./temp/ após o envio (LGPD Art. 46)
+          if (caminhoPdf) {
+            fs.unlink(caminhoPdf, () => {});
+          }
         }
 
         const embed = new EmbedBuilder()

@@ -8,8 +8,8 @@ const BASE_V1 = 'https://api.notion.com/v1';
 const cfg = () => ({
   tokenV2: process.env.NOTION_TOKEN_V2,
   tokenV1: process.env.NOTION_TOKEN,
-  spaceId: process.env.NOTION_SPACE_ID || '5dec798f-d407-811a-b769-00036d789cf9',
-  activeUserId: process.env.NOTION_ACTIVE_USER_ID || 'cbb538d8-97c7-463b-bcd7-10153f8c7b3c',
+  spaceId: process.env.NOTION_SPACE_ID || '',
+  activeUserId: process.env.NOTION_ACTIVE_USER_ID || '',
 });
 
 /**

@@ -7,8 +7,15 @@ module.exports = {
   presidenteId: process.env.PRESIDENTE_ID || '',
   vicePresidenteId: process.env.VICE_PRESIDENTE_ID || process.env.PURPLE_TEAM_ID || '',
   purpleTeamId: process.env.PURPLE_TEAM_ID || '',
-  roleHackingEticoId: process.env.ROLE_HACKING_ETICO_ID || '1502772363178147860',
-  categoriaHackingEticoId: process.env.CATEGORIA_HACKING_ETICO_ID || '1518448843279302696',
+  roleHackingEticoId: process.env.ROLE_HACKING_ETICO_ID || '',
+  categoriaHackingEticoId: process.env.CATEGORIA_HACKING_ETICO_ID || '',
+  lideresTime: (() => {
+    try {
+      return JSON.parse(process.env.LIDERES_TIME_JSON || '{}');
+    } catch {
+      return {};
+    }
+  })(),
   roleLiderNome: process.env.ROLE_LIDER_NOME || 'Líderes',
   guildId: process.env.GUILD_ID,
   channelRhId: process.env.CHANNEL_RH_ID,
@@ -61,8 +68,8 @@ module.exports = {
     privateKey: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
   },
   googleDrive: {
-    termosFolderId: process.env.GOOGLE_DRIVE_TERMOS_FOLDER_ID || '1NqvkQ5xh5PiCVWD_vS5p19gCn2hQaP0Y',
-    declaracoesFolderId: process.env.GOOGLE_DRIVE_DECLARACOES_FOLDER_ID || '19BNim9PFAwjOkhx4P-ZqVNa6GEGb8aOL',
+    termosFolderId: process.env.GOOGLE_DRIVE_TERMOS_FOLDER_ID || '',
+    declaracoesFolderId: process.env.GOOGLE_DRIVE_DECLARACOES_FOLDER_ID || '',
   },
   kov: {
     logChannelId: process.env.KOV_LOG_CHANNEL_ID || '',

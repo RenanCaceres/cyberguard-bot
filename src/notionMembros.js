@@ -6,7 +6,7 @@ const BASE = 'https://api.notion.com/v1';
 
 const cfg = () => ({
   token: process.env.NOTION_TOKEN,
-  dbId: process.env.NOTION_MEMBROS_DB_ID || '3f8c798f-d407-815a-9d95-eb30329ba64d',
+  dbId: process.env.NOTION_MEMBROS_DB_ID || '',
 });
 
 function normalizarSetor(area) {
