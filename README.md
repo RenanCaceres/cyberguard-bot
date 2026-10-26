@@ -81,13 +81,14 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
 
 ### 📜 3. Emissão de Declaração de Voluntariado & Assinatura Digital Gov.br
 - **Solicitação Autônoma no Discord (`/declaracao solicitar`)**: O acadêmico solicita sua declaração de participação com um único comando. O bot valida o cadastro (Nome Completo, RA, Curso e Data de Início), impede solicitações duplicadas em aberto e gera um protocolo único rastreável (`#DECL-<RA>-<4 dígitos>`).
-- **Cálculo Automático de Carga Horária (4h vs. 10h)**:
+- **Cálculo Automático de Carga Horária (4h, 8h e 10h)**:
   - **Membros Regulares (`4 horas semanais`)**: atribuída automaticamente aos integrantes das áreas técnicas e operacionais.
+  - **Vice-Líderes (`8 horas semanais`)**: atribuída automaticamente aos vice-líderes no Discord (ID do cargo: `1564414013809360946`).
   - **Líderes e Presidência (`10 horas semanais`)**: atribuída automaticamente a quem possui o cargo de liderança (`Líderes`) ou Presidência no servidor.
 - **Geração Dinâmica e Tramitação por E-mail (SMTP)**: O bot preenche o template institucional da UTFPR com a data por extenso, converte para PDF via LibreOffice e envia automaticamente ao Coordenador do Projeto (**Prof. André Luiz Przybysz**).
 - **Monitoramento e Captura Autônoma (IMAP)**: Um serviço em segundo plano checa a caixa de entrada a cada 1 minuto, localiza a resposta do coordenador pelo protocolo `#DECL-...`, valida o cabeçalho binário `%PDF` do anexo assinado pelo Gov.br (Lei Federal nº 14.063/2020), arquiva em `DeclaracoesAssinadas/` e faz o upload automático para a pasta de declarações no **Google Drive**.
 - **Entrega Imediata na DM e Cópia ao RH**: O PDF assinado é entregue diretamente na DM do estudante e uma cópia comprobatória é postada no canal do RH.
-- **Acompanhamento com Sincronização em Tempo Real (`/declaracao status`)**: Lista as últimas 10 solicitações do aluno (status, data de início, carga horária de 4h/10h e RA) e força uma varredura IMAP imediata na caixa de entrada.
+- **Acompanhamento com Sincronização em Tempo Real (`/declaracao status`)**: Lista as últimas 10 solicitações do aluno (status, data de início, carga horária de 4h/8h/10h e RA) e força uma varredura IMAP imediata na caixa de entrada.
 
 ---
 
@@ -247,6 +248,8 @@ flowchart TD
 | `PRESIDENTE_ID` | `3717...` | Discord ID do Presidente do projeto (topo da hierarquia e carga 10h) |
 | `ROLE_RH_NOME` | `Recursos Humanos` | Nome do cargo de RH com privilégios de aprovação e revisão de termos |
 | `ROLE_LIDER_NOME` | `Líderes` | Nome do cargo de liderança (destaque na hierarquia e declaração de 10h) |
+| `ROLE_VICE_LIDER_ID` | `1564414013809360946` | ID do cargo de Vice-Liderança (declaração de 8h semanais) |
+| `ROLE_VICE_LIDER_NOME` | `Vice-Líder` | Nome do cargo de vice-liderança |
 | `ROLE_APROVADO_NOME` | `Membro CyberGuard` | Nome do cargo unificado atribuído aos voluntários aprovados |
 | `ROLE_ENTUSIASTA_NOME` | `Entusiasta` | Nome do cargo atribuído automaticamente aos membros sem compromisso formal |
 | `INVITE_ENTUSIASTA_CODES` | `xyz,abc...` | (Opcional) Lista de códigos de convite específicos de entusiastas |
@@ -283,7 +286,7 @@ flowchart TD
 A pasta `docs/manuais/` (e `docs/`) conta com a documentação técnica completa do sistema e os manuais operacionais ilustrados com fluxogramas gerados automaticamente via `node scripts/gerarManuais.js`:
 
 - 📘 **`Documentacao_Completa_CyberGuard_Bot.pdf`** *(também em `docs/Documentacao_Completa_CyberGuard_Bot.pdf`)*: Especificação técnica e operacional completa de todos os módulos, regras de negócio, expressões regulares, validações, esquemas das 12 tabelas SQL, máquinas de estado, permissões, crons e integrações do bot.
-- 📜 **`Manual_Membro_Declaracao_Voluntariado.pdf`**: Guia atualizado para membros e líderes sobre emissão de declarações de voluntariado (regra automática de **4h semanais** para membros e **10h semanais** para líderes), fluxo de assinatura digital no Gov.br, sincronização instantânea (`/declaracao status`) e entrega por DM.
+- 📜 **`Manual_Membro_Declaracao_Voluntariado.pdf`**: Guia atualizado para membros, vice-líderes e líderes sobre emissão de declarações de voluntariado (regra automática de **4h semanais** para membros, **8h semanais** para vice-líderes e **10h semanais** para líderes), fluxo de assinatura digital no Gov.br, sincronização instantânea (`/declaracao status`) e entrega por DM.
 - 🕒 **`Manual_Membro_Ponto.pdf`**: Guia para membros sobre o ponto manual, criação de tarefas no Notion pelo Discord, registro automático por voz (com tolerância de 60s), confirmação periódica de atividade (1h) e ranking.
 - 📕 **`Manual_Membro_Advertencias.pdf`**: Direitos, prazos de 7 e 90 dias e fluxo de contraditório para membros advertidos.
 - 📗 **`Manual_Lider_RH_Ponto.pdf`**: Manual administrativo de ajuste de ponto pelo RH, importação de horas, painel de resumo de líderes e auditoria nas 3 abas da planilha.

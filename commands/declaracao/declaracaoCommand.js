@@ -6,26 +6,90 @@ const { enviarDeclaracaoParaProfessor, verificarRespostasDeclaracoes } = require
 
 const config = require('../../src/config');
 
-async function verificarSeEhLider(client, member, discordId) {
-  if (discordId === config.presidenteId) return true;
+async function resolverGuildMember(client, member, discordId) {
+  if (member && member.roles) return member;
   try {
-    let guildMember = member;
-    if (!guildMember || !guildMember.roles) {
-      const guild = await client.guilds.fetch(config.guildId);
-      guildMember = await guild.members.fetch(discordId).catch(() => null);
-    }
-    if (!guildMember?.roles) return false;
-    const pontoLiderRole = process.env.PONTO_ROLE_LIDERES_ID;
-    return guildMember.roles.cache.some(
-      (r) =>
-        r.name === config.roleLiderNome ||
-        r.name === 'Líderes' ||
-        r.name === 'Lideres' ||
-        (pontoLiderRole && r.id === pontoLiderRole)
-    );
+    const guild = await client.guilds.fetch(config.guildId);
+    return await guild.members.fetch(discordId).catch(() => null);
   } catch {
-    return false;
+    return null;
   }
+}
+
+async function obterCargaHorariaDeclaracao(client, member, discordId) {
+  // Presidente tem regime de Líder (10 horas)
+  if (discordId === config.presidenteId) {
+    return {
+      cargaHoraria: '10 horas',
+      cargaHorariaExtenso: '10 horas semanais',
+      cargoLabel: 'Presidência',
+    };
+  }
+
+  try {
+    const guildMember = await resolverGuildMember(client, member, discordId);
+    if (guildMember?.roles?.cache) {
+      const pontoLiderRole = process.env.PONTO_ROLE_LIDERES_ID;
+      const roleViceLiderId = config.roleViceLiderId || '1564414013809360946';
+
+      // 1. Líderes (10 horas semanais)
+      const ehLider = guildMember.roles.cache.some(
+        (r) =>
+          r.name === config.roleLiderNome ||
+          r.name === 'Líderes' ||
+          r.name === 'Lideres' ||
+          r.name === 'Líder' ||
+          r.name === 'Lider' ||
+          (pontoLiderRole && r.id === pontoLiderRole)
+      );
+
+      if (ehLider) {
+        return {
+          cargaHoraria: '10 horas',
+          cargaHorariaExtenso: '10 horas semanais',
+          cargoLabel: 'Líder',
+        };
+      }
+
+      // 2. Vice-Líderes (8 horas semanais) - ID 1564414013809360946
+      const ehViceLider = guildMember.roles.cache.some(
+        (r) =>
+          r.id === roleViceLiderId ||
+          r.id === '1564414013809360946' ||
+          r.name === config.roleViceLiderNome ||
+          r.name === 'Vice-Líder' ||
+          r.name === 'Vice-Lider' ||
+          r.name === 'Vice-Líderes' ||
+          r.name === 'Vice-Lideres' ||
+          r.name === 'Vice Líder' ||
+          r.name === 'Vice Lider' ||
+          r.name === 'Vice Líderes' ||
+          r.name === 'Vice Lideres'
+      );
+
+      if (ehViceLider) {
+        return {
+          cargaHoraria: '8 horas',
+          cargaHorariaExtenso: '8 horas semanais',
+          cargoLabel: 'Vice-Líder',
+        };
+      }
+    }
+  } catch (err) {
+    console.error('[declaracao] Erro ao identificar cargo do membro:', err.message);
+  }
+
+  // 3. Membros regulares (4 horas semanais)
+  return {
+    cargaHoraria: '4 horas',
+    cargaHorariaExtenso: '4 horas semanais',
+    cargoLabel: 'Membro',
+  };
+}
+
+async function verificarSeEhLider(client, member, discordId) {
+  const info = await obterCargaHorariaDeclaracao(client, member, discordId);
+  return info.cargaHoraria === '10 horas';
 }
 
 module.exports = {
@@ -121,9 +185,11 @@ module.exports = {
       }
 
       const dataInicioFinal = membro.data_inicio || '05/2026';
-      const ehLider = await verificarSeEhLider(interaction.client, interaction.member, interaction.user.id);
-      const cargaHoraria = ehLider ? '10 horas' : '4 horas';
-      const cargaHorariaExtenso = ehLider ? '10 horas semanais' : '4 horas semanais';
+      const { cargaHoraria, cargaHorariaExtenso } = await obterCargaHorariaDeclaracao(
+        interaction.client,
+        interaction.member,
+        interaction.user.id
+      );
 
       const codigo = `DECL-${membro.ra}-${Date.now().toString().slice(-4)}`;
 
@@ -197,4 +263,5 @@ module.exports = {
       }
     }
   },
+  obterCargaHorariaDeclaracao,
 };

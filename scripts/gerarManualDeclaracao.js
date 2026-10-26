@@ -4,10 +4,12 @@ const { DocBuilder, LARGURA_UTIL } = require('./pdfDocBuilder');
 const F = require('./fluxosCanvas');
 
 // Insere uma figura de fluxo na largura útil, mantendo a proporção.
-async function figura(doc, fig) {
+async function figura(doc, fig, escala = 1.0) {
+  const largura = LARGURA_UTIL * escala;
+  const altura = (largura * fig.altura) / fig.largura;
   await doc.imagem(fig.buffer, {
-    largura: LARGURA_UTIL,
-    altura: (LARGURA_UTIL * fig.altura) / fig.largura,
+    largura,
+    altura,
     espacoDepois: 12,
   });
 }
@@ -22,12 +24,12 @@ async function gerarManualMembroDeclaracao() {
   doc.cabecalhoDocumento(
     'Guia do Integrante | Documentos Oficiais',
     'Manual do Membro: Declaração de Voluntariado',
-    'Como emitir sua comprovação oficial de participação, regras de carga horária (Membros e Líderes), fluxo de assinatura digital no Gov.br e entrega automática por DM.'
+    'Como emitir sua comprovação oficial de participação, regras de carga horária (Membros, Vice-Líderes e Líderes), fluxo de assinatura digital no Gov.br e entrega automática por DM.'
   );
 
   doc.secao('1', 'O que é a Declaração de Voluntariado e sua Validade');
   doc.paragrafo(
-    'A Declaração de Voluntariado é o documento formal emitido pelo projeto de extensão CyberGuard (UTFPR - Câmpus Cornélio Procópio) que atesta a sua participação ativa no projeto, especificando a data oficial de ingresso, o curso de graduação vinculado e o regime de carga horária semanal correspondente à sua função (4 horas semanais para membros regulares ou 10 horas semanais para líderes).'
+    'A Declaração de Voluntariado é o documento formal emitido pelo projeto de extensão CyberGuard (UTFPR - Câmpus Cornélio Procópio) que atesta a sua participação ativa no projeto, especificando a data oficial de ingresso, o curso de graduação vinculado e o regime de carga horária semanal correspondente à sua função (4 horas semanais para membros regulares, 8 horas semanais para vice-líderes ou 10 horas semanais para líderes).'
   );
   doc.paragrafo('Principais finalidades do documento:');
   doc.listaItem('Aproveitamento em Atividades Complementares (AC) e horas de extensão na graduação da UTFPR.');
@@ -39,13 +41,14 @@ async function gerarManualMembroDeclaracao() {
     'info'
   );
 
-  doc.secao('2', 'Requisitos Prévios e Regra de Carga Horária (4h vs. 10h)');
+  doc.secao('2', 'Requisitos Prévios e Regra de Carga Horária (4h, 8h e 10h)');
   doc.paragrafo('Para que a emissão automatizada ocorra sem impedimentos, o integrante deve atender aos seguintes critérios:');
   doc.listaItem('Cadastro no Banco de Dados: ter concluído o onboarding ou possuir registro ativo na tabela de membros com Nome Completo e RA.');
   doc.listaItem('Data de Início Registrada: o sistema utiliza a data de início extraída do seu termo de voluntariado assinado (ou 05/2026 como padrão institucional caso não informada).');
   doc.listaItem('Sem Solicitação Pendente: o sistema permite apenas 1 solicitação aberta por vez (status "aguardando_assinatura_professor"), evitando duplicidade de e-mails ao coordenador.');
   doc.subsecao('Cálculo Automático da Carga Horária Semanal:');
   doc.listaItem('Membros Regulares (4 horas semanais): atribuída automaticamente aos integrantes das áreas técnicas e operacionais.');
+  doc.listaItem('Vice-Líderes (8 horas semanais): atribuída automaticamente a quem possui o cargo de vice-liderança (ID: 1564414013809360946) no Discord.');
   doc.listaItem('Líderes e Presidência (10 horas semanais): atribuída automaticamente a quem possui o cargo de liderança ("Líderes" / "Lideres") ou Presidência no servidor do Discord.');
   doc.alerta(
     'Dados Cadastrais Incompletos?',
@@ -64,7 +67,7 @@ async function gerarManualMembroDeclaracao() {
   );
   doc.listaItem('Código da Solicitação: protocolo único rastreável no formato #DECL-<RA>-<4 dígitos> (ex.: #DECL-2525526-5107).');
   doc.listaItem('Aluno, RA e Curso vinculados ao seu registro institucional.');
-  doc.listaItem('Início no Projeto e Carga Horária semanal calculada automaticamente (4 horas semanais ou 10 horas semanais).');
+  doc.listaItem('Início no Projeto e Carga Horária semanal calculada automaticamente (4 horas, 8 horas ou 10 horas semanais).');
   doc.listaItem('Confirmação do envio imediato ao e-mail institucional do coordenador.');
 
   doc.secao('4', 'Fluxo Completo de Tramitação e Assinatura');
@@ -73,11 +76,11 @@ async function gerarManualMembroDeclaracao() {
   );
 
   // Inserção do fluxograma renderizado no Canvas
-  await figura(doc, F.fluxoDeclaracao());
+  await figura(doc, F.fluxoDeclaracao(), 0.70);
 
   doc.subsecao('Etapas Detalhadas:');
   doc.listaItem('Etapa 1 - Solicitação: o integrante aciona o comando /declaracao solicitar no Discord.');
-  doc.listaItem('Etapa 2 - Geração: o bot identifica a carga horária (4h ou 10h), preenche o template oficial da UTFPR com a data por extenso, converte para PDF via LibreOffice e registra o protocolo no PostgreSQL.');
+  doc.listaItem('Etapa 2 - Geração: o bot identifica a carga horária (4h, 8h ou 10h), preenche o template oficial da UTFPR com a data por extenso, converte para PDF via LibreOffice e registra o protocolo no PostgreSQL.');
   doc.listaItem('Etapa 3 - Disparo por E-mail: o PDF gerado é enviado via SMTP com instruções ao Prof. André Luiz Przybysz.');
   doc.listaItem('Etapa 4 - Assinatura Gov.br: o coordenador assina digitalmente no portal Gov.br e responde ao mesmo e-mail anexando o PDF assinado.');
   doc.listaItem('Etapa 5 - Captura IMAP: o bot monitora a caixa de entrada a cada 1 minuto (e sob demanda), localiza a resposta pelo código #DECL-, valida o cabeçalho binário (%PDF) e arquiva o documento.');
@@ -106,6 +109,7 @@ async function gerarManualMembroDeclaracao() {
     ],
     [
       ['Carga Horária (Membro)', '4 horas semanais', 'Padrão para membros regulares das áreas'],
+      ['Carga Horária (Vice-Líder)', '8 horas semanais', 'Atribuída ao cargo de Vice-Líder (ID: 1564414013809360946)'],
       ['Carga Horária (Líder)', '10 horas semanais', 'Atribuída automaticamente a Líderes e Presidente'],
       ['Tipo de Assinatura', 'Digital Gov.br (ICP-Brasil)', 'Plena validade jurídica (Lei 14.063/2020)'],
       ['Ciclo de Checagem', 'A cada 1 min + sob demanda', 'Monitoramento autônomo via protocolo IMAP'],
@@ -120,9 +124,9 @@ async function gerarManualMembroDeclaracao() {
     'Isso ocorre caso você seja um membro legado ou tenha entrado no projeto sem registro completo de Nome e RA na tabela de membros. Envie uma mensagem ao RH informando seu Nome Completo, RA, Curso e data de entrada para atualização no banco.'
   );
 
-  doc.subsecao('2. "Sou líder, mas minha declaração saiu com 4 horas (ou vice-versa). Como proceder?"');
+  doc.subsecao('2. "Sou líder ou vice-líder, mas minha declaração saiu com 4 horas (ou vice-versa). Como proceder?"');
   doc.paragrafo(
-    'O bot verifica automaticamente se você possui o cargo "Líderes" no Discord no exato momento da solicitação. Caso seu cargo ainda não tivesse sido atribuído no servidor quando você executou o comando, peça ao RH para ajustar seu cargo e cancelar a solicitação anterior antes de emitir uma nova.'
+    'O bot verifica seus cargos no Discord no exato momento da solicitação: Líderes recebem 10 horas semanais, Vice-Líderes (cargo ID 1564414013809360946) recebem 8 horas semanais, e Membros regulares recebem 4 horas semanais. Caso seu cargo ainda não estivesse atribuído no servidor quando você executou o comando, peça ao RH para atribuir seu cargo e cancelar a solicitação anterior antes de emitir uma nova.'
   );
 
   doc.subsecao('3. "Minha data de início está incorreta. Como corrigir?"');
