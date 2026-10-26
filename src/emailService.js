@@ -12,15 +12,11 @@ const transporter = nodemailer.createTransport({
 });
 
 async function encaminharTermoAssinado(membro, caminhoArquivo, nomeArquivoOriginal) {
-  const destinatario = config.smtp.emailTermosDestinatario || 'natassyasilva@utfpr.edu.br';
+  const destinatario = config.smtp.emailTermosDestinatario || config.smtp.destinatarios[0] || config.smtp.user;
   const copias =
     config.smtp.emailTermosCc && config.smtp.emailTermosCc.length > 0
       ? config.smtp.emailTermosCc
-      : [
-          'renan.2004@alunos.utfpr.edu.br',
-          'andrequeiroz@alunos.utfpr.edu.br',
-          'vitorprado@alunos.utfpr.edu.br',
-        ];
+      : [];
 
   await transporter.sendMail({
     from: config.smtp.from || config.smtp.user,

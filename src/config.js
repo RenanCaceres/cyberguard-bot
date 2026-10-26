@@ -83,8 +83,8 @@ module.exports = {
       .split(',')
       .map((e) => e.trim())
       .filter(Boolean),
-    emailTermosDestinatario: process.env.EMAIL_TERMOS_DESTINATARIO || 'natassyasilva@utfpr.edu.br',
-    emailTermosCc: (process.env.EMAIL_TERMOS_CC || 'renan.2004@alunos.utfpr.edu.br, andrequeiroz@alunos.utfpr.edu.br, vitorprado@alunos.utfpr.edu.br')
+    emailTermosDestinatario: process.env.EMAIL_TERMOS_DESTINATARIO || '',
+    emailTermosCc: (process.env.EMAIL_TERMOS_CC || '')
       .split(',')
       .map((e) => e.trim())
       .filter(Boolean),

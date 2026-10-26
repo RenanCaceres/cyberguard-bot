@@ -168,7 +168,7 @@ async function gerarDocumentacaoCompleta() {
 
   doc.subsecao('3.4. Arquivamento Setorial, Sincronização Google Drive e Lembretes Diários');
   doc.listaItem('Arquivamento Permanente e Nuvem (Google Drive): o PDF validado é copiado para docs/Termos-Voluntarios-Assinados/<Subpasta>/termo_assinado_<RA>_<Nome>.pdf e sincronizado na pasta correspondente no Google Drive (src/driveService.js), onde <Subpasta> é mapeada automaticamente pela área (HackingEtico, Design, HardwareHacking, Recursos Humanos, SocialMedia, Líderes ou Geral).');
-  doc.listaItem('Disparo SMTP (emailService.js): envia o termo assinado para EMAIL_TERMOS_DESTINATARIO (padrão natassyasilva@utfpr.edu.br) com cópia (CC) para EMAIL_TERMOS_CC.');
+  doc.listaItem('Disparo SMTP (emailService.js): envia o termo assinado para EMAIL_TERMOS_DESTINATARIO com cópia (CC) para os endereços definidos em EMAIL_TERMOS_CC no .env.');
   doc.listaItem('Cron de Lembretes (reminders.js): roda diariamente às 09:00 (CRON_LEMBRETE = "0 9 * * *") para membros em "aguardando_assinatura" com lembrete_resolvido_manualmente = false. Se dentro do prazo de 7 dias, envia DM com contagem regressiva; se vencido, cobra o membro por DM e alerta o canal do RH com o botão "✅ Já está tudo certo, parar de avisar" (lembrete_resolvido_<id>).');
 
   // =========================================================================

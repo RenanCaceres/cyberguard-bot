@@ -263,13 +263,14 @@ flowchart TD
 | `NOTION_SPACE_ID` | `5dec798f-d407-811a-...` | ID do Workspace CyberGuard no Notion |
 | `NOTION_ACTIVE_USER_ID` | `cbb538d8-97c7-463b-...` | ID do usuário administrador executor das requisições v3 |
 | `NOTION_DATA_SOURCE_ID` | `3e5c7...` | ID do Data Source de tarefas no Notion (API `2025-09-03`) |
-| `NOTION_MEMBROS_DB_ID` | `3f8c7...` | ID do Database histórico de membros no Notion (`Ativo`/`Inativo`/`Expulso`) |
+| `NOTION_MEMBROS_DB_ID` | `3f8c7...` | ID do Database histórico de membros no Notion (`Ativo`/`Inativo`) |
+| `DATA_ENCRYPTION_KEY` | `a1b2c3... (64 hex)` | Chave de 256 bits para criptografia `AES-256-GCM` de dados sensíveis no banco |
 | `GEMINI_API_KEY` | `AIza...` | Chave de API do Google Gemini para transcrição de atas |
 | `CANAL_ADVERTENCIAS_ID` | `154...` | Canal restrito onde ocorrem as notificações e deliberações disciplinares |
 | `AUTORES_ADVERTENCIA_IDS`| `3717...,7366...` | IDs dos líderes autorizados a emitir e julgar advertências |
-| `EMAIL_TERMOS_DESTINATARIO`| `natassyasilva@utfpr.edu.br` | Destinatário principal dos termos de voluntariado assinados |
-| `EMAIL_TERMOS_CC` | `renan.2004@...,andrequeiroz@...,vitorprado@...` | Lista de e-mails em cópia (CC) no envio dos termos assinados |
-| `EMAIL_PROFESSOR_COORDENADOR` | `andre.przybysz@utfpr.edu.br` | E-mail do professor coordenador que assina as declarações |
+| `EMAIL_TERMOS_DESTINATARIO`| `coordenacao@utfpr.edu.br` | Destinatário principal dos termos de voluntariado assinados |
+| `EMAIL_TERMOS_CC` | `lider1@alunos.utfpr.edu.br,...` | Lista de e-mails em cópia (CC) no envio dos termos assinados |
+| `EMAIL_PROFESSOR_COORDENADOR` | `coordenador@utfpr.edu.br` | E-mail do professor coordenador que assina as declarações |
 | `GOOGLE_DRIVE_TERMOS_FOLDER_ID` | `1NqvkQ5xh5PiCVWD_vS5p19gCn2hQaP0Y` | ID da pasta raiz no Google Drive para termos de voluntariado assinados |
 | `GOOGLE_DRIVE_DECLARACOES_FOLDER_ID` | `19BNim9PFAwjOkhx4P-ZqVNa6GEGb8aOL` | ID da pasta no Google Drive para declarações de voluntariado assinadas |
 | `IMAP_HOST` / `IMAP_PORT` | `imap.gmail.com` / `993` | Servidor e porta IMAP TLS para leitura autônoma das declarações assinadas |
