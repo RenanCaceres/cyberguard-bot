@@ -105,7 +105,7 @@ function valoresDe(row) {
     horario_inicio: isoUtc(row.aberto_em),
     notion_link: real ? `https://www.notion.so/${String(row.tarefa_id).replace(/-/g, '')}` : '',
     horario_fim: isoUtc(row.fechado_em),
-    link_entrega: '',
+    link_entrega: row.link_entrega ?? (Array.isArray(row.anexos) ? row.anexos.map((a) => a.url).join(' | ') : '') ?? '',
     total_horas: seg == null ? '' : (seg / 3600).toFixed(2),
     status: row.fechado_em ? 'Fechado' : 'Aberto',
     nome_tarefa: row.tarefa_id === 'pendente' ? '' : (row.tarefa_titulo ?? ''),

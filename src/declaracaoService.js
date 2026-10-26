@@ -51,7 +51,7 @@ async function gerarDeclaracaoPdf({
   curso,
   ra,
   dataInicio,
-  cargaHoraria = '10 horas',
+  cargaHoraria = '4 horas',
   dataSolicitacao = new Date(),
 }) {
   const caminhoTemplate = path.resolve('./templates/declaracao_participacao.docx');

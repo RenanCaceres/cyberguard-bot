@@ -50,6 +50,8 @@ async function init() {
     CREATE UNIQUE INDEX IF NOT EXISTS pontos_kov_msg_uniq ON pontos (kov_msg_id) WHERE kov_msg_id IS NOT NULL;
     ALTER TABLE pontos ADD COLUMN IF NOT EXISTS ultimo_check_em     TIMESTAMPTZ;
     ALTER TABLE pontos ADD COLUMN IF NOT EXISTS avisos_inatividade  INT NOT NULL DEFAULT 0;
+    ALTER TABLE pontos ADD COLUMN IF NOT EXISTS anexos              JSONB DEFAULT '[]'::jsonb;
+    ALTER TABLE pontos ADD COLUMN IF NOT EXISTS link_entrega        TEXT;
   `);
 }
 
@@ -216,6 +218,15 @@ async function marcarNotion(id, ok) {
 
 async function marcarPlanilha(id, ok) {
   await q('UPDATE pontos SET sheet_ok = $2 WHERE id = $1', [id, ok]);
+}
+
+async function salvarAnexos(id, anexos) {
+  const link = Array.isArray(anexos) ? anexos.map((a) => a.url).join(' | ') : '';
+  const { rows } = await q(
+    'UPDATE pontos SET anexos = $2, link_entrega = $3 WHERE id = $1 RETURNING *',
+    [id, JSON.stringify(anexos || []), link]
+  );
+  return rows[0] ?? null;
 }
 
 // ---------- importação sessão a sessão do bot KoV Ponto (canal de logs) ----------
@@ -437,7 +448,7 @@ async function setMeta(chave, valor) {
 module.exports = {
   PENDENTE, init, getAberto, getPorId, abrir, definirTarefa, fechar, fecharPorSaida,
   getPendenteReporte, registrarReporte, reportesPendentesAntigos, marcarLembrete,
-  marcarNotion, marcarPlanilha, listarAbertos, resumoPorAluno, resumoPorAlunoSomenteBot, totalAluno, historicoAluno,
+  marcarNotion, marcarPlanilha, salvarAnexos, listarAbertos, resumoPorAluno, resumoPorAlunoSomenteBot, totalAluno, historicoAluno,
   ultimosPontos, ajustarFechamento, importarSaldo, ranking, autoFecharExpirados,
   semanaAtual, periodoSemana, getMeta, setMeta,
   importarKov, kovJaImportado, kovPendentesPlanilha,

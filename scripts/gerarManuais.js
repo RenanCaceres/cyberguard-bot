@@ -125,13 +125,14 @@ async function gerarManualMembroPonto() {
   doc.secao('3', 'Modo 1: Registro Manual pelo Painel de Ponto');
   doc.subsecao('Passo 1: Clicar em "Abrir ponto" (Verde)');
   doc.listaItem('O bot consulta as tarefas em aberto no Notion e exibe um menu paginado para sua escolha.');
-  doc.listaItem('Criar tarefa no Notion: caso sua demanda ainda não esteja cadastrada, clique no botão "Criar tarefa no Notion" para cadastrá-la na hora (informando título e progresso inicial) e já abrir o ponto vinculado a ela.');
+  doc.listaItem('Criar tarefa no Notion: caso sua demanda ainda não esteja cadastrada, clique no botão "Criar tarefa no Notion" para cadastrá-la na hora. O bot preenche automaticamente o Responsável e a Data de início, perguntando o Título da task, a Prioridade (Alta, Média, Baixa ou Mínima) e a Data final (opcional). O status inicial é sempre "Em andamento", passando para "Concluído" automaticamente ao finalizar com 100%.');
   doc.listaItem('Ao escolher ou criar a tarefa, seu ponto é aberto imediatamente e registrado no log do servidor.');
 
   doc.subsecao('Passo 2: Clicar em "Fechar ponto" (Vermelho)');
   doc.listaItem('Progresso da tarefa (0 a 100): digite a porcentagem atingida (ex.: 60 ou 100).');
   doc.listaItem('O que você fez: resumo claro e objetivo das entregas realizadas durante esse período.');
   doc.listaItem('O que falta: obrigatório se o progresso for menor que 100%. Descreva os próximos passos (caso ocorra erro de preenchimento, o bot devolve seu rascunho em texto para você não perder o que escreveu).');
+  doc.listaItem('Anexar Comprovantes (Prints/Documentos): logo após o relato, o bot abre uma thread privada exclusiva (ou mensagem na DM) perguntando se você deseja anexar arquivos. Basta arrastar as fotos ou documentos no chat que o bot registra automaticamente na propriedade "Arquivos e mídia", adiciona no corpo da tarefa do Notion, atualiza a planilha e exibe a pré-visualização no canal de logs.');
 
   doc.secao('4', 'Modo 2: Ponto Automático pela Call de Ponto (Canal de Voz)');
   doc.listaItem('Entrar no canal de voz: o bot abre seu ponto automaticamente no segundo em que você conecta.');
@@ -335,6 +336,7 @@ async function gerarManualLiderAdvertenciasAtualizado() {
 
 const { gerarManualMembroDeclaracao } = require('./gerarManualDeclaracao');
 const { gerarDocumentacaoCompleta } = require('./gerarDocumentacaoCompleta');
+const { gerarDocumentoFluxoTermosOnboarding } = require('./gerarDocumentacaoTermosOnboarding');
 
 (async () => {
   console.log('Compilando manuais e documentação completa em PDF com fluxogramas visuais...');
@@ -343,6 +345,7 @@ const { gerarDocumentacaoCompleta } = require('./gerarDocumentacaoCompleta');
   await gerarManualLiderRHPonto();
   await gerarManualLiderAdvertenciasAtualizado();
   await gerarManualMembroDeclaracao();
+  await gerarDocumentoFluxoTermosOnboarding();
   await gerarDocumentacaoCompleta();
   console.log('Todos os manuais e a documentação completa foram compilados com sucesso!');
 })();

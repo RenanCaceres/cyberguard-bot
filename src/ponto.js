@@ -4,7 +4,7 @@
 // Entrada para o index.js: handlePontoInteraction(interaction) -> boolean (tratado) e init(client).
 
 const {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, MessageFlags,
   ModalBuilder, StringSelectMenuBuilder, UserSelectMenuBuilder, TextInputBuilder, TextInputStyle,
 } = require('discord.js');
 const notion = require('./notion');
@@ -184,7 +184,7 @@ function montarSelecaoTarefas(tarefas, pagina, modo = 'm', conteudo) {
         label: trunc(t.titulo, 100),
         value: valorTarefa(t),
         description: trunc(
-          [t.status ?? 'sem status', t.progresso != null ? `${t.progresso}%` : null, t.responsavel].filter(Boolean).join(' · '),
+          [t.status ?? 'sem status', t.progresso != null ? `${t.progresso}%` : null, t.responsavel, t.prioridade].filter(Boolean).join(' · '),
           100,
         ),
       })),
@@ -324,6 +324,125 @@ async function escolherTarefa(interaction) {
 }
 
 // ---------- criar nova tarefa no Notion e vincular ao ponto ----------
+function normalizarPrioridade(input) {
+  if (!input || !input.trim()) return null;
+  const s = input.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  if (s.includes('alt') || s === '1' || s.includes('urg')) return 'Prioridade alta';
+  if (s.includes('min') || s === '4') return 'Prioridade mínima';
+  if (s.includes('baix') || s === '3') return 'Baixa prioridade';
+  if (s.includes('med') || s === '2' || s.includes('norm')) return 'Prioridade média';
+  return null;
+}
+
+function parsearDataFinal(str) {
+  if (!str || !str.trim()) return null;
+  const limpo = str.trim();
+
+  // Formato DD/MM/AAAA ou DD-MM-AAAA
+  const matchCompleto = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/.exec(limpo);
+  if (matchCompleto) {
+    const dia = Number(matchCompleto[1]);
+    const mes = Number(matchCompleto[2]);
+    const ano = Number(matchCompleto[3]);
+    if (mes < 1 || mes > 12 || dia < 1 || dia > 31 || ano < 2024 || ano > 2099) return { error: true };
+    const d = new Date(ano, mes - 1, dia);
+    if (d.getFullYear() !== ano || d.getMonth() !== mes - 1 || d.getDate() !== dia) return { error: true };
+    return { dataIso: `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}` };
+  }
+
+  // Formato DD/MM ou DD-MM (assume ano atual)
+  const matchCurto = /^(\d{1,2})[\/\-](\d{1,2})$/.exec(limpo);
+  if (matchCurto) {
+    const dia = Number(matchCurto[1]);
+    const mes = Number(matchCurto[2]);
+    const ano = new Date().getFullYear();
+    if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return { error: true };
+    const d = new Date(ano, mes - 1, dia);
+    if (d.getMonth() !== mes - 1 || d.getDate() !== dia) return { error: true };
+    return { dataIso: `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}` };
+  }
+
+  // Formato AAAA-MM-DD
+  const matchIso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(limpo);
+  if (matchIso) {
+    const ano = Number(matchIso[1]);
+    const mes = Number(matchIso[2]);
+    const dia = Number(matchIso[3]);
+    if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return { error: true };
+    return { dataIso: `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}` };
+  }
+
+  return { error: true };
+}
+
+const fmtDataBr = (dataIso) => {
+  if (!dataIso) return '';
+  const partes = String(dataIso).split('-');
+  if (partes.length === 3) return `${partes[2]}/${partes[1]}/${partes[0]}`;
+  return dataIso;
+};
+
+async function resolverMembroNotion(discordId, fallbackUser) {
+  let nome = null;
+  let email = null;
+  let ra = null;
+
+  try {
+    const membro = await db.getMembro(discordId).catch(() => null);
+    if (membro) {
+      nome = membro.nome?.trim() || null;
+      email = membro.email?.trim() || null;
+      ra = membro.ra?.trim() || null;
+    }
+
+    if (!nome || !email) {
+      const { rows: legado } = await db.pool.query('SELECT nome, ra FROM cadastro_legado WHERE discord_id = $1', [discordId]).catch(() => ({ rows: [] }));
+      if (legado && legado[0]) {
+        if (!nome && legado[0].nome) nome = legado[0].nome.trim();
+        if (!ra && legado[0].ra) ra = legado[0].ra.trim();
+      }
+    }
+
+    if (!email) {
+      try {
+        const { buscarPaginaMembro } = require('./notionMembros');
+        const pag = await buscarPaginaMembro(discordId, ra, nome);
+        if (pag) {
+          const em = pag.properties?.['E-mail']?.email;
+          if (em) email = em.trim();
+          if (!nome) {
+            const nm = pag.properties?.Nome?.title?.[0]?.plain_text;
+            if (nm) nome = nm.trim();
+          }
+        }
+      } catch {}
+    }
+  } catch (err) {
+    console.error('[ponto] erro ao resolver info do membro:', err.message);
+  }
+
+  const fallbackNome = fallbackUser?.displayName ?? fallbackUser?.globalName ?? fallbackUser?.username ?? fallbackUser?.user?.username ?? 'Membro';
+  const nomeFinal = nome || fallbackNome;
+
+  let notionUser = null;
+  try {
+    notionUser = await notion.buscarUsuarioNotion({
+      email,
+      nome: nomeFinal,
+      username: fallbackUser?.username ?? fallbackUser?.user?.username,
+    });
+  } catch (err) {
+    console.warn('[ponto] erro ao buscar usuário no Notion:', err.message);
+  }
+
+  return {
+    nome: nomeFinal,
+    email,
+    notionUserId: notionUser?.id || null,
+    notionUserName: notionUser?.name || null,
+  };
+}
+
 function modalCriarTarefa(modo = 'm') {
   return new ModalBuilder()
     .setCustomId(`ponto:modal_nova_tarefa:${modo}`)
@@ -332,11 +451,29 @@ function modalCriarTarefa(modo = 'm') {
       new ActionRowBuilder().addComponents(
         new TextInputBuilder()
           .setCustomId('titulo')
-          .setLabel('Título da tarefa')
+          .setLabel('Título da task')
           .setStyle(TextInputStyle.Short)
           .setRequired(true)
           .setPlaceholder('Ex.: Implementar tela de login / Documentar API')
           .setMaxLength(150),
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('prioridade')
+          .setLabel('Prioridade (Alta, Média, Baixa, Mínima)')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setPlaceholder('Alta, Média, Baixa ou Mínima')
+          .setMaxLength(30),
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('data_final')
+          .setLabel('Data final (opcional)')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(false)
+          .setPlaceholder('dd/mm/aaaa (ex.: 30/10/2026)')
+          .setMaxLength(10),
       ),
       new ActionRowBuilder().addComponents(
         new TextInputBuilder()
@@ -352,26 +489,62 @@ function modalCriarTarefa(modo = 'm') {
 
 async function tratarNovaTarefaModal(interaction, modo = 'm') {
   const titulo = interaction.fields.getTextInputValue('titulo')?.trim();
+  const prioridadeBruta = interaction.fields.getTextInputValue('prioridade')?.trim();
+  const dataFinalBruta = interaction.fields.getTextInputValue('data_final')?.trim();
   const progBruto = interaction.fields.getTextInputValue('progresso')?.trim();
+
+  if (!titulo) {
+    await interaction.reply({ content: '⚠️ O título da task não pode ser vazio.', flags: EPH });
+    return expirar(interaction, 10_000);
+  }
+
+  const prioridade = normalizarPrioridade(prioridadeBruta);
+  if (!prioridade) {
+    await interaction.reply({
+      content: `⚠️ Prioridade inválida ("${trunc(prioridadeBruta, 20)}"). Escolha entre: **Alta**, **Média**, **Baixa** ou **Mínima**.`,
+      flags: EPH,
+    });
+    return expirar(interaction, 15_000);
+  }
+
+  const parseData = parsearDataFinal(dataFinalBruta);
+  if (parseData?.error) {
+    await interaction.reply({
+      content: `⚠️ Data final inválida ("${trunc(dataFinalBruta, 20)}"). Use o formato **dd/mm/aaaa** (ex.: 30/10/2026) ou deixe em branco.`,
+      flags: EPH,
+    });
+    return expirar(interaction, 15_000);
+  }
+  const dataFinalIso = parseData?.dataIso || null;
+
   let progresso = 0;
   if (progBruto) {
     const num = Number(progBruto.replace('%', ''));
     if (!isNaN(num) && num >= 0 && num <= 100) progresso = Math.round(num);
   }
 
-  if (!titulo) {
-    await interaction.reply({ content: '⚠️ O título da tarefa não pode ser vazio.', flags: EPH });
-    return expirar(interaction, 10_000);
-  }
-
   await interaction.deferReply({ flags: EPH });
 
-  const nome = await resolverNomeCompleto(interaction.user.id, interaction.member || interaction.user);
+  // 1. Responsável: preenchimento automático pelo Discord/Notion
+  const membroInfo = await resolverMembroNotion(interaction.user.id, interaction.member || interaction.user);
+
+  // 2. Data de início: preenchimento automático (hoje no fuso de Brasília)
+  const dataInicioIso = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+
   let tarefa;
   try {
     tarefa = await notion.criarTarefa({
       titulo,
-      responsavelNome: nome,
+      responsavelNome: membroInfo.nome,
+      responsavelUserId: membroInfo.notionUserId,
+      prioridade,
+      dataInicio: dataInicioIso,
+      dataFinal: dataFinalIso,
       progresso,
     });
   } catch (err) {
@@ -379,6 +552,13 @@ async function tratarNovaTarefaModal(interaction, modo = 'm') {
     await interaction.editReply('❌ Falha ao criar a tarefa no Notion. Tente novamente em instantes.');
     return expirar(interaction, 12_000);
   }
+
+  const infoAdicional = [
+    `📌 **Prioridade:** ${tarefa.prioridade}`,
+    `📅 **Início:** ${fmtDataBr(tarefa.dataInicio)}`,
+    tarefa.dataFinal ? `🏁 **Data final:** ${fmtDataBr(tarefa.dataFinal)}` : null,
+    membroInfo.notionUserName ? `👤 **Responsável:** ${membroInfo.notionUserName}` : null,
+  ].filter(Boolean).join(' · ');
 
   if (modo === 'v') {
     const userId = interaction.user.id;
@@ -390,6 +570,7 @@ async function tratarNovaTarefaModal(interaction, modo = 'm') {
       await interaction.editReply({
         content:
           `✅ Nova tarefa **${tarefa.titulo}** criada no Notion e vinculada ao seu ponto de voz!\n` +
+          `${infoAdicional}\n` +
           `Seu tempo está contando desde ${ts(aberto.aberto_em, 't')}.\n` +
           `Quando terminar, clique em **Fechar ponto** abaixo ou no painel.`,
         components: [
@@ -404,18 +585,18 @@ async function tratarNovaTarefaModal(interaction, modo = 'm') {
     if (pend && pend.tarefa_id === pdb.PENDENTE) {
       await pdb.definirTarefa(pend.id, dados);
       return interaction.editReply({
-        content: `✅ Nova tarefa **${tarefa.titulo}** criada no Notion! Agora reporte o progresso desta sessão:`,
+        content: `✅ Nova tarefa **${tarefa.titulo}** criada no Notion!\n${infoAdicional}\nAgora reporte o progresso desta sessão:`,
         components: [new ActionRowBuilder().addComponents(btn(`ponto:reportar:${pend.id}`, 'Reportar progresso', ButtonStyle.Primary, '📝'))],
       });
     }
-    await interaction.editReply(`✅ Tarefa **${tarefa.titulo}** criada no Notion.`);
+    await interaction.editReply(`✅ Tarefa **${tarefa.titulo}** criada no Notion.\n${infoAdicional}`);
     return expirar(interaction, 10_000);
   }
 
   // modo manual 'm'
   const row = await pdb.abrir({
     discordId: interaction.user.id,
-    nome,
+    nome: membroInfo.nome,
     usuario: interaction.user.username,
     tarefaId: tarefa.id,
     tarefaTitulo: tarefa.titulo,
@@ -430,8 +611,9 @@ async function tratarNovaTarefaModal(interaction, modo = 'm') {
 
   await interaction.editReply({
     content:
-      `🟢 Tarefa criada no Notion e ponto aberto às ${ts(row.aberto_em, 't')} para **${tarefa.titulo}**` +
-      (tarefa.progresso > 0 ? ` (progresso inicial: ${tarefa.progresso}%)` : '') +
+      `🟢 Tarefa criada no Notion e ponto aberto às ${ts(row.aberto_em, 't')} para **${tarefa.titulo}**\n` +
+      `${infoAdicional}` +
+      (tarefa.progresso > 0 ? ` · 📊 **Progresso:** ${tarefa.progresso}%` : '') +
       '.\nQuando terminar, clique em **Fechar ponto** abaixo ou no painel.',
     components: [
       new ActionRowBuilder().addComponents(
@@ -449,6 +631,10 @@ async function tratarNovaTarefaModal(interaction, modo = 'm') {
       .addFields(
         { name: 'Membro', value: `<@${row.discord_id}> (${row.nome})`, inline: true },
         { name: 'Tarefa', value: trunc(row.tarefa_titulo, 256), inline: true },
+        { name: 'Prioridade', value: tarefa.prioridade, inline: true },
+        { name: 'Data de início', value: fmtDataBr(tarefa.dataInicio), inline: true },
+        { name: 'Data final', value: tarefa.dataFinal ? fmtDataBr(tarefa.dataFinal) : 'Não definida', inline: true },
+        { name: 'Responsável Notion', value: membroInfo.notionUserName || (membroInfo.notionUserId ? 'Vinculado' : 'Não vinculado'), inline: true },
         { name: 'Horário', value: ts(row.aberto_em), inline: true },
       ),
   );
@@ -548,6 +734,210 @@ async function fecharFluxo(interaction) {
   return interaction.showModal(modalReporte('ponto:fechar_modal', 'Fechar ponto', aberto.progresso_inicial));
 }
 
+// ---------- coleta de comprovantes (fotos / documentos) pós-fechamento ----------
+async function iniciarColetaComprovantes(interaction, row, dados) {
+  // Se a tarefa for PENDENTE ou importada, não anexa no Notion
+  if (!row.tarefa_id || row.tarefa_id === pdb.PENDENTE || row.tarefa_id === 'importado') {
+    return null;
+  }
+
+  const userId = interaction.user.id;
+  let canalEnvio = null;
+  let threadCriada = null;
+
+  // 1. Tenta criar thread privada no canal da interação (se estiver em servidor)
+  if (interaction.inGuild() && interaction.channel?.threads) {
+    try {
+      threadCriada = await interaction.channel.threads.create({
+        name: `📎-comprovante-${interaction.user.username}`.slice(0, 50),
+        autoArchiveDuration: 60,
+        type: ChannelType.PrivateThread,
+        reason: 'Upload de comprovantes de entrega do ponto',
+      });
+      if (threadCriada) {
+        await threadCriada.members.add(userId).catch(() => {});
+        canalEnvio = threadCriada;
+      }
+    } catch (err) {
+      console.warn('[ponto] falha ao criar thread privada, tentando pública:', err.message);
+      try {
+        threadCriada = await interaction.channel.threads.create({
+          name: `📎-comprovante-${interaction.user.username}`.slice(0, 50),
+          autoArchiveDuration: 60,
+          type: ChannelType.PublicThread,
+          reason: 'Upload de comprovantes de entrega do ponto',
+        });
+        if (threadCriada) {
+          canalEnvio = threadCriada;
+        }
+      } catch (err2) {
+        console.warn('[ponto] não foi possível criar thread para anexos:', err2.message);
+      }
+    }
+  }
+
+  // 2. Fallback para DM se não foi possível criar thread no servidor
+  if (!canalEnvio) {
+    try {
+      canalEnvio = await interaction.user.createDM();
+    } catch (errDM) {
+      console.warn('[ponto] falha ao abrir DM para anexos:', errDM.message);
+      return null;
+    }
+  }
+
+  const btnSemAnexos = new ActionRowBuilder().addComponents(
+    btn(`ponto:sem_anexos:${row.id}`, 'Concluir sem anexos', ButtonStyle.Secondary, '✅'),
+  );
+
+  let msgPrompt;
+  try {
+    msgPrompt = await canalEnvio.send({
+      content:
+        `📎 <@${userId}> **Deseja anexar comprovantes?**\n` +
+        `Arraste suas imagens (prints) ou documentos (PDF/DOCX) aqui para registrar na tarefa **${row.tarefa_titulo}**, ou clique no botão abaixo para concluir sem anexos.\n` +
+        `*(Envie em até 2 minutos)*`,
+      components: [btnSemAnexos],
+    });
+  } catch (errSend) {
+    console.error('[ponto] erro ao enviar prompt de anexos:', errSend.message);
+    if (threadCriada) threadCriada.delete().catch(() => {});
+    return null;
+  }
+
+  let finalizado = false;
+
+  const encerrar = async () => {
+    if (threadCriada) {
+      setTimeout(() => {
+        threadCriada.delete().catch(() => {});
+      }, 5000);
+    }
+  };
+
+  // Coletor de mensagens com anexos
+  const msgCollector = canalEnvio.createMessageCollector({
+    filter: (m) => m.author.id === userId && m.attachments.size > 0,
+    time: 120_000,
+    max: 1,
+  });
+
+  // Coletor de clique no botão "Concluir sem anexos"
+  const btnCollector = msgPrompt.createMessageComponentCollector({
+    filter: (i) => i.user.id === userId && i.customId === `ponto:sem_anexos:${row.id}`,
+    time: 120_000,
+    max: 1,
+  });
+
+  btnCollector.on('collect', async (i) => {
+    if (finalizado) return;
+    finalizado = true;
+    msgCollector.stop('botao');
+    try {
+      await i.update({
+        content: '✅ **Ponto finalizado sem anexos adicionais.**',
+        components: [],
+      });
+    } catch {}
+    await encerrar();
+  });
+
+  msgCollector.on('collect', async (msg) => {
+    if (finalizado) return;
+    finalizado = true;
+    btnCollector.stop('anexo');
+
+    const anexos = msg.attachments.map((att) => ({
+      url: att.url,
+      proxyUrl: att.proxyURL,
+      name: att.name,
+      contentType: att.contentType,
+      size: att.size,
+    }));
+
+    try {
+      await msgPrompt.edit({
+        content: `⏳ Registrando **${anexos.length}** comprovante(s) na tarefa do Notion e na planilha...`,
+        components: [],
+      }).catch(() => {});
+
+      // 1. Notion: propriedade "Arquivos e mídia", corpo da página e comentário
+      await notion.anexarArquivosNaTarefa(row.tarefa_id, anexos, { usuarioNome: row.nome });
+
+      // 2. Salva no banco de dados (pontos)
+      await pdb.salvarAnexos(row.id, anexos);
+
+      // 3. Atualiza na planilha (Google Sheets)
+      const linksStr = anexos.map((a) => a.url).join(' | ');
+      await sincronizarPlanilha({
+        ...row,
+        link_entrega: linksStr,
+        anexos,
+        progresso: dados.progresso,
+        feito: dados.feito,
+        falta: dados.falta,
+      });
+
+      // 4. Log no canal de logs do Discord
+      const embedLog = new EmbedBuilder()
+        .setColor(0x3498db)
+        .setTitle('📎 Comprovante(s) de entrega anexado(s)')
+        .addFields(
+          { name: 'Membro', value: `<@${row.discord_id}> (${row.nome})`, inline: true },
+          { name: 'Tarefa', value: trunc(row.tarefa_titulo, 256), inline: true },
+          { name: 'Total de anexos', value: `${anexos.length}`, inline: true },
+          {
+            name: 'Arquivos',
+            value: trunc(
+              anexos.map((a, idx) => `${idx + 1}. [${trunc(a.name, 45)}](${a.url})`).join('\n'),
+              1024,
+            ),
+          },
+        )
+        .setFooter({ text: 'CyberGuard • Registrado no Notion e na Planilha' });
+
+      const primeiraImg = anexos.find(
+        (a) => a.contentType?.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(a.name)
+      );
+      if (primeiraImg) {
+        embedLog.setImage(primeiraImg.url);
+      }
+
+      await logar(interaction.client, embedLog);
+
+      await msgPrompt.edit({
+        content:
+          `✅ **${anexos.length} comprovante(s) anexado(s) com sucesso na tarefa do Notion!**\n` +
+          anexos.map((a) => `• 📄 **${a.name}**`).join('\n') +
+          `\n\n*Esta janela será encerrada em instantes.*`,
+        components: [],
+      }).catch(() => {});
+    } catch (err) {
+      console.error('[ponto] erro ao processar anexos:', err);
+      await msgPrompt.edit({
+        content: `⚠️ Ocorreu um erro ao salvar os anexos no Notion, mas suas horas permanecem salvas.`,
+        components: [],
+      }).catch(() => {});
+    }
+
+    await encerrar();
+  });
+
+  msgCollector.on('end', async (_, reason) => {
+    if (!finalizado && reason === 'time') {
+      try {
+        await msgPrompt.edit({
+          content: '⏱️ Tempo para anexar comprovantes expirado. Ponto finalizado.',
+          components: [],
+        });
+      } catch {}
+      await encerrar();
+    }
+  });
+
+  return threadCriada;
+}
+
 async function fecharModal(interaction) {
   const dados = await lerCamposReporte(interaction);
   if (!dados) return;
@@ -562,11 +952,18 @@ async function fecharModal(interaction) {
   }
   const { notionOk, seg } = await finalizarSessao(interaction.client, row, dados, '🔴 Ponto fechado');
   const destino = dados.progresso >= 100 ? '**Concluída** ✅' : `**Em andamento** (${dados.progresso}%)`;
+
+  const threadCriada = await iniciarColetaComprovantes(interaction, row, dados);
+  const avisoThread = threadCriada
+    ? `\n📎 **Comprovantes:** Acesse a thread <#${threadCriada.id}> para anexar prints/documentos ou concluir.`
+    : (interaction.inGuild() ? '\n📎 **Comprovantes:** Verifique sua DM para anexar prints/documentos ou concluir.' : '');
+
   await interaction.editReply(
     `🔴 Ponto fechado. Duração: **${fmtDur(seg)}** em **${row.tarefa_titulo}** → ${destino}` +
-    (notionOk ? '' : '\n⚠️ Suas horas foram salvas, mas não consegui atualizar o Notion. Avise um Líder.'),
+    (notionOk ? '' : '\n⚠️ Suas horas foram salvas, mas não consegui atualizar o Notion. Avise um Líder.') +
+    avisoThread,
   );
-  expirar(interaction, notionOk ? 20_000 : 60_000);
+  expirar(interaction, notionOk ? 30_000 : 60_000);
 }
 
 // ---------- ponto automático pela call de voz ----------
@@ -753,10 +1150,17 @@ async function reporteModal(interaction, pontoId) {
   if (!row) return interaction.editReply({ content: 'Esse ponto já foi reportado (ou não é seu).', components: [] });
   const { notionOk, seg } = await finalizarSessao(interaction.client, row, dados, '📝 Progresso reportado (call)');
   const destino = dados.progresso >= 100 ? '**Concluída** ✅' : `**Em andamento** (${dados.progresso}%)`;
+
+  const threadCriada = await iniciarColetaComprovantes(interaction, row, dados);
+  const avisoThread = threadCriada
+    ? `\n📎 **Comprovantes:** Acesse a thread <#${threadCriada.id}> para anexar prints/documentos ou concluir.`
+    : (interaction.inGuild() ? '\n📎 **Comprovantes:** Verifique sua DM para anexar prints/documentos ou concluir.' : '');
+
   return interaction.editReply({
     content:
       `📝 Registrado: **${fmtDur(seg)}** em **${row.tarefa_titulo}** → ${destino}` +
-      (notionOk ? '' : '\n⚠️ Suas horas foram salvas, mas não consegui atualizar o Notion. Avise um Líder.'),
+      (notionOk ? '' : '\n⚠️ Suas horas foram salvas, mas não consegui atualizar o Notion. Avise um Líder.') +
+      avisoThread,
     components: [],
   });
 }
@@ -1206,6 +1610,12 @@ async function handlePontoInteraction(interaction) {
         await detalhe(interaction, alvo, Number(pag));
       } else if (id.startsWith('ponto:reportar:') || id.startsWith('ponto:final:')) {
         await abrirModalReporte(interaction, Number(id.split(':')[2]));
+      } else if (id.startsWith('ponto:sem_anexos:')) {
+        await interaction.update({ content: '✅ **Ponto finalizado sem anexos adicionais.**', components: [] }).catch(() => {});
+        if (interaction.channel?.isThread?.()) {
+          setTimeout(() => interaction.channel.delete().catch(() => {}), 3000);
+        }
+        return true;
       }
       else if (id.startsWith('ponto:nova_tarefa:')) {
         const modo = id.split(':')[2] || 'm';

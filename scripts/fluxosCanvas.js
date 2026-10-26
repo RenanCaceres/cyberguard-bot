@@ -360,4 +360,53 @@ function fluxoDeclaracao() {
   return pronto(n);
 }
 
-module.exports = { fluxoAdvertencias, fluxoPontoAbrirFechar, fluxoPontoVerificacao, fluxoAjusteRH, fluxoDeclaracao };
+// ---------------------------------------------------------------------------------------
+// 6) FLUXO DE TERMOS ASSINADOS DE VOLUNTARIADO (ONBOARDING OTIMIZADO)
+// ---------------------------------------------------------------------------------------
+function fluxoTermosOnboarding() {
+  const n = nova(780);
+  const { ctx } = n;
+
+  const passos = [
+    { linhas: ['1. Aluno assina e envia o Termo na DM', 'assinatura gov.br (1ª assinatura) + data preenchida'], tema: 'azul', w: 450, h: 60 },
+    { linhas: ['2. Bot valida termo e gera protocolo #TERMO-', 'validação das 6 regras Gov.br + código único rastreável'], tema: 'laranja', w: 450, h: 60 },
+    { linhas: ['3. Disparo de e-mail à Profª Natassya (SMTP)', 'assunto [CyberGuard] Termo #TERMO-... com PDF anexado'], tema: 'laranja', w: 450, h: 60 },
+    { linhas: ['4. Co-assinatura da Coordenação no Gov.br', 'Profª Natassya assina (2ª assinatura) e responde o e-mail'], tema: 'azul', w: 450, h: 60 },
+    { linhas: ['5. Leitura IMAP e captura autônoma pelo Bot', 'localiza #TERMO-, baixa o PDF e valida as 2 assinaturas'], tema: 'laranja', w: 450, h: 60 },
+  ];
+
+  let y = 35;
+  passos.forEach((p, i) => {
+    const x = (W - p.w) / 2;
+    caixa(ctx, x, y, p.w, p.h, p.tema, p.linhas);
+    if (i < passos.length - 1) {
+      seta(ctx, [[W / 2, y + p.h], [W / 2, y + p.h + 28]]);
+    }
+    y += p.h + 28;
+  });
+
+  const base = y;
+  const tronco = base + 24;
+  const destinos = [
+    { x: 30, tema: 'verde', linhas: ['GOOGLE DRIVE', 'Upload automático na pasta', 'da área do voluntário'] },
+    { x: 305, tema: 'verde', linhas: ['BANCO DE DADOS', 'Status alterado para "concluido"', 'e registro do PDF definitivo'] },
+    { x: 580, tema: 'cinza', linhas: ['CANAL DO RH', 'Confirmação e cópia para', 'arquivo permanente'] },
+  ];
+
+  destinos.forEach((d) => {
+    const cx = d.x + 110;
+    seta(ctx, [[W / 2, base], [W / 2, tronco], [cx, tronco], [cx, tronco + 32]]);
+    caixa(ctx, d.x, tronco + 32, 220, 80, d.tema, d.linhas);
+  });
+
+  legenda(ctx, 690, [
+    ['azul', 'Ação Humana (Aluno / Profª Natassya)'],
+    ['laranja', 'Automação do Bot'],
+    ['verde', 'Drive & Banco de Dados'],
+    ['cinza', 'Canal do RH'],
+  ], 'Dica: O fluxo elimina qualquer intervenção manual de download e upload no Google Drive.');
+
+  return pronto(n);
+}
+
+module.exports = { fluxoAdvertencias, fluxoPontoAbrirFechar, fluxoPontoVerificacao, fluxoAjusteRH, fluxoDeclaracao, fluxoTermosOnboarding };

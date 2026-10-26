@@ -17,6 +17,8 @@ module.exports = {
     }
   })(),
   roleLiderNome: process.env.ROLE_LIDER_NOME || 'Líderes',
+  roleViceLiderId: process.env.ROLE_VICE_LIDER_ID || '1564414013809360946',
+  roleViceLiderNome: process.env.ROLE_VICE_LIDER_NOME || 'Vice-Líder',
   guildId: process.env.GUILD_ID,
   channelRhId: process.env.CHANNEL_RH_ID,
   channelBoasVindasId: process.env.CHANNEL_BOASVINDAS_ID || '',
