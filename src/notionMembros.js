@@ -18,6 +18,8 @@ function normalizarSetor(area) {
   if (a.includes('humano') || a.includes('rh')) return 'Recursos Humanos';
   if (a.includes('social') || a.includes('copy')) return 'Social Media & Copy';
   if (a.includes('lider')) return 'Líderes';
+  if (a.includes('educacion')) return 'Educacional';
+  if (a.includes('desenvolv')) return 'Desenvolvimento';
   return area.trim();
 }
 

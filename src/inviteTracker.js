@@ -212,7 +212,7 @@ async function atribuirCargoEntusiasta(member) {
           `Você acabou de entrar na nossa comunidade com o cargo de **Entusiasta** 💡.\n\n` +
           `Fique à vontade para acompanhar nossos projetos, participar dos canais de bate-papo, tirar dúvidas sobre cibersegurança e assistir aos nossos workshops e palestras abertas.\n\n` +
           `*Aqui você não precisa preencher termos, nem cumprir horas ou bater ponto. Sinta-se em casa!*\n\n` +
-          `📌 *Se em algum momento você quiser se tornar um voluntário oficial da UTFPR em um dos nossos times (Hacking Ético, Design, Hardware Hacking, Recursos Humanos, Social Media), fale com a nossa liderança a qualquer momento!*`
+          `📌 *Se em algum momento você quiser se tornar um voluntário oficial da UTFPR em um dos nossos times (Hacking Ético, Design, Hardware Hacking, Recursos Humanos, Social Media, Educacional, Desenvolvimento), fale com a nossa liderança a qualquer momento!*`
       )
       .setFooter({ text: 'CyberGuard UTFPR — Inteligência de Ameaças & Educação Digital' });
 

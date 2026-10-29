@@ -178,9 +178,25 @@ async function handleAprovacaoInteraction(interaction) {
       );
 
       for (const nomeCargo of nomesParaAtribuir) {
-        let role = interaction.guild.roles.cache.find((r) => r.name === nomeCargo);
+        let role = null;
+        const roleIdFixo = config.rolesArea && config.rolesArea[nomeCargo];
+        if (roleIdFixo) {
+          role =
+            interaction.guild.roles.cache.get(roleIdFixo) ??
+            (await interaction.guild.roles.fetch(roleIdFixo).catch(() => null));
+        }
+        if (!role) {
+          role = interaction.guild.roles.cache.find(
+            (r) => r.name.toLowerCase() === nomeCargo.toLowerCase()
+          );
+        }
         if (!role && (nomeCargo === 'Hacking Ético' || nomeCargo === 'Hacking Etico') && config.roleHackingEticoId) {
-          role = interaction.guild.roles.cache.get(config.roleHackingEticoId);
+          role =
+            interaction.guild.roles.cache.get(config.roleHackingEticoId) ??
+            (await interaction.guild.roles.fetch(config.roleHackingEticoId).catch(() => null));
+        }
+        if (!role) {
+          role = interaction.guild.roles.cache.find((r) => r.name === nomeCargo);
         }
         if (role) {
           await guildMember.roles.add(role);
@@ -216,9 +232,18 @@ async function handleAprovacaoInteraction(interaction) {
     }
   }
 
-  const linkArea = config.whatsappLinksArea[membroAtualizado.area_interesse];
+  const areaMembro = membroAtualizado.area_interesse;
+  let linkArea = config.whatsappLinksArea ? config.whatsappLinksArea[areaMembro] : null;
+  if (!linkArea && areaMembro && config.whatsappLinksArea) {
+    const chave = Object.keys(config.whatsappLinksArea).find(
+      (k) =>
+        k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') ===
+        areaMembro.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    );
+    if (chave) linkArea = config.whatsappLinksArea[chave];
+  }
   const linhaLinkArea = linkArea
-    ? `Aqui está também o link do grupo da sua área (${membroAtualizado.area_interesse}) no WhatsApp: ${linkArea}\n\n`
+    ? `Aqui está também o link do grupo da sua área (${areaMembro}) no WhatsApp: ${linkArea}\n\n`
     : '';
 
   await usuarioDiscord.send({

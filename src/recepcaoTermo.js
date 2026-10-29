@@ -38,6 +38,8 @@ function obterSubpastaArea(area) {
   if (a.includes('social') || a.includes('copy')) return 'SocialMedia';
   if (a.includes('lider')) return 'Líderes';
   if (a.includes('observatorio')) return 'Observatorio';
+  if (a.includes('educacion')) return 'Educacional';
+  if (a.includes('desenvolv')) return 'Desenvolvimento';
   return 'Geral';
 }
 

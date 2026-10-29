@@ -185,12 +185,19 @@ client.on('guildMemberRemove', async (member) => {
         'Hacking Ético',
         'Red Team',
         'Blue Team',
+        'Educacional',
+        'Desenvolvimento',
         config.roleLiderNome,
       ]);
+      const idsRelevantes = new Set([
+        config.roleHackingEticoId,
+        config.roleEducacionalId,
+        config.roleDesenvolvimentoId,
+      ].filter(Boolean));
       const tinhaCargoRelevante =
         member.roles &&
         member.roles.cache.some(
-          (r) => nomesRelevantes.has(r.name) || r.id === config.roleHackingEticoId
+          (r) => nomesRelevantes.has(r.name) || idsRelevantes.has(r.id)
         );
 
       if (tinhaCargoRelevante) {

@@ -9,6 +9,22 @@ module.exports = {
   purpleTeamId: process.env.PURPLE_TEAM_ID || '',
   roleHackingEticoId: process.env.ROLE_HACKING_ETICO_ID || '',
   categoriaHackingEticoId: process.env.CATEGORIA_HACKING_ETICO_ID || '',
+  roleEducacionalId: process.env.ROLE_EDUCACIONAL_ID || '1563740930895511682',
+  categoriaEducacionalId: process.env.CATEGORIA_EDUCACIONAL_ID || '1563743308600049784',
+  roleDesenvolvimentoId: process.env.ROLE_DESENVOLVIMENTO_ID || '1563740560051671041',
+  categoriaDesenvolvimentoId: process.env.CATEGORIA_DESENVOLVIMENTO_ID || '1563742320460042362',
+  rolesArea: {
+    'Hacking Ético': process.env.ROLE_HACKING_ETICO_ID || '1502772363178147860',
+    'Hacking Etico': process.env.ROLE_HACKING_ETICO_ID || '1502772363178147860',
+    'Educacional': process.env.ROLE_EDUCACIONAL_ID || '1563740930895511682',
+    'Desenvolvimento': process.env.ROLE_DESENVOLVIMENTO_ID || '1563740560051671041',
+  },
+  categoriasArea: {
+    'Hacking Ético': process.env.CATEGORIA_HACKING_ETICO_ID || '1518448843279302696',
+    'Hacking Etico': process.env.CATEGORIA_HACKING_ETICO_ID || '1518448843279302696',
+    'Educacional': process.env.CATEGORIA_EDUCACIONAL_ID || '1563743308600049784',
+    'Desenvolvimento': process.env.CATEGORIA_DESENVOLVIMENTO_ID || '1563742320460042362',
+  },
   lideresTime: (() => {
     try {
       return JSON.parse(process.env.LIDERES_TIME_JSON || '{}');
@@ -34,7 +50,7 @@ module.exports = {
   areasInteresse: (() => {
     const brutas = (
       process.env.AREAS_INTERESSE ||
-      'Social Media & Copy,Recursos Humanos,Design,Hardware Hacking,Hacking Ético'
+      'Social Media & Copy,Recursos Humanos,Design,Hardware Hacking,Hacking Ético,Educacional,Desenvolvimento'
     )
       .split(',')
       .map((a) => a.trim())
@@ -47,6 +63,12 @@ module.exports = {
       }
       if (a === 'social media' || a === 'social media & copy') {
         return 'Social Media & Copy';
+      }
+      if (a === 'educacional') {
+        return 'Educacional';
+      }
+      if (a === 'desenvolvimento') {
+        return 'Desenvolvimento';
       }
       return area;
     });
