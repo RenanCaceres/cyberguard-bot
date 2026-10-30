@@ -11,6 +11,7 @@ const importarHorasCommand = require('./commands/importar-horas/importarHorasCom
 const declaracaoCommand = require('./commands/declaracao/declaracaoCommand');
 const meusDadosCommand = require('./commands/meus-dados/meusDadosCommand');
 const relatorioSemanalCommand = require('./commands/relatorio-semanal/relatorioSemanalCommand');
+const documentacaoCommand = require('./commands/documentacao/documentacaoCommand');
 
 const comandos = [
   reuniaoCommand.data.toJSON(),
@@ -24,6 +25,7 @@ const comandos = [
   declaracaoCommand.data.toJSON(),
   meusDadosCommand.data.toJSON(),
   relatorioSemanalCommand.data.toJSON(),
+  documentacaoCommand.data.toJSON(),
 ];
 
 const rest = new REST({ version: '10' }).setToken(config.discordToken);

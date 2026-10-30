@@ -1,6 +1,7 @@
 'use strict';
 const { DocBuilder, LARGURA_UTIL } = require('./pdfDocBuilder');
 const F = require('./fluxosCanvas');
+const { simularModuloPonto, simularModuloAdvertencias } = require('./simulacoesCanvas');
 
 // Insere uma figura de fluxo na largura útil, mantendo a proporção.
 async function figura(doc, fig) {
@@ -52,6 +53,11 @@ async function gerarManualMembroAdvertencias() {
   doc.listaItem('"Não concordo" abre formulário de réplica de até 1.500 caracteres, enviado ao líder para análise.');
   doc.listaItem('Contra-Argumentar devolve a conversa a você com NOVO prazo de 7 dias para você decidir novamente.');
   doc.listaItem('Se você não responder em 7 dias, a advertência passa para "Sem Resposta" e o líder decide entre reenviar ou cancelar.');
+
+  doc.subsecao('Simulação Visual no Discord (Notificação e Defesa)');
+  doc.paragrafo('A imagem abaixo demonstra a notificação recebida por DM e a janela do contraditório:');
+  const simAdv = simularModuloAdvertencias();
+  await doc.imagem(simAdv, { largura: LARGURA_UTIL, altura: (LARGURA_UTIL * 530) / 920, espacoDepois: 12 });
 
   doc.secao('4', 'Como Responder: Ciente vs. Não Concordo');
   doc.subsecao('Opção A: Botão "Ciente" (Reconhecimento do Fato)');
@@ -121,6 +127,11 @@ async function gerarManualMembroPonto() {
   doc.listaItem('Seleção da Demanda: o bot consulta o Notion e você seleciona em qual tarefa vai trabalhar.');
   doc.listaItem('Fechamento e Relato: ao desconectar da call ou clicar em fechar, preencha o progresso e o que foi feito.');
   doc.listaItem('Sincronização: as horas são gravadas no Postgres, no Notion, no Google Sheets e no log do Discord.');
+
+  doc.subsecao('Simulação Visual no Discord (Painel e Checagem 1h)');
+  doc.paragrafo('A imagem abaixo demonstra o painel interativo com botões e a mensagem de ociosidade enviada na DM:');
+  const simPonto = simularModuloPonto();
+  await doc.imagem(simPonto, { largura: LARGURA_UTIL, altura: (LARGURA_UTIL * 560) / 920, espacoDepois: 12 });
 
   doc.secao('3', 'Modo 1: Registro Manual pelo Painel de Ponto');
   doc.subsecao('Passo 1: Clicar em "Abrir ponto" (Verde)');
@@ -337,6 +348,9 @@ async function gerarManualLiderAdvertenciasAtualizado() {
 const { gerarManualMembroDeclaracao } = require('./gerarManualDeclaracao');
 const { gerarDocumentacaoCompleta } = require('./gerarDocumentacaoCompleta');
 const { gerarDocumentoFluxoTermosOnboarding } = require('./gerarDocumentacaoTermosOnboarding');
+const { gerarManualReunioesIA } = require('./gerarManualReuniao');
+const { gerarManualMembroOnboarding } = require('./gerarManualOnboarding');
+const { gerarManualLGPDMeusDados } = require('./gerarManualMeusDados');
 
 (async () => {
   console.log('Compilando manuais e documentação completa em PDF com fluxogramas visuais...');
@@ -345,6 +359,9 @@ const { gerarDocumentoFluxoTermosOnboarding } = require('./gerarDocumentacaoTerm
   await gerarManualLiderRHPonto();
   await gerarManualLiderAdvertenciasAtualizado();
   await gerarManualMembroDeclaracao();
+  await gerarManualMembroOnboarding();
+  await gerarManualReunioesIA();
+  await gerarManualLGPDMeusDados();
   await gerarDocumentoFluxoTermosOnboarding();
   await gerarDocumentacaoCompleta();
   console.log('Todos os manuais e a documentação completa foram compilados com sucesso!');

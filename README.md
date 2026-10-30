@@ -231,6 +231,7 @@ flowchart TD
 | `/reuniao finalizar` | Liderança, RH & Admin | Encerra a gravação, transcreve em lotes via Gemini AI e gera a Ata formal em PDF |
 | `/reuniao historico` | Qualquer Membro | Lista as últimas atas de reunião registradas no servidor (1 a 25 registros) |
 | `/reuniao reprocessar` | Liderança, RH & Admin | Reprocessa o backup de áudio de uma ata (retido por 7 dias) em caso de falha de cota |
+| `/documentacao` | Qualquer Membro | Central interativa de manuais, simulações visuais em Canvas, PDFs oficiais e assistente de dúvidas com IA (Gemini) |
 
 ---
 
@@ -286,11 +287,14 @@ flowchart TD
 A pasta `docs/manuais/` (e `docs/`) conta com a documentação técnica completa do sistema e os manuais operacionais ilustrados com fluxogramas gerados automaticamente via `node scripts/gerarManuais.js`:
 
 - 📘 **`Documentacao_Completa_CyberGuard_Bot.pdf`** *(também em `docs/Documentacao_Completa_CyberGuard_Bot.pdf`)*: Especificação técnica e operacional completa de todos os módulos, regras de negócio, expressões regulares, validações, esquemas das 12 tabelas SQL, máquinas de estado, permissões, crons e integrações do bot.
-- 📜 **`Manual_Membro_Declaracao_Voluntariado.pdf`**: Guia atualizado para membros, vice-líderes e líderes sobre emissão de declarações de voluntariado (regra automática de **4h semanais** para membros, **8h semanais** para vice-líderes e **10h semanais** para líderes), fluxo de assinatura digital no Gov.br, sincronização instantânea (`/declaracao status`) e entrega por DM.
-- 🕒 **`Manual_Membro_Ponto.pdf`**: Guia para membros sobre o ponto manual, criação de tarefas no Notion pelo Discord, registro automático por voz (com tolerância de 60s), confirmação periódica de atividade (1h) e ranking.
-- 📕 **`Manual_Membro_Advertencias.pdf`**: Direitos, prazos de 7 e 90 dias e fluxo de contraditório para membros advertidos.
+- 📜 **`Manual_Membro_Declaracao_Voluntariado.pdf`**: Guia atualizado para membros, vice-líderes e líderes sobre emissão de declarações de voluntariado (regra automática de **4h semanais** para membros, **8h semanais** para vice-líderes e **10h semanais** para líderes), fluxo de assinatura digital no Gov.br, sincronização instantânea (`/declaracao status`) e entrega por DM com simulação da interface Discord.
+- 🕒 **`Manual_Membro_Ponto.pdf`**: Guia para membros sobre o ponto manual, criação de tarefas no Notion pelo Discord, registro automático por voz (com tolerância de 60s), confirmação periódica de atividade (1h), ranking e simulação gráfica interativa.
+- 📕 **`Manual_Membro_Advertencias.pdf`**: Direitos, prazos de 7 e 90 dias, fluxo de contraditório para membros advertidos e simulação da notificação por DM.
 - 📗 **`Manual_Lider_RH_Ponto.pdf`**: Manual administrativo de ajuste de ponto pelo RH, importação de horas, painel de resumo de líderes e auditoria nas 3 abas da planilha.
 - 📙 **`Manual_Lider_Advertencias_Atualizado.pdf`**: Procedimentos operacionais para abertura de advertências, fila automática, reincidência e votação de expulsão.
+- 📝 **`Manual_Membro_Onboarding_GovBr.pdf`**: Guia passo a passo do voluntário para as 13 etapas na DM, consentimento LGPD, assinatura digital no portal Gov.br (ICP-Brasil) e critérios de validação.
+- 🎙️ **`Manual_Lider_Reunioes_IA.pdf`**: Manual de gravação de reuniões por voz, garantia de Opt-out LGPD, transcrição em lote com Google Gemini 2.5 Flash e geração de atas em PDF.
+- 🔒 **`Manual_Membro_LGPD_MeusDados.pdf`**: Manual de exercício dos direitos do titular de dados (Art. 18 LGPD), mensagens efêmeras, retificação cadastral e auditoria.
 
 ---
 

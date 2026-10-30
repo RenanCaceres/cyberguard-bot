@@ -2,6 +2,7 @@
 const path = require('path');
 const { DocBuilder, LARGURA_UTIL } = require('./pdfDocBuilder');
 const F = require('./fluxosCanvas');
+const { simularModuloDeclaracao } = require('./simulacoesCanvas');
 
 // Insere uma figura de fluxo na largura útil, mantendo a proporção.
 async function figura(doc, fig, escala = 1.0) {
@@ -69,6 +70,11 @@ async function gerarManualMembroDeclaracao() {
   doc.listaItem('Aluno, RA e Curso vinculados ao seu registro institucional.');
   doc.listaItem('Início no Projeto e Carga Horária semanal calculada automaticamente (4 horas, 8 horas ou 10 horas semanais).');
   doc.listaItem('Confirmação do envio imediato ao e-mail institucional do coordenador.');
+
+  doc.subsecao('3. Simulação Visual no Discord (Comando e Entrega em DM)');
+  doc.paragrafo('A imagem abaixo demonstra o card oficial emitido e o recebimento do documento assinado:');
+  const simDecl = simularModuloDeclaracao();
+  await doc.imagem(simDecl, { largura: LARGURA_UTIL, altura: (LARGURA_UTIL * 520) / 920, espacoDepois: 12 });
 
   doc.secao('4', 'Fluxo Completo de Tramitação e Assinatura');
   doc.paragrafo(
