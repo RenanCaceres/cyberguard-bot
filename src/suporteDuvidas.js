@@ -112,7 +112,7 @@ async function handleDuvidasInteraction(interaction) {
   // 1. Botão Acessar Regras e Manuais
   if (interaction.isButton() && interaction.customId === 'painel_duvidas_regras') {
     const documentacaoCommand = require('../commands/documentacao/documentacaoCommand');
-    return documentacaoCommand.execute(interaction);
+    return documentacaoCommand.execute(interaction, { ephemeral: true });
   }
 
   // 2. Botão Tirar Dúvida com IA

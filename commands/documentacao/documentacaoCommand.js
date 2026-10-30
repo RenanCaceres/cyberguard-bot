@@ -247,14 +247,16 @@ module.exports = {
         .setRequired(false)
     ),
 
-  async execute(interaction) {
-    const moduloEscolhido = interaction.options.getString('modulo');
-    const duvida = interaction.options.getString('duvida');
+  async execute(interaction, { modulo = null, duvida = null, ephemeral = false } = {}) {
+    const ehBotao = interaction.isButton?.();
+    const isEphemeral = ephemeral || ehBotao;
+    const moduloEscolhido = modulo || (interaction.options?.getString ? interaction.options.getString('modulo') : null);
+    const duvidaInformada = duvida || (interaction.options?.getString ? interaction.options.getString('duvida') : null);
 
     // Se o usuário já enviou uma dúvida direta no comando slash
-    if (duvida) {
-      await interaction.deferReply();
-      const respostaIA = await responderDuvidaComGemini(duvida, {
+    if (duvidaInformada) {
+      await interaction.deferReply({ ephemeral: isEphemeral });
+      const respostaIA = await responderDuvidaComGemini(duvidaInformada, {
         modulo: moduloEscolhido,
         nomeUsuario: interaction.user.displayName || interaction.user.username,
       });
@@ -262,7 +264,7 @@ module.exports = {
       const embedResposta = new EmbedBuilder()
         .setColor(0x2f6fed)
         .setTitle('🤖 CyberGuard Assist • Resposta da IA (Gemini)')
-        .setDescription(`**Sua Dúvida:**\n> *${duvida}*\n\n**Orientações Oficiais:**\n${respostaIA}`)
+        .setDescription(`**Sua Dúvida:**\n> *${duvidaInformada}*\n\n**Orientações Oficiais:**\n${respostaIA}`)
         .setFooter({ text: 'Baseado na documentação oficial e regras regimentais do CyberGuard Bot.' });
 
       const row = new ActionRowBuilder().addComponents(
@@ -278,7 +280,7 @@ module.exports = {
 
     // Se um módulo específico foi selecionado no comando
     if (moduloEscolhido && MODULOS[moduloEscolhido]) {
-      await interaction.deferReply();
+      await interaction.deferReply({ ephemeral: isEphemeral });
       const painel = construirPainelModulo(moduloEscolhido);
       return interaction.editReply({
         embeds: [painel.embed],
@@ -331,9 +333,18 @@ module.exports = {
       )
       .setFooter({ text: 'Selecione um módulo abaixo para abrir a documentação detalhada com PDF.' });
 
+    if (interaction.deferred || interaction.replied) {
+      return interaction.followUp({
+        embeds: [embedGeral],
+        components: [construirMenuSelecao(), construirBotoesMenuPrincipal()],
+        ephemeral: isEphemeral,
+      });
+    }
+
     return interaction.reply({
       embeds: [embedGeral],
       components: [construirMenuSelecao(), construirBotoesMenuPrincipal()],
+      ephemeral: isEphemeral,
     });
   },
 
