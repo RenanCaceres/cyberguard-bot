@@ -1,5 +1,7 @@
 'use strict';
 const path = require('path');
+const fs = require('fs');
+const { PDFDocument } = require('pdf-lib');
 const { DocBuilder, LARGURA_UTIL } = require('./pdfDocBuilder');
 const { simularModuloOnboarding } = require('./simulacoesCanvas');
 
@@ -90,8 +92,34 @@ async function gerarManualMembroOnboarding() {
     ]
   );
 
-  await doc.salvar(path.join(__dirname, '../docs/manuais/Manual_Membro_Onboarding_GovBr.pdf'));
-  console.log('[PDF] Gerado com sucesso: docs/manuais/Manual_Membro_Onboarding_GovBr.pdf');
+  doc.secao('6', 'Guia Prático Passo a Passo com Prints (Tutorial Gov.br)');
+  doc.paragrafo(
+    'A seguir, apresentamos o tutorial visual oficial criado pela Diretoria de Recursos Humanos, contendo os 12 passos com capturas de tela reais de cada etapa no portal Gov.br, preenchimento da data e posicionamento correto da assinatura digital:'
+  );
+
+  const caminhoDestino = path.join(__dirname, '../docs/manuais/Manual_Membro_Onboarding_GovBr.pdf');
+  await doc.salvar(caminhoDestino);
+
+  // Anexa o tutorial visual completo com prints criado pelo usuário (docs/tutorial_assinatura_govbr.pdf)
+  const tutorialPath = path.resolve(__dirname, '../docs/tutorial_assinatura_govbr.pdf');
+  if (fs.existsSync(tutorialPath)) {
+    const baseBytes = fs.readFileSync(caminhoDestino);
+    const baseDoc = await PDFDocument.load(baseBytes);
+
+    const tutorialBytes = fs.readFileSync(tutorialPath);
+    const tutorialDoc = await PDFDocument.load(tutorialBytes);
+
+    const copiedPages = await baseDoc.copyPages(tutorialDoc, tutorialDoc.getPageIndices());
+    for (const page of copiedPages) {
+      baseDoc.addPage(page);
+    }
+
+    const finalBytes = await baseDoc.save();
+    fs.writeFileSync(caminhoDestino, finalBytes);
+    console.log(
+      `[PDF] Tutorial de assinatura Gov.br com prints anexado a: ${caminhoDestino} (total: ${baseDoc.getPageCount()} páginas)`
+    );
+  }
 }
 
 module.exports = { gerarManualMembroOnboarding };
