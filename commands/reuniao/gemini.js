@@ -2,7 +2,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const fs = require('fs');
 const { concatenarWavsComSilencio } = require('./audioBatch');
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 
 if (!process.env.GEMINI_API_KEY) {
   console.warn('[reuniao] atenção: variável GEMINI_API_KEY não configurada.');

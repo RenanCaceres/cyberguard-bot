@@ -2,7 +2,10 @@
 
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+const MODELOS_CANDIDATOS = Array.from(
+  new Set([GEMINI_MODEL, 'gemini-3.8-flash', 'gemini-3.5-flash'].filter(Boolean))
+);
 let genAI = null;
 
 if (process.env.GEMINI_API_KEY) {
@@ -87,33 +90,51 @@ Pergunta do usuário:
 Por favor, responda de forma prestativa, precisa e baseada nas regras oficiais do CyberGuard Bot.
 `.trim();
 
-  try {
-    const model = genAI.getGenerativeModel({
-      model: GEMINI_MODEL,
-      systemInstruction: SYSTEM_INSTRUCTION_DOCUMENTACAO,
-    });
+  let ultimoErro = null;
+  for (const modeloNome of MODELOS_CANDIDATOS) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: modeloNome,
+        systemInstruction: SYSTEM_INSTRUCTION_DOCUMENTACAO,
+      });
 
-    const result = await model.generateContent(promptFinal);
-    const resposta = result.response.text().trim();
+      const result = await model.generateContent(promptFinal);
+      const resposta = result.response.text().trim();
 
-    if (!resposta) {
-      return 'Não foi possível gerar uma resposta no momento. Por favor, consulte o manual em PDF correspondente.';
+      if (resposta) {
+        return resposta;
+      }
+    } catch (err) {
+      ultimoErro = err;
+      console.warn(`[documentacao-gemini] Erro no modelo ${modeloNome}:`, err.message);
+      // Se for sobrecarga (503), não encontrado (404) ou limite (429), tenta o próximo modelo
+      if (
+        err.message &&
+        (err.message.includes('503') ||
+          err.message.includes('404') ||
+          err.message.includes('429') ||
+          err.message.includes('RESOURCE_EXHAUSTED'))
+      ) {
+        continue;
+      }
+      break;
     }
+  }
 
-    return resposta;
-  } catch (err) {
-    console.error('[documentacao-gemini] Erro ao consultar Gemini:', err.message);
-    if (err.message && (err.message.includes('429') || err.message.includes('RESOURCE_EXHAUSTED'))) {
+  if (ultimoErro) {
+    console.error('[documentacao-gemini] Falha em todos os modelos candidatos:', ultimoErro.message);
+    if (ultimoErro.message && (ultimoErro.message.includes('429') || ultimoErro.message.includes('RESOURCE_EXHAUSTED'))) {
       return (
         '⏳ **Limite de requisições temporário:** O assistente de IA atingiu o limite momentâneo de requisições. ' +
         'Por favor, tente novamente em alguns instantes ou consulte o manual em PDF anexado.'
       );
     }
-    return (
-      'Desculpe, ocorreu uma oscilação na comunicação com a IA do Gemini. ' +
-      'Você pode verificar o manual oficial em PDF anexado ou perguntar diretamente no canal de suporte do RH.'
-    );
   }
+
+  return (
+    'Desculpe, ocorreu uma oscilação na comunicação com a IA do Gemini. ' +
+    'Você pode verificar o manual oficial em PDF anexado ou perguntar diretamente no canal de suporte do RH.'
+  );
 }
 
 module.exports = {
