@@ -129,4 +129,6 @@ module.exports = {
     tls: process.env.IMAP_TLS !== 'false',
   },
   emailProfessorCoordenador: process.env.EMAIL_PROFESSOR_COORDENADOR || '',
+  canalDuvidasId: process.env.CANAL_DUVIDAS_ID || '',
+  emailSuporteAdmin: process.env.EMAIL_SUPORTE_ADMIN || process.env.EMAIL_DESTINATARIOS || '',
 };

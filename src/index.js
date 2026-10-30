@@ -16,6 +16,8 @@ const declaracaoCommand = require('../commands/declaracao/declaracaoCommand');
 const meusDadosCommand = require('../commands/meus-dados/meusDadosCommand');
 const relatorioSemanalCommand = require('../commands/relatorio-semanal/relatorioSemanalCommand');
 const documentacaoCommand = require('../commands/documentacao/documentacaoCommand');
+const painelDuvidasCommand = require('../commands/painel-duvidas/painelDuvidasCommand');
+const suporteDuvidas = require('./suporteDuvidas');
 const { iniciarLimpezaBackups } = require('../commands/reuniao/limpezaBackup');
 const { handleAdvertenciaInteraction, iniciarCronAdvertencias } = require('./advertencias');
 const { iniciarCronDeclaracoes } = require('./declaracaoEmail');
@@ -48,6 +50,7 @@ client.once('ready', async () => {
   iniciarCronAdvertencias(client);
   iniciarCronDeclaracoes(client);
   iniciarLimpezaBackups();
+  suporteDuvidas.garantirPainelDuvidas(client).catch((e) => console.error('[suporte] Erro no painel de dúvidas:', e));
   ponto.init(client)
     .then(() => kovLogs.init(client))
     .catch((e) => console.error('[ponto] init:', e));
@@ -137,7 +140,13 @@ client.on('interactionCreate', async (interaction) => {
     return;
   }
 
+  if (interaction.isChatInputCommand() && interaction.commandName === 'painel-duvidas') {
+    painelDuvidasCommand.execute(interaction).catch((err) => console.error('Erro no comando /painel-duvidas:', err));
+    return;
+  }
+
   try {
+    if (await suporteDuvidas.handleDuvidasInteraction(interaction)) return;
     if (await documentacaoCommand.handleDocumentacaoInteraction(interaction)) return;
     if (await meusDadosCommand.handleMeusDadosInteraction(interaction)) return;
     if (await reuniaoCommand.handleReuniaoInteraction(interaction)) return;

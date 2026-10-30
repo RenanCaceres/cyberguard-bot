@@ -232,6 +232,7 @@ flowchart TD
 | `/reuniao historico` | Qualquer Membro | Lista as últimas atas de reunião registradas no servidor (1 a 25 registros) |
 | `/reuniao reprocessar` | Liderança, RH & Admin | Reprocessa o backup de áudio de uma ata (retido por 7 dias) em caso de falha de cota |
 | `/documentacao` | Qualquer Membro | Central interativa de manuais, simulações visuais em Canvas, PDFs oficiais e assistente de dúvidas com IA (Gemini) |
+| `/painel-duvidas` | Administrador | Publica ou atualiza o painel interativo de atendimento e dúvidas com botões de regras, IA e liderança |
 
 ---
 
@@ -279,6 +280,8 @@ flowchart TD
 | `GOOGLE_DRIVE_DECLARACOES_FOLDER_ID` | `1PastaDeclaracoesId...` | ID da pasta no Google Drive para declarações de voluntariado assinadas |
 | `IMAP_HOST` / `IMAP_PORT` | `imap.gmail.com` / `993` | Servidor e porta IMAP TLS para leitura autônoma das declarações assinadas |
 | `IMAP_USER` / `IMAP_PASS` | `bot@utfpr...`, `app-pass` | Credenciais IMAP/SMTP da conta institucional do bot |
+| `CANAL_DUVIDAS_ID` | `156...` | ID do canal de texto onde o painel de atendimento e dúvidas é fixado |
+| `EMAIL_SUPORTE_ADMIN` | `exemplo@alunos.utfpr.edu.br` | E-mail da liderança que recebe as dúvidas dos membros enviadas pelo Discord |
 
 ---
 

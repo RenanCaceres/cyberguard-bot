@@ -242,6 +242,28 @@ async function initSchema() {
   await pool.query('CREATE INDEX IF NOT EXISTS idx_declaracoes_discord_id ON declaracoes_solicitadas (discord_id)');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_declaracoes_status ON declaracoes_solicitadas (status)');
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS duvidas_suporte (
+      id SERIAL PRIMARY KEY,
+      codigo TEXT UNIQUE NOT NULL,
+      discord_id TEXT NOT NULL,
+      nome_usuario TEXT NOT NULL,
+      canal_origem_id TEXT,
+      assunto TEXT,
+      pergunta TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'aguardando_resposta'
+        CHECK (status IN ('aguardando_resposta', 'respondida', 'cancelada')),
+      message_id_email TEXT,
+      resposta TEXT,
+      data_resposta TIMESTAMPTZ,
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_duvidas_codigo ON duvidas_suporte (codigo)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_duvidas_discord_id ON duvidas_suporte (discord_id)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_duvidas_status ON duvidas_suporte (status)');
+
   // Migra automaticamente quaisquer dados sensíveis ainda em texto puro para AES-256-GCM (LGPD Art. 46)
   await criptografarDadosLegadosBanco();
 }
@@ -763,6 +785,42 @@ function atualizarDataInicioPorRa(ra, dataInicio) {
   return pool.query('UPDATE membros SET data_inicio = $2 WHERE ra = $1', [ra, dataInicio]);
 }
 
+function criarDuvidaSuporte({ codigo, discordId, nomeUsuario, canalOrigemId, assunto, pergunta, messageIdEmail }) {
+  return pool
+    .query(
+      `INSERT INTO duvidas_suporte
+        (codigo, discord_id, nome_usuario, canal_origem_id, assunto, pergunta, message_id_email, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'aguardando_resposta')
+       RETURNING *`,
+      [codigo, discordId, nomeUsuario, canalOrigemId, assunto, pergunta, messageIdEmail]
+    )
+    .then((r) => r.rows[0]);
+}
+
+function listarDuvidasPendentes() {
+  return pool
+    .query(`SELECT * FROM duvidas_suporte WHERE status = 'aguardando_resposta' ORDER BY criado_em ASC`)
+    .then((r) => r.rows);
+}
+
+function getDuvidaPorCodigo(codigo) {
+  return pool
+    .query(`SELECT * FROM duvidas_suporte WHERE UPPER(codigo) = UPPER($1)`, [codigo])
+    .then((r) => r.rows[0] || null);
+}
+
+function atualizarRespostaDuvida(codigo, respostaTexto) {
+  return pool
+    .query(
+      `UPDATE duvidas_suporte
+       SET status = 'respondida', resposta = $2, data_resposta = now(), atualizado_em = now()
+       WHERE UPPER(codigo) = UPPER($1)
+       RETURNING *`,
+      [codigo, respostaTexto]
+    )
+    .then((r) => r.rows[0] || null);
+}
+
 module.exports = {
   pool,
   initSchema,
@@ -811,4 +869,9 @@ module.exports = {
   atualizarDataInicioMembro,
   atualizarDataInicioPorRa,
   criptografarDadosLegadosBanco,
+  // dúvidas e suporte
+  criarDuvidaSuporte,
+  listarDuvidasPendentes,
+  getDuvidaPorCodigo,
+  atualizarRespostaDuvida,
 };

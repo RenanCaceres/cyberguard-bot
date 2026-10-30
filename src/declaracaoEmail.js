@@ -88,7 +88,8 @@ async function verificarRespostasDeclaracoes(client) {
   isCheckingImap = true;
   try {
     const declaracoesPendentes = await db.listarDeclaracoesPendentes();
-    if (declaracoesPendentes.length === 0) {
+    const duvidasPendentes = await db.listarDuvidasPendentes();
+    if (declaracoesPendentes.length === 0 && duvidasPendentes.length === 0) {
       return;
     }
 
@@ -108,8 +109,9 @@ async function verificarRespostasDeclaracoes(client) {
       const lock = await imap.getMailboxLock('INBOX');
 
       try {
-        // Busca e-mails que contenham 'DECL-' no assunto
-        const uids = await imap.search({ subject: 'DECL-' });
+        if (declaracoesPendentes.length > 0) {
+          // Busca e-mails que contenham 'DECL-' no assunto
+          const uids = await imap.search({ subject: 'DECL-' });
 
         for (const uid of uids) {
           const msg = await imap.fetchOne(uid, { envelope: true, bodyStructure: true, flags: true });
@@ -202,9 +204,20 @@ async function verificarRespostasDeclaracoes(client) {
             }
           }
         }
-      } finally {
-        lock.release();
       }
+
+      // Processa respostas de e-mail da liderança para dúvidas pendentes de suporte
+      if (duvidasPendentes.length > 0) {
+        try {
+          const { processarRespostasDuvidasImap } = require('./suporteDuvidas');
+          await processarRespostasDuvidasImap(imap, client);
+        } catch (errDuvidas) {
+          console.error('[suporte-imap] Erro ao verificar respostas de dúvidas:', errDuvidas.message);
+        }
+      }
+    } finally {
+      lock.release();
+    }
 
       await imap.logout();
     } catch (err) {
