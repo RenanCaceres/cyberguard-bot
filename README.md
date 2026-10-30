@@ -268,7 +268,7 @@ flowchart TD
 | `NOTION_SPACE_ID` | `00000000-0000-0000-...` | ID do Workspace CyberGuard no Notion |
 | `NOTION_ACTIVE_USER_ID` | `00000000-0000-0000-...` | ID do usuário administrador executor das requisições v3 |
 | `NOTION_DATA_SOURCE_ID` | `00000...` | ID do Data Source de tarefas no Notion (API `2025-09-03`) |
-| `NOTION_MEMBROS_DB_ID` | `00000...` | ID do Database histórico de membros no Notion (`Ativo`/`Inativo`) |
+| `NOTION_MEMBROS_DB_ID` | `00000...` | ID do Database histórico de membros no Notion (`Ativo` / `Inativo` / `Aguardando Assinatura` / `Expulso`) |
 | `DATA_ENCRYPTION_KEY` | `a1b2c3... (64 hex)` | Chave de 256 bits para criptografia `AES-256-GCM` de dados sensíveis no banco |
 | `GEMINI_API_KEY` | `AIza...` | Chave de API do Google Gemini para transcrição de atas |
 | `CANAL_ADVERTENCIAS_ID` | `154...` | Canal restrito onde ocorrem as notificações e deliberações disciplinares |
