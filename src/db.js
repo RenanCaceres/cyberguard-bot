@@ -810,4 +810,5 @@ module.exports = {
   atualizarDeclaracaoConcluida,
   atualizarDataInicioMembro,
   atualizarDataInicioPorRa,
+  criptografarDadosLegadosBanco,
 };

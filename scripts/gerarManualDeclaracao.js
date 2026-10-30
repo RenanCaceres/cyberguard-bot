@@ -48,7 +48,7 @@ async function gerarManualMembroDeclaracao() {
   doc.listaItem('Sem Solicitação Pendente: o sistema permite apenas 1 solicitação aberta por vez (status "aguardando_assinatura_professor"), evitando duplicidade de e-mails ao coordenador.');
   doc.subsecao('Cálculo Automático da Carga Horária Semanal:');
   doc.listaItem('Membros Regulares (4 horas semanais): atribuída automaticamente aos integrantes das áreas técnicas e operacionais.');
-  doc.listaItem('Vice-Líderes (8 horas semanais): atribuída automaticamente a quem possui o cargo de vice-liderança (ID: 1564414013809360946) no Discord.');
+  doc.listaItem('Vice-Líderes (8 horas semanais): atribuída automaticamente a quem possui o cargo de vice-liderança (ROLE_VICE_LIDER_ID / ROLE_VICE_LIDER_NOME) no Discord.');
   doc.listaItem('Líderes e Presidência (10 horas semanais): atribuída automaticamente a quem possui o cargo de liderança ("Líderes" / "Lideres") ou Presidência no servidor do Discord.');
   doc.alerta(
     'Dados Cadastrais Incompletos?',
@@ -65,7 +65,7 @@ async function gerarManualMembroDeclaracao() {
   doc.paragrafo(
     'O bot verificará seu cadastro e seu cargo no servidor, responderá de forma privada e efêmera (visível apenas para você) e exibirá o resumo oficial da emissão:'
   );
-  doc.listaItem('Código da Solicitação: protocolo único rastreável no formato #DECL-<RA>-<4 dígitos> (ex.: #DECL-2525526-5107).');
+  doc.listaItem('Código da Solicitação: protocolo único rastreável no formato #DECL-<RA>-<4 dígitos> (ex.: #DECL-0000000-1234).');
   doc.listaItem('Aluno, RA e Curso vinculados ao seu registro institucional.');
   doc.listaItem('Início no Projeto e Carga Horária semanal calculada automaticamente (4 horas, 8 horas ou 10 horas semanais).');
   doc.listaItem('Confirmação do envio imediato ao e-mail institucional do coordenador.');
@@ -109,7 +109,7 @@ async function gerarManualMembroDeclaracao() {
     ],
     [
       ['Carga Horária (Membro)', '4 horas semanais', 'Padrão para membros regulares das áreas'],
-      ['Carga Horária (Vice-Líder)', '8 horas semanais', 'Atribuída ao cargo de Vice-Líder (ID: 1564414013809360946)'],
+      ['Carga Horária (Vice-Líder)', '8 horas semanais', 'Atribuída ao cargo de Vice-Líder (ROLE_VICE_LIDER_ID)'],
       ['Carga Horária (Líder)', '10 horas semanais', 'Atribuída automaticamente a Líderes e Presidente'],
       ['Tipo de Assinatura', 'Digital Gov.br (ICP-Brasil)', 'Plena validade jurídica (Lei 14.063/2020)'],
       ['Ciclo de Checagem', 'A cada 1 min + sob demanda', 'Monitoramento autônomo via protocolo IMAP'],
@@ -126,7 +126,7 @@ async function gerarManualMembroDeclaracao() {
 
   doc.subsecao('2. "Sou líder ou vice-líder, mas minha declaração saiu com 4 horas (ou vice-versa). Como proceder?"');
   doc.paragrafo(
-    'O bot verifica seus cargos no Discord no exato momento da solicitação: Líderes recebem 10 horas semanais, Vice-Líderes (cargo ID 1564414013809360946) recebem 8 horas semanais, e Membros regulares recebem 4 horas semanais. Caso seu cargo ainda não estivesse atribuído no servidor quando você executou o comando, peça ao RH para atribuir seu cargo e cancelar a solicitação anterior antes de emitir uma nova.'
+    'O bot verifica seus cargos no Discord no exato momento da solicitação: Líderes recebem 10 horas semanais, Vice-Líderes (ROLE_VICE_LIDER_ID) recebem 8 horas semanais, e Membros regulares recebem 4 horas semanais. Caso seu cargo ainda não estivesse atribuído no servidor quando você executou o comando, peça ao RH para atribuir seu cargo e cancelar a solicitação anterior antes de emitir uma nova.'
   );
 
   doc.subsecao('3. "Minha data de início está incorreta. Como corrigir?"');

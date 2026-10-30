@@ -30,7 +30,7 @@ async function obterCargaHorariaDeclaracao(client, member, discordId) {
     const guildMember = await resolverGuildMember(client, member, discordId);
     if (guildMember?.roles?.cache) {
       const pontoLiderRole = process.env.PONTO_ROLE_LIDERES_ID;
-      const roleViceLiderId = config.roleViceLiderId || '1564414013809360946';
+      const roleViceLiderId = config.roleViceLiderId;
 
       // 1. Líderes (10 horas semanais)
       const ehLider = guildMember.roles.cache.some(
@@ -51,11 +51,10 @@ async function obterCargaHorariaDeclaracao(client, member, discordId) {
         };
       }
 
-      // 2. Vice-Líderes (8 horas semanais) - ID 1564414013809360946
+      // 2. Vice-Líderes (8 horas semanais) - configurado via ROLE_VICE_LIDER_ID / ROLE_VICE_LIDER_NOME
       const ehViceLider = guildMember.roles.cache.some(
         (r) =>
-          r.id === roleViceLiderId ||
-          r.id === '1564414013809360946' ||
+          (roleViceLiderId && r.id === roleViceLiderId) ||
           r.name === config.roleViceLiderNome ||
           r.name === 'Vice-Líder' ||
           r.name === 'Vice-Lider' ||

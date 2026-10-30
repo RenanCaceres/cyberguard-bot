@@ -1,0 +1,11 @@
+{
+  "lgpd-and-autodeploy-gate": {
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node ./hooks/stop-lgpd-deploy.js",
+        "timeout": 30
+      }
+    ]
+  }
+}

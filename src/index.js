@@ -14,6 +14,7 @@ const minhasAdvertenciasCommand = require('../commands/minhas-advertencias/minha
 const advertenciasCommand = require('../commands/advertencias/advertenciasCommand');
 const declaracaoCommand = require('../commands/declaracao/declaracaoCommand');
 const meusDadosCommand = require('../commands/meus-dados/meusDadosCommand');
+const relatorioSemanalCommand = require('../commands/relatorio-semanal/relatorioSemanalCommand');
 const { iniciarLimpezaBackups } = require('../commands/reuniao/limpezaBackup');
 const { handleAdvertenciaInteraction, iniciarCronAdvertencias } = require('./advertencias');
 const { iniciarCronDeclaracoes } = require('./declaracaoEmail');
@@ -122,6 +123,11 @@ client.on('interactionCreate', async (interaction) => {
 
   if (interaction.isChatInputCommand() && interaction.commandName === 'meus-dados') {
     meusDadosCommand.execute(interaction).catch((err) => console.error('Erro no comando /meus-dados:', err));
+    return;
+  }
+
+  if (interaction.isChatInputCommand() && interaction.commandName === 'relatorio-semanal') {
+    relatorioSemanalCommand.execute(interaction).catch((err) => console.error('Erro no comando /relatorio-semanal:', err));
     return;
   }
 

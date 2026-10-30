@@ -156,7 +156,7 @@ async function comentar(pageId, texto) {
   });
 }
 
-const PEOPLE_DB_ID = 'd3dc798f-d407-82df-b0d8-014512d331ec';
+const obterPeopleDbId = () => process.env.NOTION_PEOPLE_DB_ID || '';
 let notionUsersCache = { users: null, expiraEm: 0 };
 
 function normalizarTexto(str) {
@@ -208,9 +208,11 @@ async function listarUsuariosNotion() {
     console.warn('[notion] falha ao listar /v1/users:', err.message);
   }
 
-  // 2. People DB (diretório de membros do workspace)
-  try {
-    const res = await fetch(`${BASE}/databases/${PEOPLE_DB_ID}/query`, {
+  // 2. People DB (diretório de membros do workspace, opcional via NOTION_PEOPLE_DB_ID)
+  const peopleDbId = obterPeopleDbId();
+  if (peopleDbId) {
+    try {
+      const res = await fetch(`${BASE}/databases/${peopleDbId}/query`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -237,9 +239,10 @@ async function listarUsuariosNotion() {
           }
         }
       }
+      }
+    } catch (err) {
+      console.warn('[notion] falha ao consultar People DB:', err.message);
     }
-  } catch (err) {
-    console.warn('[notion] falha ao consultar People DB:', err.message);
   }
 
   const users = Array.from(map.values());

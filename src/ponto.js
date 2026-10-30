@@ -11,6 +11,7 @@ const notion = require('./notion');
 const pdb = require('./pontoDb');
 const db = require('./db');
 const { gerarRanking } = require('./rankingRender');
+const pontoMetas = require('./pontoMetas');
 
 // Planilha (Google Sheets): opcional. Se src/pontoSheets.js não existir, o ponto funciona sem ela.
 let sheets = null;
@@ -156,7 +157,8 @@ async function enviarPainel(canal) {
     btn('ponto:ranking', 'Ranking', ButtonStyle.Secondary, '🏆'),
   );
   const linha2 = new ActionRowBuilder().addComponents(
-    btn('ponto:resumo', 'Resumo (Líderes)', ButtonStyle.Primary, '📊'),
+    btn('ponto:minhas_semanas', 'Minhas Semanas / Metas', ButtonStyle.Primary, '📅'),
+    btn('ponto:resumo', 'Resumo (Líderes)', ButtonStyle.Secondary, '📊'),
     btn('ponto:adj_inicio', 'Ajustar ponto (RH)', ButtonStyle.Secondary, '✏️'),
   );
   await canal.send({ embeds: [embed], components: [linha1, linha2] });
@@ -746,6 +748,8 @@ async function iniciarColetaComprovantes(interaction, row, dados) {
   let threadCriada = null;
 
   // 1. Tenta criar thread privada no canal da interação (se estiver em servidor)
+  // Por conformidade com a LGPD (Privacy by Design), nunca recorre a thread pública;
+  // caso o servidor não suporte PrivateThread, usa diretamente a DM privada abaixo.
   if (interaction.inGuild() && interaction.channel?.threads) {
     try {
       threadCriada = await interaction.channel.threads.create({
@@ -759,20 +763,7 @@ async function iniciarColetaComprovantes(interaction, row, dados) {
         canalEnvio = threadCriada;
       }
     } catch (err) {
-      console.warn('[ponto] falha ao criar thread privada, tentando pública:', err.message);
-      try {
-        threadCriada = await interaction.channel.threads.create({
-          name: `📎-comprovante-${interaction.user.username}`.slice(0, 50),
-          autoArchiveDuration: 60,
-          type: ChannelType.PublicThread,
-          reason: 'Upload de comprovantes de entrega do ponto',
-        });
-        if (threadCriada) {
-          canalEnvio = threadCriada;
-        }
-      } catch (err2) {
-        console.warn('[ponto] não foi possível criar thread para anexos:', err2.message);
-      }
+      console.warn('[ponto] falha ao criar thread privada, usando DM privada:', err.message);
     }
   }
 
@@ -1309,6 +1300,7 @@ async function detalhe(interaction, discordId, pagina) {
   const linha = new ActionRowBuilder().addComponents(
     btn(`ponto:det:${discordId}:${pagina - 1}`, '◀', ButtonStyle.Secondary).setDisabled(pagina === 0),
     btn(`ponto:det:${discordId}:${pagina + 1}`, '▶', ButtonStyle.Secondary).setDisabled(pagina >= totalPag - 1),
+    btn(`ponto:semanas_membro:${discordId}:0`, 'Histórico de Semanas', ButtonStyle.Secondary, '📅'),
     btn('ponto:resumo_pag:0', 'Voltar ao resumo', ButtonStyle.Primary),
   );
   return interaction.update({ content: '', embeds: [embed], components: [linha] });
@@ -1540,9 +1532,14 @@ async function handlePontoInteraction(interaction) {
     if (typeof id !== 'string' || !id.startsWith('ponto:')) return false;
 
     // Resumo: só Líderes. Ajustes: só RH.
-    const restritoLider = id === 'ponto:resumo' || id.startsWith('ponto:resumo_pag:') || id === 'ponto:aluno' || id.startsWith('ponto:det:');
+    const restritoLider =
+      id === 'ponto:resumo' ||
+      id.startsWith('ponto:resumo_pag:') ||
+      id === 'ponto:aluno' ||
+      id.startsWith('ponto:det:') ||
+      id.startsWith('ponto:semanas_membro:');
     if (restritoLider && !isLider(interaction)) {
-      await interaction.reply({ content: '🔒 Apenas Líderes podem ver o resumo.', flags: EPH });
+      await interaction.reply({ content: '🔒 Apenas Líderes podem ver esta seção.', flags: EPH });
       expirar(interaction, 10_000);
       return true;
     }
@@ -1597,6 +1594,21 @@ async function handlePontoInteraction(interaction) {
         return interaction.showModal(modalReporte('ponto:fechar_modal', 'Fechar ponto', p.progresso_inicial));
       }
       if (id === 'ponto:abrir') await abrirFluxo(interaction);
+      else if (id === 'ponto:minhas_semanas') {
+        await pontoMetas.renderizarOuAtualizarRelatorioSemanas(interaction, interaction.user.id, 0, false);
+      }
+      else if (id.startsWith('ponto:semanas_pag:')) {
+        const [, , alvo, pag] = id.split(':');
+        if (alvo !== interaction.user.id && !isLider(interaction) && !isRH(interaction)) {
+          await interaction.reply({ content: '🔒 Você só pode visualizar o seu próprio histórico.', flags: EPH });
+          return expirar(interaction, 10_000);
+        }
+        await pontoMetas.renderizarOuAtualizarRelatorioSemanas(interaction, alvo, Number(pag), true);
+      }
+      else if (id.startsWith('ponto:semanas_membro:')) {
+        const [, , alvo, pag] = id.split(':');
+        await pontoMetas.renderizarOuAtualizarRelatorioSemanas(interaction, alvo, Number(pag), true, { origemResumo: true });
+      }
       else if (id.startsWith('ponto:pag:')) {
         const p = id.split(':'); // ponto:pag:<modo>:<n>  (ou o formato antigo ponto:pag:<n>)
         await paginaTarefas(interaction, p.length === 3 ? 'm' : p[2], Number(p[p.length - 1]));
@@ -1789,6 +1801,12 @@ async function tick(client) {
       } catch (e) {
         console.error('[ponto] falha ao postar ranking semanal:', e.message);
       }
+    }
+    // Fechamento semanal das metas, disparos aos voluntários e relatórios aos líderes por setor
+    try {
+      await pontoMetas.executarFechamentoSemanal(client, 1);
+    } catch (e) {
+      console.error('[ponto] falha ao executar fechamento semanal de metas:', e);
     }
     await pdb.setMeta('ultima_semana_ranking', semana);
   }

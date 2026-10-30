@@ -445,6 +445,81 @@ async function setMeta(chave, valor) {
   );
 }
 
+// Retorna o total de horas registradas de todos os alunos em uma determinada semana (offset semanasAtras).
+// Não inclui saldo importado em lote.
+async function totaisSemana(semanasAtras = 1) {
+  const { rows } = await q(
+    `WITH lim AS (
+       SELECT (date_trunc('week', now() AT TIME ZONE $1::text) - $2::int * interval '1 week')
+              AT TIME ZONE $1::text AS ini
+     )
+     SELECT p.discord_id,
+            (ARRAY_AGG(p.nome ORDER BY p.aberto_em DESC))[1] AS nome,
+            MAX(COALESCE(p.fechado_em, p.aberto_em)) AS ultimo,
+            SUM(EXTRACT(EPOCH FROM (
+              LEAST(COALESCE(p.fechado_em, now()), lim.ini + interval '1 week') - GREATEST(p.aberto_em, lim.ini)
+            )))::float8 AS seg,
+            COUNT(p.id)::int AS pontos_qtd
+     FROM pontos p, lim
+     WHERE p.origem <> 'importado'
+       AND p.aberto_em < lim.ini + interval '1 week'
+       AND COALESCE(p.fechado_em, now()) > lim.ini
+     GROUP BY p.discord_id
+     ORDER BY seg DESC`,
+    [TZ, semanasAtras],
+  );
+  return rows;
+}
+
+// Retorna o histórico de todas as semanas desde a data de início do membro (ou primeiro ponto) até hoje.
+// Cada linha representa uma semana (segunda a domingo) com a quantidade de segundos trabalhados e quantidade de pontos.
+async function historicoSemanasAluno(discordId, dataInicio) {
+  const dataIniParsed = dataInicio ? new Date(dataInicio) : null;
+  const dataValida = dataIniParsed && !isNaN(dataIniParsed.getTime()) ? dataIniParsed : new Date();
+
+  const { rows } = await q(
+    `WITH primeiro_ponto AS (
+       SELECT MIN(aberto_em) AS min_ponto FROM pontos WHERE discord_id = $3 AND origem <> 'importado'
+     ),
+     lim_inicio AS (
+       SELECT GREATEST(
+         date_trunc('week', LEAST(
+           $2::timestamptz AT TIME ZONE $1::text,
+           COALESCE((SELECT min_ponto FROM primeiro_ponto), $2::timestamptz) AT TIME ZONE $1::text
+         )),
+         date_trunc('week', now() AT TIME ZONE $1::text) - interval '104 weeks'
+       ) AS ini_geral
+     ),
+     semanas AS (
+       SELECT generate_series(
+         (SELECT ini_geral FROM lim_inicio),
+         date_trunc('week', now() AT TIME ZONE $1::text),
+         interval '1 week'
+       ) AS ini_sem
+     )
+     SELECT
+       s.ini_sem AT TIME ZONE $1::text AS ini_data,
+       (s.ini_sem + interval '6 days 23 hours 59 minutes 59 seconds') AT TIME ZONE $1::text AS fim_data,
+       to_char(s.ini_sem, 'DD/MM/YYYY') AS ini_fmt,
+       to_char(s.ini_sem + interval '6 days', 'DD/MM/YYYY') AS fim_fmt,
+       to_char(s.ini_sem, 'YYYY-MM-DD') AS semana_id,
+       COALESCE(SUM(EXTRACT(EPOCH FROM (
+         LEAST(COALESCE(p.fechado_em, now()), (s.ini_sem + interval '1 week') AT TIME ZONE $1::text)
+         - GREATEST(p.aberto_em, s.ini_sem AT TIME ZONE $1::text)
+       ))), 0)::float8 AS seg,
+       COUNT(p.id)::int AS pontos_qtd
+     FROM semanas s
+     LEFT JOIN pontos p ON p.discord_id = $3
+       AND p.origem <> 'importado'
+       AND p.aberto_em < (s.ini_sem + interval '1 week') AT TIME ZONE $1::text
+       AND COALESCE(p.fechado_em, now()) > s.ini_sem AT TIME ZONE $1::text
+     GROUP BY s.ini_sem
+     ORDER BY s.ini_sem DESC`,
+    [TZ, dataValida, discordId],
+  );
+  return rows;
+}
+
 module.exports = {
   PENDENTE, init, getAberto, getPorId, abrir, definirTarefa, fechar, fecharPorSaida,
   getPendenteReporte, registrarReporte, reportesPendentesAntigos, marcarLembrete,
@@ -453,4 +528,5 @@ module.exports = {
   semanaAtual, periodoSemana, getMeta, setMeta,
   importarKov, kovJaImportado, kovPendentesPlanilha,
   pontosParaVerificarInatividade, incrementarAvisoInatividade, confirmarAtividade, encerrarPorInatividade, fecharPorCheckNao,
+  totaisSemana, historicoSemanasAluno,
 };

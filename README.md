@@ -83,7 +83,7 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
 - **Solicitação Autônoma no Discord (`/declaracao solicitar`)**: O acadêmico solicita sua declaração de participação com um único comando. O bot valida o cadastro (Nome Completo, RA, Curso e Data de Início), impede solicitações duplicadas em aberto e gera um protocolo único rastreável (`#DECL-<RA>-<4 dígitos>`).
 - **Cálculo Automático de Carga Horária (4h, 8h e 10h)**:
   - **Membros Regulares (`4 horas semanais`)**: atribuída automaticamente aos integrantes das áreas técnicas e operacionais.
-  - **Vice-Líderes (`8 horas semanais`)**: atribuída automaticamente aos vice-líderes no Discord (ID do cargo: `1564414013809360946`).
+  - **Vice-Líderes (`8 horas semanais`)**: atribuída automaticamente aos vice-líderes no Discord (`ROLE_VICE_LIDER_ID` / `ROLE_VICE_LIDER_NOME`).
   - **Líderes e Presidência (`10 horas semanais`)**: atribuída automaticamente a quem possui o cargo de liderança (`Líderes`) ou Presidência no servidor.
 - **Geração Dinâmica e Tramitação por E-mail (SMTP)**: O bot preenche o template institucional da UTFPR com a data por extenso, converte para PDF via LibreOffice e envia automaticamente ao Coordenador do Projeto (**Prof. André Luiz Przybysz**).
 - **Monitoramento e Captura Autônoma (IMAP)**: Um serviço em segundo plano checa a caixa de entrada a cada 1 minuto, localiza a resposta do coordenador pelo protocolo `#DECL-...`, valida o cabeçalho binário `%PDF` do anexo assinado pelo Gov.br (Lei Federal nº 14.063/2020), arquiva em `DeclaracoesAssinadas/` e faz o upload automático para a pasta de declarações no **Google Drive**.
@@ -248,7 +248,7 @@ flowchart TD
 | `PRESIDENTE_ID` | `3717...` | Discord ID do Presidente do projeto (topo da hierarquia e carga 10h) |
 | `ROLE_RH_NOME` | `Recursos Humanos` | Nome do cargo de RH com privilégios de aprovação e revisão de termos |
 | `ROLE_LIDER_NOME` | `Líderes` | Nome do cargo de liderança (destaque na hierarquia e declaração de 10h) |
-| `ROLE_VICE_LIDER_ID` | `1564414013809360946` | ID do cargo de Vice-Liderança (declaração de 8h semanais) |
+| `ROLE_VICE_LIDER_ID` | `156...` | ID do cargo de Vice-Liderança (declaração de 8h semanais) |
 | `ROLE_VICE_LIDER_NOME` | `Vice-Líder` | Nome do cargo de vice-liderança |
 | `ROLE_APROVADO_NOME` | `Membro CyberGuard` | Nome do cargo unificado atribuído aos voluntários aprovados |
 | `ROLE_ENTUSIASTA_NOME` | `Entusiasta` | Nome do cargo atribuído automaticamente aos membros sem compromisso formal |

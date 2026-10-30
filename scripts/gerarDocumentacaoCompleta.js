@@ -187,7 +187,7 @@ async function gerarDocumentacaoCompleta() {
   doc.listaItem('Bloqueio de Duplicidade Pendente: verifica se o aluno já possui registro na tabela "declaracoes_solicitadas" com status = "aguardando_assinatura_professor". Caso possua, impede nova abertura e exibe o protocolo e a data da solicitação em curso.');
   doc.listaItem('Cálculo Automático de Carga Horária (4h, 8h e 10h):');
   doc.listaItem('10 horas semanais ("10 horas"): atribuída automaticamente se o solicitante for o Presidente (config.presidenteId) ou possuir o cargo de liderança ("Líderes", "Lideres", ROLE_LIDER_NOME ou PONTO_ROLE_LIDERES_ID).', { nivel: 2, marcador: '-' });
-  doc.listaItem('8 horas semanais ("8 horas"): atribuída automaticamente a quem possui o cargo de vice-liderança (ID: 1564414013809360946 ou ROLE_VICE_LIDER_ID / ROLE_VICE_LIDER_NOME).', { nivel: 2, marcador: '-' });
+  doc.listaItem('8 horas semanais ("8 horas"): atribuída automaticamente a quem possui o cargo de vice-liderança (ROLE_VICE_LIDER_ID / ROLE_VICE_LIDER_NOME).', { nivel: 2, marcador: '-' });
   doc.listaItem('4 horas semanais ("4 horas"): atribuída automaticamente aos demais membros regulares.', { nivel: 2, marcador: '-' });
   doc.listaItem('Data de Início e Protocolo: utiliza membro.data_inicio (com fallback para "05/2026") e gera código único no formato DECL-<RA>-<4 últimos dígitos do timestamp>.');
   doc.listaItem('Geração do PDF Oficial: renderiza templates/declaracao_participacao.docx com a data de solicitação por extenso em português (ex.: "16 de outubro de 2026") e converte via LibreOffice.');

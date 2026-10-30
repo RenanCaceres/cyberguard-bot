@@ -105,7 +105,7 @@ async function gerarDocumentoFluxoTermosOnboarding() {
 
   doc.subsecao('Etapa 2 - Protocolo #TERMO- e Transicao de Estado no PostgreSQL');
   doc.paragrafo(
-    'Com o termo validado na primeira assinatura, o bot gera um identificador unico e indexavel no padrao #TERMO-<RA>-<4_DIGITOS> (ex.: #TERMO-2525526-7841). O status do membro e alterado para "aguardando_assinatura_professora", salvando o arquivo preliminar em docs/Termos-Voluntarios-Assinados/Pendentes/ e registrando o timestamp de envio. Nesse momento, o onboarding NAO e encerrado prematuramente.'
+    'Com o termo validado na primeira assinatura, o bot gera um identificador unico e indexavel no padrao #TERMO-<RA>-<4_DIGITOS> (ex.: #TERMO-0000000-1234). O status do membro e alterado para "aguardando_assinatura_professora", salvando o arquivo preliminar em docs/Termos-Voluntarios-Assinados/Pendentes/ e registrando o timestamp de envio. Nesse momento, o onboarding NAO e encerrado prematuramente.'
   );
 
   doc.subsecao('Etapa 3 - Disparo de E-mail Estruturado para a Profª Natassya (SMTP)');

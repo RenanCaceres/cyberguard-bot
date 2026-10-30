@@ -22,8 +22,9 @@ const TERMO_CIENCIA_TEXTO =
   'no banco de dados e **permanecerão arquivados de forma segura** para fins de registro histórico institucional e comprovação ' +
   'acadêmica, mesmo após eventual saída ou desligamento do projeto.\n\n' +
   '👥 **3. Acesso Restrito:**\n' +
-  'Apenas a Coordenação Docente, Diretoria e equipe de Recursos Humanos (RH) possuem acesso administrativo às informações ' +
-  'necessárias para gestão do projeto e envio documental à UTFPR.\n\n' +
+  'O acesso às informações e aos termos assinados é restrito **exclusivamente ao Presidente (André) e ao Diretor de RH (Renan Cáceres Anselmo)**, ' +
+  'com apoio do membro de RH Conrado Henrique Lima da Mata para conferência e atendimento. ' +
+  'Nenhum integrante de outras diretorias possui acesso aos seus documentos.\n\n' +
   '⚖️ **4. Direitos do Titular (Art. 18 da LGPD):**\n' +
   'A qualquer momento no servidor, você poderá utilizar o comando `/meus-dados` (100% privado) para visualizar seus dados, ' +
   'atualizar informações cadastrais ou entrar em contato com o RH sobre sua privacidade.';
@@ -252,6 +253,85 @@ async function escolherCampoParaCorrigir(dm, userId, respostas) {
   return campo;
 }
 
+async function apresentarDocumentacaoVoluntariado(dm, userId) {
+  const embed = new EmbedBuilder()
+    .setTitle('🛡️ CyberGuard UTFPR • Informações sobre o Voluntariado e seus Dados')
+    .setDescription(
+      'Olá! Seja bem-vindo(a) ao **CyberGuard UTFPR (Câmpus Cornélio Procópio)**.\n\n' +
+      'Antes de coletarmos qualquer informação, queremos esclarecer com total transparência **o porquê dos dados solicitados** e **como funciona o seu vínculo voluntário**:\n\n' +
+      '🏛️ **1. Projeto de Extensão Universitária Oficial:**\n' +
+      'O CyberGuard é registrado institucionalmente na UTFPR. Conforme a **Lei Federal nº 9.608/1998** e a **Deliberação nº 01/2011 do COUNI**, ' +
+      'a universidade exige a formalização prévia do **Termo de Adesão ao Serviço Voluntário** para qualquer membro discente.\n\n' +
+      '📋 **2. Para que seus dados servem (Finalidade Exclusiva):**\n' +
+      'Os dados solicitados a seguir (Nome, CPF, RA, Endereço, etc.) são exigidos pela **DIREC/DEPEX** da UTFPR exclusivamente para:\n' +
+      '• Elaboração e homologação do seu **Termo de Voluntariado** perante a Reitoria;\n' +
+      '• Ativação da **Apólice de Seguro contra Acidentes Pessoais** custeada pela UTFPR;\n' +
+      '• Emissão de **Certificado Oficial** e lançamento de **Horas de Atividades Complementares (HAC)** no seu histórico acadêmico.\n\n' +
+      '🔒 **3. Sigilo e Acesso Restrito (LGPD):**\n' +
+      'O acesso aos seus dados é restrito **exclusivamente ao Presidente (André) e ao Diretor de RH (Renan Cáceres Anselmo)**, ' +
+      'com apoio de conferência do membro de RH **Conrado**. Nenhum membro de outras diretorias (Hacking, Design, etc.) acessa seus documentos. ' +
+      'Todos os dados são criptografados com **AES-256-GCM**.\n\n' +
+      '⚠️ **4. Riscos da Não Adesão:**\n' +
+      'Sem o Termo homologado, suas horas **não terão validade acadêmica na UTFPR**, a instituição não poderá emitir certificados oficiais e você não contará com cobertura do seguro universitário.'
+    )
+    .setColor(0x0099ff)
+    .setFooter({ text: 'UTFPR Câmpus Cornélio Procópio • DIREC / DEPEX' });
+
+  const botoes = [
+    new ButtonBuilder()
+      .setCustomId('voluntariado_prosseguir')
+      .setLabel('Prosseguir ➡️')
+      .setStyle(ButtonStyle.Success),
+  ];
+
+  if (config.notionVoluntariadoUrl) {
+    botoes.push(
+      new ButtonBuilder()
+        .setLabel('📖 Ver Página no Notion')
+        .setStyle(ButtonStyle.Link)
+        .setURL(config.notionVoluntariadoUrl)
+    );
+  }
+
+  botoes.push(
+    new ButtonBuilder()
+      .setCustomId('voluntariado_cancelar')
+      .setLabel('❌ Cancelar')
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  const row = new ActionRowBuilder().addComponents(botoes);
+
+  await dm.send({
+    embeds: [embed],
+    components: [row],
+  });
+
+  const interacao = await dm.awaitMessageComponent({
+    filter: (i) =>
+      i.user.id === userId &&
+      (i.customId === 'voluntariado_prosseguir' || i.customId === 'voluntariado_cancelar'),
+    time: 10 * 60 * 1000,
+  });
+
+  if (interacao.customId === 'voluntariado_cancelar') {
+    await interacao.update({
+      content:
+        '❌ **Onboarding cancelado.** Se tiver qualquer dúvida sobre o projeto ou a privacidade dos seus dados, entre em contato com a equipe de RH (Renan ou Conrado) no servidor!',
+      embeds: [],
+      components: [],
+    });
+    return false;
+  }
+
+  await interacao.update({
+    content: '👍 **Informações compreendidas!** A seguir, leia o Termo de Ciência da LGPD para confirmar seu aceite e iniciar o cadastro:',
+    embeds: [],
+    components: [],
+  });
+  return true;
+}
+
 async function solicitarTermoCiencia(dm, userId) {
   const embed = new EmbedBuilder()
     .setTitle('🛡️ Termo de Ciência e Privacidade de Dados (LGPD)')
@@ -259,16 +339,30 @@ async function solicitarTermoCiencia(dm, userId) {
     .setColor(0x2b2d31)
     .setFooter({ text: 'Lei Geral de Proteção de Dados Pessoais — Lei nº 13.709/2018' });
 
-  const row = new ActionRowBuilder().addComponents(
+  const botoes = [
     new ButtonBuilder()
       .setCustomId('lgpd_aceitar')
-      .setLabel('✅ Concordo e continuar')
+      .setLabel('✅ Aceito a LGPD e concordo em fornecer meus dados')
       .setStyle(ButtonStyle.Success),
+  ];
+
+  if (config.notionVoluntariadoUrl) {
+    botoes.push(
+      new ButtonBuilder()
+        .setLabel('📖 Documentação Completa')
+        .setStyle(ButtonStyle.Link)
+        .setURL(config.notionVoluntariadoUrl)
+    );
+  }
+
+  botoes.push(
     new ButtonBuilder()
       .setCustomId('lgpd_recusar')
-      .setLabel('❌ Não concordo')
+      .setLabel('❌ Recusar')
       .setStyle(ButtonStyle.Danger)
   );
+
+  const row = new ActionRowBuilder().addComponents(botoes);
 
   await dm.send({
     embeds: [embed],
@@ -283,14 +377,16 @@ async function solicitarTermoCiencia(dm, userId) {
   if (interacao.customId === 'lgpd_recusar') {
     await interacao.update({
       content:
-        '❌ **Termo de Ciência recusado.** Como os dados solicitados são estritamente necessários para a emissão do Termo de Adesão ao Serviço Voluntário e registros acadêmicos na UTFPR, o cadastro não pôde ser prosseguido. Caso mude de ideia, entre em contato com o RH.',
+        '❌ **Termo de Ciência recusado.** Como os dados solicitados são estritamente necessários para a emissão do Termo de Adesão ao Serviço Voluntário e registros acadêmicos na UTFPR, o cadastro não pôde ser prosseguido. Caso mude de ideia, entre em contato com o RH (Renan ou Conrado).',
+      embeds: [],
       components: [],
     });
     return false;
   }
 
   await interacao.update({
-    content: '✅ **Termo de Ciência e Privacidade aceito!** Iniciando o preenchimento cadastral...',
+    content: '✅ **Termo de Ciência e Privacidade aceito!** Vamos iniciar o preenchimento dos seus dados cadastrais para o Termo de Adesão.',
+    embeds: [],
     components: [],
   });
   await db.registrarAceiteTermoCiencia(userId);
@@ -305,12 +401,19 @@ async function iniciarOnboarding(member) {
     const dm = await user.createDM();
     await db.criarMembro(user.id);
 
-    await dm.send(
-      `Olá, **${user.username}**! Bem-vindo(a) ao servidor do **CyberGuard**. ` +
-        `Antes de liberar seu acesso à comunidade e emitirmos seu Termo de Voluntariado, ` +
-        `por favor leia e confirme o Termo de Ciência e Privacidade abaixo:`
-    );
+    // 1. Apresenta a documentação e justificativas de voluntariado e transparência
+    const querProsseguir = await apresentarDocumentacaoVoluntariado(dm, user.id);
+    if (!querProsseguir) {
+      const regExistente = await db.getMembro(user.id);
+      if (regExistente && (regExistente.nome || regExistente.cpf)) {
+        await db.atualizarStatus(user.id, 'abandonado', { saida_processada: true });
+      } else {
+        await db.removerMembro(user.id);
+      }
+      return;
+    }
 
+    // 2. Apresenta o Termo formal de Ciência da LGPD
     const aceitouTermo = await solicitarTermoCiencia(dm, user.id);
     if (!aceitouTermo) {
       const regExistente = await db.getMembro(user.id);

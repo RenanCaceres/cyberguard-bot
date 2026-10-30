@@ -27,6 +27,7 @@ async function reqV3(endpoint, body = {}) {
       'Content-Type': 'application/json',
       'Cookie': `token_v2=${tokenV2};`,
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      'notion-client-version': '23.13.0',
       'x-notion-active-user-header': activeUserId,
       'x-notion-space-id': spaceId,
     },
@@ -75,36 +76,74 @@ async function listarUsuariosV1() {
 }
 
 /**
+ * Extrai lista de e-mails normalizados (suporta múltiplos e-mails separados por //, ; ou ,)
+ */
+function extrairEmailsCandidatos(emailInput) {
+  if (!emailInput || typeof emailInput !== 'string') return [];
+  return emailInput
+    .split(/(?:\/\/|[;,])+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => e.includes('@'));
+}
+
+/**
  * Localiza ou provisiona o ID de usuário no Notion a partir do e-mail
  */
 async function obterUserIdPorEmail(email) {
-  if (!email || !email.includes('@')) {
+  const candidatos = extrairEmailsCandidatos(email);
+  if (!candidatos.length) {
     throw new Error('E-mail inválido fornecido.');
   }
 
-  const emailNorm = email.trim().toLowerCase();
-
-  // 1. Tenta buscar usuário existente via API pública oficial
+  // 1. Tenta buscar usuário já presente no workspace via API pública oficial (v1)
   const usuarios = await listarUsuariosV1();
-  const encontrado = usuarios.find((u) => u.person?.email?.toLowerCase() === emailNorm);
-  if (encontrado?.id) {
-    return encontrado.id;
+  for (const emailNorm of candidatos) {
+    const encontrado = usuarios.find((u) => u.person?.email?.toLowerCase() === emailNorm);
+    if (encontrado?.id) {
+      return encontrado.id;
+    }
   }
 
-  // 2. Se o usuário ainda não existir no workspace, provisiona via createEmailUser (v3)
+  // 2. Busca conta existente globalmente no Notion via findUser / findUsers (API v3)
+  // Essencial para usuários que já possuem conta no Notion, mas ainda não estão no Workspace
   try {
-    const res = await reqV3('createEmailUser', {
-      email: emailNorm,
-      preferredLocaleOrigin: 'inferred_from_inviter',
-      preferredLocale: 'pt-BR',
-    });
-    if (res?.userId) {
-      return res.userId;
+    const resMulti = await reqV3('findUsers', { emails: candidatos });
+    if (Array.isArray(resMulti?.values)) {
+      for (const item of resMulti.values) {
+        const uid = item?.user?.value?.id;
+        if (uid) return uid;
+      }
     }
-  } catch (err) {
-    // Se o usuário já tiver cadastro no Notion global, o createEmailUser pode retornar erro de validação
-    // mas se tiver data.userId ele pode vir no corpo
-    if (err.data?.userId) return err.data.userId;
+  } catch (_) {
+    // Fallback individual via findUser caso findUsers falhe
+  }
+
+  for (const emailNorm of candidatos) {
+    try {
+      const resFind = await reqV3('findUser', { email: emailNorm });
+      const uid = resFind?.value?.value?.id;
+      if (uid) {
+        return uid;
+      }
+    } catch (_) {
+      // Continua para o próximo candidato ou fallback
+    }
+  }
+
+  // 3. Se o usuário ainda não possuir conta no Notion, tenta provisionar via createEmailUser (v3)
+  for (const emailNorm of candidatos) {
+    try {
+      const res = await reqV3('createEmailUser', {
+        email: emailNorm,
+        preferredLocaleOrigin: 'inferred_from_inviter',
+        preferredLocale: 'pt-BR',
+      });
+      if (res?.userId) {
+        return res.userId;
+      }
+    } catch (err) {
+      if (err.data?.userId) return err.data.userId;
+    }
   }
 
   return null;

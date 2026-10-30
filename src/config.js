@@ -9,21 +9,21 @@ module.exports = {
   purpleTeamId: process.env.PURPLE_TEAM_ID || '',
   roleHackingEticoId: process.env.ROLE_HACKING_ETICO_ID || '',
   categoriaHackingEticoId: process.env.CATEGORIA_HACKING_ETICO_ID || '',
-  roleEducacionalId: process.env.ROLE_EDUCACIONAL_ID || '1563740930895511682',
-  categoriaEducacionalId: process.env.CATEGORIA_EDUCACIONAL_ID || '1563743308600049784',
-  roleDesenvolvimentoId: process.env.ROLE_DESENVOLVIMENTO_ID || '1563740560051671041',
-  categoriaDesenvolvimentoId: process.env.CATEGORIA_DESENVOLVIMENTO_ID || '1563742320460042362',
+  roleEducacionalId: process.env.ROLE_EDUCACIONAL_ID || '',
+  categoriaEducacionalId: process.env.CATEGORIA_EDUCACIONAL_ID || '',
+  roleDesenvolvimentoId: process.env.ROLE_DESENVOLVIMENTO_ID || '',
+  categoriaDesenvolvimentoId: process.env.CATEGORIA_DESENVOLVIMENTO_ID || '',
   rolesArea: {
-    'Hacking Ético': process.env.ROLE_HACKING_ETICO_ID || '1502772363178147860',
-    'Hacking Etico': process.env.ROLE_HACKING_ETICO_ID || '1502772363178147860',
-    'Educacional': process.env.ROLE_EDUCACIONAL_ID || '1563740930895511682',
-    'Desenvolvimento': process.env.ROLE_DESENVOLVIMENTO_ID || '1563740560051671041',
+    'Hacking Ético': process.env.ROLE_HACKING_ETICO_ID || '',
+    'Hacking Etico': process.env.ROLE_HACKING_ETICO_ID || '',
+    'Educacional': process.env.ROLE_EDUCACIONAL_ID || '',
+    'Desenvolvimento': process.env.ROLE_DESENVOLVIMENTO_ID || '',
   },
   categoriasArea: {
-    'Hacking Ético': process.env.CATEGORIA_HACKING_ETICO_ID || '1518448843279302696',
-    'Hacking Etico': process.env.CATEGORIA_HACKING_ETICO_ID || '1518448843279302696',
-    'Educacional': process.env.CATEGORIA_EDUCACIONAL_ID || '1563743308600049784',
-    'Desenvolvimento': process.env.CATEGORIA_DESENVOLVIMENTO_ID || '1563742320460042362',
+    'Hacking Ético': process.env.CATEGORIA_HACKING_ETICO_ID || '',
+    'Hacking Etico': process.env.CATEGORIA_HACKING_ETICO_ID || '',
+    'Educacional': process.env.CATEGORIA_EDUCACIONAL_ID || '',
+    'Desenvolvimento': process.env.CATEGORIA_DESENVOLVIMENTO_ID || '',
   },
   lideresTime: (() => {
     try {
@@ -33,7 +33,7 @@ module.exports = {
     }
   })(),
   roleLiderNome: process.env.ROLE_LIDER_NOME || 'Líderes',
-  roleViceLiderId: process.env.ROLE_VICE_LIDER_ID || '1564414013809360946',
+  roleViceLiderId: process.env.ROLE_VICE_LIDER_ID || '',
   roleViceLiderNome: process.env.ROLE_VICE_LIDER_NOME || 'Vice-Líder',
   guildId: process.env.GUILD_ID,
   channelRhId: process.env.CHANNEL_RH_ID,
@@ -76,6 +76,7 @@ module.exports = {
     return Array.from(new Set(normalizadas));
   })(),
   expulsarAoRejeitar: process.env.EXPULSAR_AO_REJEITAR !== 'false',
+  notionVoluntariadoUrl: process.env.NOTION_VOLUNTARIADO_URL || '',
   whatsappLink: process.env.WHATSAPP_LINK,
   whatsappLinksArea: (() => {
     try {
