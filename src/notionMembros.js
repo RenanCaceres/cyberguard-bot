@@ -106,9 +106,64 @@ async function buscarPaginaMembro(discordId, ra = null, nome = null) {
 }
 
 /**
- * Cadastra ou atualiza um membro ativo no Notion
+ * Cadastra ou atualiza um membro aprovado no Onboarding que ainda está aguardando a assinatura do termo.
+ * No Notion, o membro é registrado com Status = 'Aguardando Assinatura' e 'Data de Entrada' vazia (null).
  */
-async function registrarMembroAtivo(membro) {
+async function registrarMembroAguardandoAssinatura(membro) {
+  const { dbId, token } = cfg();
+  if (!token || !dbId) return;
+
+  try {
+    const existente = await buscarPaginaMembro(membro.discord_id, membro.ra, membro.nome);
+
+    const propriedades = {
+      Nome: {
+        title: [{ text: { content: membro.nome || 'Membro' } }],
+      },
+      Status: {
+        select: { name: 'Aguardando Assinatura' },
+      },
+      RA: {
+        rich_text: membro.ra ? [{ text: { content: String(membro.ra).trim() } }] : [],
+      },
+      'Data de Entrada': {
+        date: null,
+      },
+      'Data de Saída': {
+        date: null,
+      },
+    };
+
+    if (membro.email) {
+      propriedades['E-mail'] = { email: String(membro.email).trim() };
+    }
+
+    const setorNormalizado = normalizarSetor(membro.area_interesse);
+    if (setorNormalizado) {
+      propriedades.Setor = { select: { name: setorNormalizado } };
+    }
+
+    if (existente) {
+      await req('PATCH', `/pages/${existente.id}`, { properties: propriedades });
+      console.log(`[notion-membros] Membro ${membro.nome} atualizado como Aguardando Assinatura no Notion.`);
+    } else {
+      await req('POST', '/pages', {
+        parent: { database_id: dbId },
+        properties: propriedades,
+      });
+      console.log(`[notion-membros] Membro ${membro.nome} cadastrado como Aguardando Assinatura no Notion.`);
+    }
+  } catch (err) {
+    console.error('[notion-membros] Erro ao registrar membro aguardando assinatura:', err.message);
+  }
+}
+
+/**
+ * Cadastra ou atualiza um membro ativo no Notion.
+ * REGRA ESTRITA: A 'Data de Entrada' é baseada única e exclusivamente na data do carimbo
+ * da assinatura digital (dataAssinaturaIso). Jamais em datas do documento, aprovação ou criação.
+ */
+async function registrarMembroAtivo(membro, dataAssinaturaIso = null) {
   const { dbId, token } = cfg();
   if (!token || !dbId) return;
 
@@ -139,35 +194,24 @@ async function registrarMembroAtivo(membro) {
       propriedades.Setor = { select: { name: setorNormalizado } };
     }
 
-    if (membro.data_inicio || membro.data_aprovacao || membro.created_at) {
-      let dataIso = null;
-      if (membro.data_inicio && membro.data_inicio.includes('/')) {
-        const partes = membro.data_inicio.split('/');
-        if (partes.length === 2) {
-          // mm/aaaa -> aaaa-mm-01
-          dataIso = `${partes[1]}-${partes[0].padStart(2, '0')}-01`;
-        } else if (partes.length === 3) {
-          // dd/mm/aaaa -> aaaa-mm-dd
-          dataIso = `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
-        }
-      }
-      if (!dataIso && (membro.data_aprovacao || membro.created_at)) {
-        dataIso = new Date(membro.data_aprovacao || membro.created_at).toISOString().split('T')[0];
-      }
-      if (dataIso) {
-        propriedades['Data de Entrada'] = { date: { start: dataIso } };
-      }
+    // A Data de Entrada é baseada estrita e exclusivamente no carimbo da assinatura
+    if (dataAssinaturaIso) {
+      propriedades['Data de Entrada'] = { date: { start: dataAssinaturaIso } };
+    } else if (existente?.properties?.['Data de Entrada']?.date?.start) {
+      // Preserva data de entrada existente se já estava preenchida
+    } else {
+      propriedades['Data de Entrada'] = { date: null };
     }
 
     if (existente) {
       await req('PATCH', `/pages/${existente.id}`, { properties: propriedades });
-      console.log(`[notion-membros] Membro ${membro.nome} atualizado no Notion.`);
+      console.log(`[notion-membros] Membro ${membro.nome} atualizado como Ativo no Notion.`);
     } else {
       await req('POST', '/pages', {
         parent: { database_id: dbId },
         properties: propriedades,
       });
-      console.log(`[notion-membros] Membro ${membro.nome} cadastrado no Notion.`);
+      console.log(`[notion-membros] Membro ${membro.nome} cadastrado como Ativo no Notion.`);
     }
   } catch (err) {
     console.error('[notion-membros] Erro ao registrar membro ativo:', err.message);
@@ -175,9 +219,9 @@ async function registrarMembroAtivo(membro) {
 }
 
 /**
- * Atualiza o status do membro para Inativo ao sair do Discord (apenas Ativo ou Inativo conforme LGPD)
+ * Atualiza o status do membro para Inativo ou Expulso ao sair do Discord (conforme LGPD)
  */
-async function registrarSaidaMembro(discordId, { nome = null, ra = null } = {}) {
+async function registrarSaidaMembro(discordId, { nome = null, ra = null, expulso = false } = {}) {
   const { dbId, token } = cfg();
   if (!token || !dbId) return;
 
@@ -189,7 +233,7 @@ async function registrarSaidaMembro(discordId, { nome = null, ra = null } = {}) 
     }
 
     const dataHojeIso = new Date().toISOString().split('T')[0];
-    const novoStatus = 'Inativo';
+    const novoStatus = expulso ? 'Expulso' : 'Inativo';
 
     const propriedades = {
       Status: { select: { name: novoStatus } },
@@ -205,6 +249,7 @@ async function registrarSaidaMembro(discordId, { nome = null, ra = null } = {}) 
 
 module.exports = {
   buscarPaginaMembro,
+  registrarMembroAguardandoAssinatura,
   registrarMembroAtivo,
   registrarSaidaMembro,
 };

@@ -157,8 +157,8 @@ async function handleAprovacaoInteraction(interaction) {
   await adicionarLinhaPlanilha(membroAtualizado, usuarioDiscord.tag);
 
   try {
-    const { registrarMembroAtivo } = require('./notionMembros');
-    await registrarMembroAtivo(membroAtualizado);
+    const { registrarMembroAguardandoAssinatura } = require('./notionMembros');
+    await registrarMembroAguardandoAssinatura(membroAtualizado);
   } catch (errNotion) {
     console.error('Erro ao registrar membro no Notion:', errNotion.message);
   }

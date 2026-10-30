@@ -496,7 +496,63 @@ async function validarTermoDevolvido(caminhoPdf) {
     };
   }
 
-  return { valido: true, data: infoData.dataFormatada };
+  const dataCarimbo = await extrairDataCarimboAssinatura(caminhoPdf);
+  return { valido: true, data: infoData.dataFormatada, dataCarimbo };
+}
+
+/**
+ * Extrai exclusivamente a data do carimbo de assinatura Gov.br (timestamp criptográfico /M ou visual)
+ * Retorna no formato ISO 'YYYY-MM-DD' ou null se não houver assinatura.
+ */
+async function extrairDataCarimboAssinatura(caminhoPdf) {
+  if (!caminhoPdf || !fs.existsSync(caminhoPdf)) return null;
+
+  try {
+    const bytes = fs.readFileSync(caminhoPdf);
+    const pdfDoc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+
+    // 1. Tentar ler do objeto /Sig (/M)
+    for (const [ref, obj] of pdfDoc.context.enumerateIndirectObjects()) {
+      if (obj && typeof obj.get === 'function') {
+        const tipo = obj.get(PDFName.of('Type'));
+        if (tipo && tipo.asString && tipo.asString() === '/Sig') {
+          const m = obj.get(PDFName.of('M'));
+          if (m) {
+            const digits = m.toString().replace(/[^\d]/g, '');
+            if (digits.length >= 8) {
+              const y = digits.slice(0, 4);
+              const mon = digits.slice(4, 6);
+              const d = digits.slice(6, 8);
+              return `${y}-${mon}-${d}`;
+            }
+          }
+        }
+      }
+    }
+  } catch (errSig) {
+    console.warn('[dataAssinatura] Falha ao extrair /M do PDF:', errSig.message);
+  }
+
+  // 2. Fallback: procurar no texto do carimbo visual do gov.br usando pdfjs-dist
+  try {
+    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const data = new Uint8Array(fs.readFileSync(caminhoPdf));
+    const doc = await pdfjsLib.getDocument({ data }).promise;
+    let textoCompleto = '';
+    for (let i = 1; i <= doc.numPages; i++) {
+      const p = await doc.getPage(i);
+      const c = await p.getTextContent();
+      textoCompleto += ' ' + c.items.map((it) => it.str).join(' ');
+    }
+    const matchGovBr = textoCompleto.match(/([0-9]{2})\/([0-9]{2})\/([0-9]{4})\s+[0-9]{2}:[0-9]{2}:[0-9]{2}/);
+    if (matchGovBr) {
+      return `${matchGovBr[3]}-${matchGovBr[2]}-${matchGovBr[1]}`;
+    }
+  } catch (errPdfjs) {
+    console.warn('[dataAssinatura] Falha ao extrair texto do carimbo Gov.br:', errPdfjs.message);
+  }
+
+  return null;
 }
 
 module.exports = {
@@ -504,6 +560,7 @@ module.exports = {
   dataHojeBrasil,
   extrairDataDoTermo,
   extrairInfoDataDoTermo,
+  extrairDataCarimboAssinatura,
   inspecionarObjetosPdf,
   localizarAreaEsperadaAssinatura,
   pontoDentroDaArea,

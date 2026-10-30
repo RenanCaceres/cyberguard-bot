@@ -92,12 +92,36 @@ async function concluirTermoAssinado({ membro, caminhoArquivo, nomeOriginal }) {
     console.error('Erro ao enviar termo assinado para o Google Drive:', errDrive.message);
   }
 
-  // 4. Atualizar status no banco
-  await db.atualizarStatus(membro.discord_id, 'concluido', {
-    termo_arquivo_path: caminhoPermanente || caminhoArquivo,
-  });
+  // 4. Extrair data do carimbo da assinatura e atualizar status no banco
+  let dataCarimboIso = null;
+  try {
+    const { extrairDataCarimboAssinatura } = require('./dataAssinatura');
+    dataCarimboIso = await extrairDataCarimboAssinatura(caminhoPermanente || caminhoArquivo);
+  } catch (eCarimbo) {
+    console.warn('Não foi possível extrair carimbo da assinatura digital:', eCarimbo.message);
+  }
 
-  // 5. Limpar o temporário se diferente do permanente
+  const updatesBanco = {
+    termo_arquivo_path: caminhoPermanente || caminhoArquivo,
+  };
+  if (dataCarimboIso) {
+    const [y, m, d] = dataCarimboIso.split('-');
+    updatesBanco.data_inicio = `${d}/${m}/${y}`;
+  }
+
+  await db.atualizarStatus(membro.discord_id, 'concluido', updatesBanco);
+
+  // 5. Atualizar Notion: Membro agora passa para 'Ativo' e 'Data de Entrada' é baseada
+  // única e exclusivamente na data do carimbo da assinatura.
+  try {
+    const { registrarMembroAtivo } = require('./notionMembros');
+    const membroAtualizado = await db.getMembro(membro.discord_id);
+    await registrarMembroAtivo(membroAtualizado, dataCarimboIso);
+  } catch (errNotion) {
+    console.error('Erro ao atualizar membro ativo no Notion após assinatura:', errNotion.message);
+  }
+
+  // 6. Limpar o temporário se diferente do permanente
   if (caminhoArquivo && caminhoPermanente && caminhoArquivo !== caminhoPermanente && fs.existsSync(caminhoArquivo)) {
     fs.unlink(caminhoArquivo, () => {});
   }
