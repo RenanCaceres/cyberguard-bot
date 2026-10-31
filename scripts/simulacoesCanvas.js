@@ -780,6 +780,380 @@ function simularModuloCompleta() {
   return canvas.toBuffer('image/png');
 }
 
+// =========================================================================
+// 8. SIMULAÇÃO: CENTRAL DE APOIO & DÚVIDAS (PAINEL PRINCIPAL)
+// =========================================================================
+function simularModuloSuportePainel() {
+  const { canvas, ctx } = criarCanvas(550);
+  desenharBarraCanal(ctx, 'dúvidas');
+
+  // Mensagem do Bot com Painel Fixado
+  desenharAvatar(ctx, 36, 75, 18, { ehBot: true });
+  desenharCabecalhoMensagem(ctx, 64, 70, 'Bot RH CyberGuard', { ehBot: true, horario: 'Hoje às 14:00' });
+
+  desenharEmbed(ctx, 64, 85, 480, 275, {
+    corBorda: DISCORD.azulCyber,
+    autor: 'Central de Atendimento • CyberGuard UTFPR',
+    titulo: '🛡️ Central de Apoio & Dúvidas • CyberGuard UTFPR',
+    campos: [
+      {
+        titulo: 'Bem-vindo(a) à Central de Dúvidas e Atendimento!',
+        valor: 'Precisa de orientações sobre o bot, ponto eletrônico, declarações ou normas do projeto?',
+      },
+      {
+        titulo: 'Escolha uma das opções abaixo:',
+        valor: [
+          '• 📜 Regras e Manuais (PDF): Consulta de fluxos e manuais oficiais.',
+          '• 🤖 Tirar Dúvida com IA (Gemini): Resposta imediata e contextualizada 24/7.',
+          '• 👤 Tirar Dúvidas Comigo (Liderança): Envie para a coordenação por e-mail.',
+        ],
+      },
+      {
+        titulo: '💡 Como funciona o atendimento por e-mail?',
+        valor: 'O bot gera um protocolo (#DUVIDA-0000) e entrega a resposta do líder na sua DM do Discord!',
+      },
+    ],
+    rodape: 'CyberGuard UTFPR • Inteligência de Ameaças & Extensão Universitária',
+  });
+
+  // Botões do Painel
+  let bx = 64;
+  bx += desenharBotao(ctx, bx, 372, 'Regras e Manuais (PDF)', 'azul', { icone: '📜' }) + 10;
+  bx += desenharBotao(ctx, bx, 372, 'Tirar Dúvida com IA', 'verde', { icone: '🤖' }) + 10;
+  desenharBotao(ctx, bx, 372, 'Tirar Dúvidas Comigo', 'cinza', { icone: '👤' });
+
+  // Card Lateral de Orientações Rápidas
+  const mx = 565;
+  const my = 85;
+  ctx.save();
+  ctx.fillStyle = DISCORD.bgModal;
+  ctx.beginPath();
+  ctx.roundRect(mx, my, 335, 335, 8);
+  ctx.fill();
+  ctx.strokeStyle = '#3f4147';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.font = `bold 13.5px ${FONTE}`;
+  ctx.fillStyle = '#60a5fa';
+  ctx.fillText('🌟 3 Vias de Atendimento Integradas', mx + 16, my + 28);
+
+  ctx.font = `bold 12.5px ${FONTE}`;
+  ctx.fillStyle = DISCORD.txtBranco;
+  ctx.fillText('1. Manuais Oficiais em PDF', mx + 16, my + 60);
+  ctx.font = `11.5px ${FONTE}`;
+  ctx.fillStyle = DISCORD.txtTexto;
+  ctx.fillText('Selecione o módulo e receba o PDF', mx + 16, my + 78);
+  ctx.fillText('completo com regras e fluxogramas.', mx + 16, my + 94);
+
+  ctx.font = `bold 12.5px ${FONTE}`;
+  ctx.fillStyle = '#22c55e';
+  ctx.fillText('2. Inteligência Artificial (Gemini)', mx + 16, my + 130);
+  ctx.font = `11.5px ${FONTE}`;
+  ctx.fillStyle = DISCORD.txtTexto;
+  ctx.fillText('Treinada com todas as normas internas.', mx + 16, my + 148);
+  ctx.fillText('Tira dúvidas em segundos com sigilo total.', mx + 16, my + 164);
+
+  ctx.font = `bold 12.5px ${FONTE}`;
+  ctx.fillStyle = '#f59e0b';
+  ctx.fillText('3. Contato Direto com a Liderança', mx + 16, my + 200);
+  ctx.font = `11.5px ${FONTE}`;
+  ctx.fillStyle = DISCORD.txtTexto;
+  ctx.fillText('Envio para o e-mail da coordenação.', mx + 16, my + 218);
+  ctx.fillText('Retorno entregue na sua DM do Discord!', mx + 16, my + 234);
+
+  // Box de garantia de privacidade
+  ctx.fillStyle = '#1e1f22';
+  ctx.beginPath();
+  ctx.roundRect(mx + 16, my + 262, 303, 56, 6);
+  ctx.fill();
+  ctx.strokeStyle = '#2f6fed';
+  ctx.stroke();
+
+  ctx.font = `bold 11.5px ${FONTE}`;
+  ctx.fillStyle = '#60a5fa';
+  ctx.fillText('🔒 100% Efêmero e Confidencial', mx + 26, my + 284);
+  ctx.font = `10.5px ${FONTE}`;
+  ctx.fillStyle = DISCORD.txtMuted;
+  ctx.fillText('Suas dúvidas e respostas não ficam visíveis no canal.', mx + 26, my + 302);
+  ctx.restore();
+
+  // Rodapé do Canvas
+  ctx.save();
+  ctx.font = `12px ${FONTE}`;
+  ctx.fillStyle = DISCORD.txtMuted;
+  ctx.fillText('💡 Dica: Você também pode usar /documentacao em qualquer canal para acessar o catálogo.', 64, 440);
+  ctx.fillText('Tanto as respostas da IA quanto os manuais são enviados de modo privado (só você vê).', 64, 460);
+  ctx.restore();
+
+  return canvas.toBuffer('image/png');
+}
+
+// =========================================================================
+// 9. SIMULAÇÃO: TIRA-DÚVIDAS COM IA (MODAL & RESPOSTA GEMINI)
+// =========================================================================
+function simularModuloSuporteIA() {
+  const { canvas, ctx } = criarCanvas(560);
+  desenharBarraCanal(ctx, 'dúvidas • Tira-Dúvidas Instantâneo com IA');
+
+  // Modal do Discord (Simulação no lado esquerdo)
+  const mx1 = 30;
+  const my1 = 60;
+  ctx.save();
+  ctx.fillStyle = DISCORD.bgModal;
+  ctx.beginPath();
+  ctx.roundRect(mx1, my1, 415, 435, 8);
+  ctx.fill();
+  ctx.strokeStyle = '#5865f2';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.font = `bold 14px ${FONTE}`;
+  ctx.fillStyle = DISCORD.txtBranco;
+  ctx.fillText('Tirar Dúvida com IA (Gemini)', mx1 + 18, my1 + 30);
+
+  ctx.font = `bold 12px ${FONTE}`;
+  ctx.fillStyle = DISCORD.txtMuted;
+  ctx.fillText('QUAL É A SUA DÚVIDA SOBRE O CYBERGUARD? *', mx1 + 18, my1 + 68);
+
+  // Campo de texto do Modal
+  ctx.fillStyle = '#1e1f22';
+  ctx.beginPath();
+  ctx.roundRect(mx1 + 18, my1 + 80, 379, 130, 6);
+  ctx.fill();
+  ctx.strokeStyle = '#3f4147';
+  ctx.stroke();
+
+  ctx.font = `12px ${FONTE}`;
+  ctx.fillStyle = DISCORD.txtTexto;
+  ctx.fillText('Por que o bot precisa dos meus dados pessoais no', mx1 + 28, my1 + 105);
+  ctx.fillText('onboarding? Posso participar sem fornecer CPF ou', mx1 + 28, my1 + 125);
+  ctx.fillText('como funciona a declaração de horas para AC?', mx1 + 28, my1 + 145);
+
+  ctx.font = `11px ${FONTE}`;
+  ctx.fillStyle = DISCORD.txtMuted;
+  ctx.fillText('Limite de 1.000 caracteres • Inteligência Gemini 3.8-Flash', mx1 + 18, my1 + 225);
+
+  // Botões do Modal
+  ctx.fillStyle = DISCORD.cinzaBtn;
+  ctx.beginPath();
+  ctx.roundRect(mx1 + 215, my1 + 245, 80, 32, 4);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `bold 12px ${FONTE}`;
+  ctx.textAlign = 'center';
+  ctx.fillText('Cancelar', mx1 + 255, my1 + 265);
+
+  ctx.fillStyle = DISCORD.badgeBot;
+  ctx.beginPath();
+  ctx.roundRect(mx1 + 305, my1 + 245, 92, 32, 4);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('Enviar', mx1 + 351, my1 + 265);
+
+  // Box explicativo no Modal
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#2b2d31';
+  ctx.beginPath();
+  ctx.roundRect(mx1 + 18, my1 + 295, 379, 115, 6);
+  ctx.fill();
+  ctx.strokeStyle = '#248046';
+  ctx.stroke();
+
+  ctx.font = `bold 12px ${FONTE}`;
+  ctx.fillStyle = '#22c55e';
+  ctx.fillText('⚡ Resposta em Tempo Real:', mx1 + 28, my1 + 320);
+  ctx.font = `11.5px ${FONTE}`;
+  ctx.fillStyle = DISCORD.txtTexto;
+  ctx.fillText('A IA analisa o regimento oficial, termos de voluntariado', mx1 + 28, my1 + 342);
+  ctx.fillText('da UTFPR, sistema de pontos e normas LGPD.', mx1 + 28, my1 + 360);
+  ctx.fillText('A resposta é exibida apenas para você (efêmera).', mx1 + 28, my1 + 378);
+  ctx.restore();
+
+  // Resposta do Bot com o Embed (Lado Direito)
+  const mx2 = 465;
+  const my2 = 60;
+  ctx.save();
+  desenharAvatar(ctx, mx2 + 20, my2 + 22, 16, { ehBot: true });
+  desenharCabecalhoMensagem(ctx, mx2 + 46, my2 + 18, 'Bot RH CyberGuard', { ehBot: true, horario: 'Hoje às 14:01' });
+
+  desenharEmbed(ctx, mx2 + 20, my2 + 32, 420, 360, {
+    corBorda: DISCORD.azulCyber,
+    autor: 'CyberGuard Assist • Suporte com IA',
+    titulo: '🤖 Resposta da IA (Gemini 3.8-Flash)',
+    campos: [
+      {
+        titulo: 'Sua Pergunta:',
+        valor: '> "Por que o bot precisa dos meus dados no onboarding?..."',
+      },
+      {
+        titulo: 'Orientações Oficiais:',
+        valor: [
+          '1. Base Legal dos Dados: O cadastro de CPF, RG e',
+          '   RA é exigido pela Lei do Voluntariado (Lei 9.608/1998)',
+          '   para emissão do Termo Formal aceito pela UTFPR.',
+          '2. Segurança & Criptografia: Seus dados são salvos com',
+          '   criptografia AES-256-GCM em repouso. Ninguém acessa.',
+          '3. Cargo Entusiasta: Caso prefira não assinar o termo,',
+          '   você pode participar da comunidade como Entusiasta.',
+          '4. Horas AC: O comando /declaracao emite as horas para a DIREC.',
+        ],
+      },
+      {
+        titulo: 'A dúvida persistiu?',
+        valor: 'Use o botão "Tirar Dúvidas Comigo" para falar com a Liderança.',
+      },
+    ],
+    rodape: 'Só você pode ver esta mensagem • Resposta efêmera privada',
+  });
+
+  desenharBotao(ctx, mx2 + 20, my2 + 402, 'Visualizar PDF e Simulação', 'azul', { icone: '📄' });
+  ctx.restore();
+
+  // Rodapé geral
+  ctx.save();
+  ctx.font = `11.5px ${FONTE}`;
+  ctx.fillStyle = DISCORD.txtMuted;
+  ctx.fillText('🛡️ O módulo de IA conta com fallback automático entre modelos para garantir 99.9% de disponibilidade.', 30, 520);
+  ctx.fillText('Nenhuma informação sigilosa de outros membros é exposta nas respostas da IA.', 30, 538);
+  ctx.restore();
+
+  return canvas.toBuffer('image/png');
+}
+
+// =========================================================================
+// 10. SIMULAÇÃO: ATENDIMENTO COM A LIDERANÇA (E-MAIL + DM)
+// =========================================================================
+function simularModuloSuporteLideranca() {
+  const { canvas, ctx } = criarCanvas(560);
+  desenharBarraCanal(ctx, 'dúvidas • Contato Direto com a Liderança via E-mail');
+
+  // Lado Esquerdo: Abertura do Chamado & Envio de E-mail
+  const mx1 = 30;
+  const my1 = 60;
+  ctx.save();
+  ctx.fillStyle = DISCORD.bgModal;
+  ctx.beginPath();
+  ctx.roundRect(mx1, my1, 415, 435, 8);
+  ctx.fill();
+  ctx.strokeStyle = '#3b82f6';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.font = `bold 13.5px ${FONTE}`;
+  ctx.fillStyle = '#60a5fa';
+  ctx.fillText('📨 1. Envio do Chamado (Discord -> E-mail)', mx1 + 18, my1 + 28);
+
+  ctx.font = `bold 12px ${FONTE}`;
+  ctx.fillStyle = DISCORD.txtMuted;
+  ctx.fillText('FORMULÁRIO PREENCHIDO PELO INTEGRANTE:', mx1 + 18, my1 + 55);
+
+  ctx.fillStyle = '#1e1f22';
+  ctx.beginPath();
+  ctx.roundRect(mx1 + 18, my1 + 65, 379, 75, 6);
+  ctx.fill();
+  ctx.strokeStyle = '#3f4147';
+  ctx.stroke();
+
+  ctx.font = `bold 11px ${FONTE}`;
+  ctx.fillStyle = '#60a5fa';
+  ctx.fillText('Assunto: Validação de Horas e Atividades', mx1 + 28, my1 + 85);
+  ctx.font = `11.5px ${FONTE}`;
+  ctx.fillStyle = DISCORD.txtTexto;
+  ctx.fillText('Minhas horas do projeto anterior já foram aprovadas', mx1 + 28, my1 + 105);
+  ctx.fillText('no Notion para constar na declaração deste mês?', mx1 + 28, my1 + 123);
+
+  // Card de confirmação de envio
+  desenharEmbed(ctx, mx1 + 18, my1 + 155, 379, 180, {
+    corBorda: '#22c55e',
+    titulo: '📨 Dúvida Encaminhada para a Liderança!',
+    campos: [
+      { titulo: 'Protocolo de Suporte', valor: '#DUVIDA-0000' },
+      { titulo: 'Assunto', valor: 'Validação de Horas e Atividades' },
+      { titulo: 'Status', valor: '⏳ Aguardando resposta por e-mail da Liderança' },
+    ],
+    rodape: 'O bot encaminhou o e-mail e aguarda a resposta do líder.',
+  });
+
+  ctx.font = `11px ${FONTE}`;
+  ctx.fillStyle = DISCORD.txtMuted;
+  ctx.fillText('✉️ O e-mail contém o histórico da dúvida e o protocolo exclusivo.', mx1 + 18, my1 + 360);
+  ctx.fillText('A liderança responde diretamente de seu cliente de e-mail.', mx1 + 18, my1 + 378);
+  ctx.restore();
+
+  // Lado Direito: Captura IMAP e Entrega Automática na DM
+  const mx2 = 465;
+  const my2 = 60;
+  ctx.save();
+  ctx.fillStyle = DISCORD.bgModal;
+  ctx.beginPath();
+  ctx.roundRect(mx2, my2, 425, 435, 8);
+  ctx.fill();
+  ctx.strokeStyle = '#22c55e';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.font = `bold 13.5px ${FONTE}`;
+  ctx.fillStyle = '#22c55e';
+  ctx.fillText('📬 2. Resposta Entregue na DM do Integrante', mx2 + 18, my2 + 28);
+
+  desenharAvatar(ctx, mx2 + 20, my2 + 65, 16, { ehBot: true });
+  desenharCabecalhoMensagem(ctx, mx2 + 46, my2 + 60, 'Bot RH CyberGuard', { ehBot: true, horario: 'Hoje às 15:30' });
+
+  desenharEmbed(ctx, mx2 + 20, my2 + 75, 385, 255, {
+    corBorda: DISCORD.azulCyber,
+    autor: 'Central de Apoio & Suporte • CyberGuard',
+    titulo: '📬 Sua Dúvida foi Respondida pela Liderança!',
+    campos: [
+      { titulo: '🔖 Protocolo Oficial', valor: '#DUVIDA-0000' },
+      { titulo: '📌 Assunto', valor: 'Validação de Horas e Atividades' },
+      {
+        titulo: '💬 Resposta da Liderança:',
+        valor: [
+          '"Olá! Sim, todas as horas aprovadas no Notion',
+          'até o último fechamento já estão consolidadas no banco.',
+          'Pode emitir sua declaração oficial pelo comando',
+          '/declaracao solicitar. Abraço!"',
+        ],
+      },
+    ],
+    rodape: 'Se suas DMs estiverem fechadas, o bot avisa no canal com segurança.',
+  });
+
+  ctx.fillStyle = '#1e1f22';
+  ctx.beginPath();
+  ctx.roundRect(mx2 + 20, my2 + 345, 385, 65, 6);
+  ctx.fill();
+  ctx.strokeStyle = '#3f4147';
+  ctx.stroke();
+
+  ctx.font = `bold 11.5px ${FONTE}`;
+  ctx.fillStyle = '#22c55e';
+  ctx.fillText('⚡ Ciclo Fechado & Autônomo:', mx2 + 30, my2 + 368);
+  ctx.font = `11px ${FONTE}`;
+  ctx.fillStyle = DISCORD.txtMuted;
+  ctx.fillText('O integrante não precisa ter o e-mail do líder, e o líder', mx2 + 30, my2 + 386);
+  ctx.fillText('responde pelo Gmail do celular sem precisar abrir o Discord!', mx2 + 30, my2 + 400);
+  ctx.restore();
+
+  // Rodapé do Canvas
+  ctx.save();
+  ctx.font = `11.5px ${FONTE}`;
+  ctx.fillStyle = DISCORD.txtMuted;
+  ctx.fillText('🛡️ O sistema utiliza busca IMAP automatizada a cada 1 minuto com tratamento anti-spam e sanitização.', 30, 520);
+  ctx.fillText('Protocolos exclusivos garantem que respostas sejam entregues unicamente ao autor da pergunta.', 30, 538);
+  ctx.restore();
+
+  return canvas.toBuffer('image/png');
+}
+
+// =========================================================================
+// 11. SIMULAÇÃO: VISÃO GERAL DO MÓDULO SUPORTE & DOCUMENTAÇÃO
+// =========================================================================
+function simularModuloSuporte() {
+  return simularModuloSuportePainel();
+}
+
 // Exporta e compila todos os arquivos para a pasta docs/simulacoes
 async function gerarTodasSimulacoes() {
   const pasta = path.resolve(__dirname, '../docs/simulacoes');
@@ -793,6 +1167,10 @@ async function gerarTodasSimulacoes() {
     { nome: 'simulacao_reuniao.png', fn: simularModuloReuniao },
     { nome: 'simulacao_meusdados.png', fn: simularModuloMeusDados },
     { nome: 'simulacao_completa.png', fn: simularModuloCompleta },
+    { nome: 'simulacao_suporte_painel.png', fn: simularModuloSuportePainel },
+    { nome: 'simulacao_suporte_ia.png', fn: simularModuloSuporteIA },
+    { nome: 'simulacao_suporte_lideranca.png', fn: simularModuloSuporteLideranca },
+    { nome: 'simulacao_suporte.png', fn: simularModuloSuporte },
   ];
 
   for (const m of mapas) {
@@ -812,6 +1190,10 @@ module.exports = {
   simularModuloReuniao,
   simularModuloMeusDados,
   simularModuloCompleta,
+  simularModuloSuportePainel,
+  simularModuloSuporteIA,
+  simularModuloSuporteLideranca,
+  simularModuloSuporte,
 };
 
 if (require.main === module) {

@@ -120,6 +120,23 @@ const MODULOS = {
       '• **Canal do RH:** Disparo de logs auditáveis para qualquer alteração cadastral.',
     ],
   },
+  suporte: {
+    id: 'suporte',
+    titulo: '🛡️ Central de Apoio & Dúvidas',
+    subtitulo: 'Manuais em PDF, tira-dúvidas com IA Gemini e suporte da Liderança via e-mail e DM.',
+    cor: 0x2f6fed,
+    pdfPrincipal: 'Manual_Membro_Central_Suporte_Duvidas.pdf',
+    simulacao: 'simulacao_suporte_painel.png',
+    comandos: ['/documentacao', '/painel-duvidas', 'Canal #dúvidas'],
+    regras: [
+      '• **Central Fixada:** Canal permanente #dúvidas para suporte e atendimento ao integrante.',
+      '• **Manuais em PDF:** Download imediato e ilustrado com diagramas e simulações do Discord.',
+      '• **IA Gemini 3.8-Flash:** Respostas instantâneas treinadas com o regimento do CyberGuard e LGPD.',
+      '• **Chamado para a Liderança:** Envio com protocolo oficial (#DUVIDA-XXXX) via SMTP.',
+      '• **Resposta na DM:** Quando a coordenação responde ao e-mail, o bot entrega na sua DM do Discord.',
+      '• **100% Efêmero:** Suas dúvidas e manuais chegam de forma privada para sua tranquilidade.',
+    ],
+  },
   completa: {
     id: 'completa',
     titulo: '📘 Documentação Técnica e Operacional Completa',
@@ -237,6 +254,7 @@ module.exports = {
           { name: '📝 Onboarding & Assinatura Gov.br', value: 'onboarding' },
           { name: '🎙️ Atas de Reunião com IA Gemini', value: 'reuniao' },
           { name: '🔒 Portal LGPD & Meus Dados', value: 'meusdados' },
+          { name: '🛡️ Central de Apoio & Dúvidas', value: 'suporte' },
           { name: '📘 Documentação Completa do Sistema (v2.0)', value: 'completa' }
         )
     )
