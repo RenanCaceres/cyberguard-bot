@@ -246,9 +246,11 @@ async function handleMensagemDM(message) {
     nomeOriginal: anexo.name,
   });
 
-  await message.reply(
-    'Termo recebido e validado com sucesso! 🎉 Encaminhei uma cópia para a coordenação por e-mail e seu cadastro está concluído. Bem-vindo(a) ao CyberGuard!'
-  );
+  const textoConclusaoAuto =
+    'Termo recebido e validado com sucesso! 🎉 Encaminhei uma cópia para a coordenação por e-mail e seu cadastro está concluído. Bem-vindo(a) ao CyberGuard!' +
+    (config.notionHomeUrl ? `\n\n📌 **Acesse a página central do CyberGuard no Notion:** ${config.notionHomeUrl}` : '');
+
+  await message.reply(textoConclusaoAuto);
 
   if (config.channelRhId) {
     try {
@@ -354,11 +356,13 @@ async function handleBotaoAprovarTermo(interaction, discordId) {
   // Notificar o aluno por DM
   try {
     const usuario = await interaction.client.users.fetch(discordId);
-    await usuario.send(
+    const msgConclusaoManual =
       'Seu termo de voluntariado foi revisado e aprovado pelo RH! 🎉 ' +
       'O documento foi encaminhado para a coordenação e seu cadastro no CyberGuard está concluído. ' +
-      'Seja muito bem-vindo(a)!'
-    );
+      'Seja muito bem-vindo(a)!' +
+      (config.notionHomeUrl ? `\n\n📌 **Acesse a página central do CyberGuard no Notion:** ${config.notionHomeUrl}` : '');
+
+    await usuario.send(msgConclusaoManual);
   } catch (errDm) {
     console.error('Erro ao enviar DM de aprovação manual para o aluno:', errDm);
   }

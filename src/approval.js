@@ -246,11 +246,16 @@ async function handleAprovacaoInteraction(interaction) {
     ? `Aqui está também o link do grupo da sua área (${areaMembro}) no WhatsApp: ${linkArea}\n\n`
     : '';
 
+  const linhaNotion = config.notionHomeUrl
+    ? `Você também recebeu um convite por e-mail para o nosso Notion! Acesse a página oficial do CyberGuard por aqui: ${config.notionHomeUrl}\n\n`
+    : '';
+
   await usuarioDiscord.send({
     content:
       'Sua entrada foi aprovada! 🎉\n\n' +
       `Aqui está o link da comunidade geral no WhatsApp: ${config.whatsappLink}\n\n` +
       linhaLinkArea +
+      linhaNotion +
       'Segue também o termo de voluntariado, já quase todo preenchido. Antes de assinar:\n' +
       '1. Abra o PDF e preencha o campo **"Data:"** com a data de hoje (dd/mm/aaaa) — é o único campo em branco.\n' +
       '2. Envie esse mesmo PDF pra assinatura no **gov.br** (assinador de documentos).\n' +

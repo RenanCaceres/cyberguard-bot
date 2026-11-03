@@ -77,6 +77,7 @@ module.exports = {
   })(),
   expulsarAoRejeitar: process.env.EXPULSAR_AO_REJEITAR !== 'false',
   notionVoluntariadoUrl: process.env.NOTION_VOLUNTARIADO_URL || '',
+  notionHomeUrl: process.env.NOTION_HOME_URL || '',
   whatsappLink: process.env.WHATSAPP_LINK,
   whatsappLinksArea: (() => {
     try {
