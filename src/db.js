@@ -264,6 +264,30 @@ async function initSchema() {
   await pool.query('CREATE INDEX IF NOT EXISTS idx_duvidas_discord_id ON duvidas_suporte (discord_id)');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_duvidas_status ON duvidas_suporte (status)');
 
+  // --- Central de Avisos & Agenda de Eventos ---
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS avisos_eventos (
+      id SERIAL PRIMARY KEY,
+      tipo TEXT NOT NULL CHECK (tipo IN ('aviso', 'evento')),
+      escopo TEXT NOT NULL CHECK (escopo IN ('individual', 'setor', 'todos')),
+      setor_alvo TEXT,
+      destinatarios_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+      titulo TEXT NOT NULL,
+      descricao TEXT NOT NULL,
+      data_inicio TIMESTAMPTZ,
+      data_fim TIMESTAMPTZ,
+      local_evento TEXT,
+      calendar_event_id TEXT,
+      calendar_link TEXT,
+      thread_id TEXT,
+      autor_id TEXT NOT NULL,
+      autor_nome TEXT NOT NULL,
+      emails_enviados INT NOT NULL DEFAULT 0,
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_avisos_eventos_criado_em ON avisos_eventos (criado_em DESC)');
+
   // Migra automaticamente quaisquer dados sensíveis ainda em texto puro para AES-256-GCM (LGPD Art. 46)
   await criptografarDadosLegadosBanco();
 }
@@ -821,6 +845,69 @@ function atualizarRespostaDuvida(codigo, respostaTexto) {
     .then((r) => r.rows[0] || null);
 }
 
+// --- Funções de Avisos e Eventos ---
+
+async function listarMembrosCadastrados() {
+  const { rows } = await pool.query('SELECT * FROM membros');
+  return rows.map((r) => descriptografarMembro(r));
+}
+
+async function criarAvisoOuEvento({
+  tipo,
+  escopo,
+  setorAlvo = null,
+  destinatariosIds = [],
+  titulo,
+  descricao,
+  dataInicio = null,
+  dataFim = null,
+  localEvento = null,
+  calendarEventId = null,
+  calendarLink = null,
+  threadId = null,
+  autorId,
+  autorNome,
+  emailsEnviados = 0,
+}) {
+  const { rows } = await pool.query(
+    `INSERT INTO avisos_eventos
+      (tipo, escopo, setor_alvo, destinatarios_ids, titulo, descricao, data_inicio, data_fim, local_evento, calendar_event_id, calendar_link, thread_id, autor_id, autor_nome, emails_enviados)
+     VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+     RETURNING *`,
+    [
+      tipo,
+      escopo,
+      setorAlvo,
+      JSON.stringify(destinatariosIds),
+      titulo,
+      descricao,
+      dataInicio,
+      dataFim,
+      localEvento,
+      calendarEventId,
+      calendarLink,
+      threadId,
+      autorId,
+      autorNome,
+      emailsEnviados,
+    ]
+  );
+  return rows[0];
+}
+
+async function listarAvisosEventosParaMembro(discordId, setoresDoMembro = [], limite = 12) {
+  const { rows } = await pool.query(
+    `SELECT * FROM avisos_eventos
+     WHERE escopo = 'todos'
+        OR destinatarios_ids @> to_jsonb($1::text)
+        OR (escopo = 'setor' AND setor_alvo = ANY($2::text[]))
+     ORDER BY criado_em DESC
+     LIMIT $3`,
+    [String(discordId), setoresDoMembro, limite]
+  );
+  return rows;
+}
+
 module.exports = {
   pool,
   initSchema,
@@ -874,4 +961,8 @@ module.exports = {
   listarDuvidasPendentes,
   getDuvidaPorCodigo,
   atualizarRespostaDuvida,
+  // avisos e eventos
+  listarMembrosCadastrados,
+  criarAvisoOuEvento,
+  listarAvisosEventosParaMembro,
 };

@@ -247,9 +247,46 @@ async function registrarSaidaMembro(discordId, { nome = null, ra = null, expulso
   }
 }
 
+let cacheContatosNotion = { expiraEm: 0, lista: [] };
+
+/**
+ * Lista os contatos (Nome, RA, E-mail, Setor, Status) dos membros no Notion
+ * para auxiliar na resolução de e-mail/setor de membros legados.
+ */
+async function listarContatosMembrosNotion() {
+  const { dbId, token } = cfg();
+  if (!token || !dbId) return [];
+
+  if (Date.now() < cacheContatosNotion.expiraEm && cacheContatosNotion.lista.length > 0) {
+    return cacheContatosNotion.lista;
+  }
+
+  try {
+    const r = await req('POST', `/databases/${dbId}/query`, { page_size: 100 });
+    if (!r?.results?.length) return [];
+
+    const lista = r.results.map((p) => {
+      const nome = (p.properties?.Nome?.title?.[0]?.plain_text || '').trim();
+      const ra = String(p.properties?.RA?.rich_text?.[0]?.plain_text || '').replace(/\D/g, '');
+      const email = (p.properties?.['E-mail']?.email || '').trim();
+      const setor = normalizarSetor(p.properties?.Setor?.select?.name || '');
+      const status = (p.properties?.Status?.select?.name || '').trim();
+      return { nome, ra, email, setor, status };
+    });
+
+    cacheContatosNotion = { expiraEm: Date.now() + 2 * 60 * 1000, lista };
+    return lista;
+  } catch (err) {
+    console.error('[notion-membros] Erro ao listar contatos do Notion:', err.message);
+    return cacheContatosNotion.lista || [];
+  }
+}
+
 module.exports = {
+  normalizarSetor,
   buscarPaginaMembro,
   registrarMembroAguardandoAssinatura,
   registrarMembroAtivo,
   registrarSaidaMembro,
+  listarContatosMembrosNotion,
 };

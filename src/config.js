@@ -131,4 +131,6 @@ module.exports = {
   emailProfessorCoordenador: process.env.EMAIL_PROFESSOR_COORDENADOR || '',
   canalDuvidasId: process.env.CANAL_DUVIDAS_ID || '',
   emailSuporteAdmin: process.env.EMAIL_SUPORTE_ADMIN || process.env.EMAIL_DESTINATARIOS || '',
+  canalAvisosId: process.env.CANAL_AVISOS_ID || '',
+  googleCalendarId: process.env.GOOGLE_CALENDAR_ID || 'primary',
 };
