@@ -117,7 +117,7 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
 ---
 
 ### 👥 6. Hierarquia Visual, Cartões & Governança de Saídas
-- **Organograma Dinâmico Renderizado (`2400px`)**: Geração de imagem gráfica com `@napi-rs/canvas` refletindo a estrutura viva do servidor (Presidente, Líderes destacados com estrela dourada e membros dos 5 times: *Social Media & Copy*, *Recursos Humanos*, *Design*, *Hardware Hacking* e *Hacking Ético* — unificando Red Team e Blue Team), com conectores ortogonais que não cruzam sobre os cards.
+- **Organograma Dinâmico Renderizado (`2400px`)**: Geração de imagem gráfica com `@napi-rs/canvas` refletindo a estrutura viva do servidor (Presidente, Vice-Presidente, Líderes destacados com estrela dourada e membros dos 7 times: *Social Media & Copy*, *Recursos Humanos*, *Design*, *Educacional*, *Hardware Hacking*, *Hacking Ético* — unificando Red Team e Blue Team — e *Desenvolvimento*), com conectores ortogonais que não cruzam sobre os cards.
 - **Cartões de Boas-Vindas e Despedida**: Geração automática de cards ilustrados (`1000x320px`) em eventos de aprovação e saída.
 - **Reconciliação de Saídas e Integração Notion**: Detecção de saídas ocorridas até mesmo com o bot offline (`catchUp.js`), atualizando o status do integrante no banco de Membros do Notion exclusivamente para **`Inativo`** (`Ativo` / `Inativo`) e revogando imediatamente o acesso do e-mail no Workspace do Notion.
 
@@ -130,7 +130,7 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
 - **Governança e Estrutura de Perfis**:
   - **Coordenação Docente (Permanente)**: Prof. Dr. André Luiz Przybysz e Profa. Dra. Natássya Barlate Floro da Silva atuam com assento permanente como professores orientadores do projeto.
   - **Administração / Workspace Owners**: Presidência e Tech Lead (Renan Cáceres Anselmo e André Queiroz) gerenciam a infraestrutura e os espaços de equipe.
-  - **Membros Acadêmicos**: Integrantes ativos distribuídos entre as 5 frentes operacionais (Social Media & Copy, Recursos Humanos, Design, Hardware Hacking e Hacking Ético), com controle estrito de conformidade documental e revogação automática de contas desligadas.
+  - **Membros Acadêmicos**: Integrantes ativos distribuídos entre as 7 frentes operacionais (Social Media & Copy, Recursos Humanos, Design, Educacional, Hardware Hacking, Hacking Ético e Desenvolvimento), com controle estrito de conformidade documental e revogação automática de contas desligadas.
 
 ---
 

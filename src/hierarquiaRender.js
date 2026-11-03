@@ -71,6 +71,34 @@ function truncarTexto(ctx, texto, larguraMax) {
   return truncado + '…';
 }
 
+function formatarNomePessoa(nomeCompleto, ctx, larguraMax, isLider) {
+  ctx.font = isLider ? 'bold 14px DejaVu-Bold, sans-serif' : '13px DejaVu-Bold, sans-serif';
+  if (!nomeCompleto) return '';
+  const partes = nomeCompleto.trim().split(/\s+/);
+  if (partes.length === 1) return truncarTexto(ctx, partes[0], larguraMax);
+
+  if (ctx.measureText(nomeCompleto).width <= larguraMax) return nomeCompleto;
+
+  const prep = new Set(['de', 'da', 'do', 'dos', 'das', 'e']);
+  const sig = partes.filter((p) => !prep.has(p.toLowerCase()));
+
+  // 1. Tenta Primeiro + Segundo nome relevante
+  if (sig.length >= 2) {
+    const doisPrimeiros = sig[0] + ' ' + sig[1];
+    if (ctx.measureText(doisPrimeiros).width <= larguraMax) return doisPrimeiros;
+  }
+
+  // 2. Tenta Primeiro + Ultimo nome relevante
+  if (sig.length >= 2) {
+    const primeiroEUltimo = sig[0] + ' ' + sig[sig.length - 1];
+    if (ctx.measureText(primeiroEUltimo).width <= larguraMax) return primeiroEUltimo;
+  }
+
+  // 3. Fallback: trunca o par mais curto
+  const base = sig.length >= 2 ? sig[0] + ' ' + sig[1] : partes[0];
+  return truncarTexto(ctx, base, larguraMax);
+}
+
 function desenharPessoa(ctx, pessoa, centroX, y, { tamanho = AVATAR_TAMANHO, corBorda = null, coroa = false, larguraLabel = ITEM_LARGURA } = {}) {
   desenharAvatarCircular(ctx, pessoa.imagem, centroX - tamanho / 2, y, tamanho, corBorda);
   if (coroa) {
@@ -83,23 +111,30 @@ function desenharPessoa(ctx, pessoa, centroX, y, { tamanho = AVATAR_TAMANHO, cor
   ctx.font = coroa ? 'bold 14px DejaVu-Bold, sans-serif' : '13px DejaVu-Bold, sans-serif';
   ctx.fillStyle = COR_TEXTO;
   ctx.textAlign = 'center';
-  const nomeExibido = truncarTexto(ctx, pessoa.nome, larguraLabel - 4);
+  const nomeExibido = formatarNomePessoa(pessoa.nome, ctx, larguraLabel - 4, coroa);
   ctx.fillText(nomeExibido, centroX, y + tamanho + 19);
 }
 
-function desenharLinhaLideres(ctx, lideres, xCentroCard, yInicio) {
+function desenharLinhaLideres(ctx, lideres, xCentroCard, yInicio, larguraCard = 0) {
   if (lideres.length === 0) return 0;
 
-  const larguraTotal = lideres.length * ITEM_LARGURA;
+  const larguraLabel =
+    larguraCard > 0
+      ? Math.min(220, Math.floor((larguraCard - 40) / lideres.length))
+      : ITEM_LARGURA;
+
+  const espacamentoItem = Math.max(ITEM_LARGURA, larguraLabel);
+  const larguraTotal = lideres.length * espacamentoItem;
   let x = xCentroCard - larguraTotal / 2;
 
   for (const lider of lideres) {
-    desenharPessoa(ctx, lider, x + ITEM_LARGURA / 2, yInicio, {
+    desenharPessoa(ctx, lider, x + espacamentoItem / 2, yInicio, {
       tamanho: AVATAR_TAMANHO_LIDER,
       corBorda: COR_LIDER,
       coroa: true,
+      larguraLabel,
     });
-    x += ITEM_LARGURA;
+    x += espacamentoItem;
   }
 
   return ITEM_ALTURA_LIDER;
@@ -186,7 +221,7 @@ function desenharCardTime(ctx, time, x, y, largura, altura) {
   }
 
   if (lideres.length > 0) {
-    const usada = desenharLinhaLideres(ctx, lideres, centroX, cursorY);
+    const usada = desenharLinhaLideres(ctx, lideres, centroX, cursorY, largura);
     cursorY += usada + 10;
 
     if (membros.length > 0) {
@@ -208,24 +243,22 @@ async function renderizarHierarquia(dados) {
   const { presidente, vicePresidente, times } = dados;
 
   // --------------------------------------------------------------------
-  // Layout para 5 times (ver ORDEM_TIMES em hierarquia.js):
-  //   0-2: Social Media & Copy, Recursos Humanos, Design
-  //        -> Linha 1 com 3 colunas
-  //   3:   Hardware Hacking     -> Linha 2, coluna esquerda
-  //   4:   Hacking Ético        -> Linha 2, coluna direita
+  // Layout para 7 times (ver ORDEM_TIMES em hierarquia.js):
+  //   0-3: Social Media & Copy, Recursos Humanos, Design, Educacional
+  //        -> Linha 1 com 4 colunas (largura 543px cada)
+  //   4-6: Hardware Hacking, Hacking Ético, Desenvolvimento
+  //        -> Linha 2 com 3 colunas (largura 736px cada)
   // --------------------------------------------------------------------
-  const COLUNAS_L1 = 3;
+  const COLUNAS_L1 = 4;
   const LARGURA_COLUNA_L1 = (LARGURA - MARGEM * 2 - GAP_COLUNA * (COLUNAS_L1 - 1)) / COLUNAS_L1;
-  const LARGURA_COLUNA_L2 = (LARGURA - MARGEM * 2 - GAP_COLUNA) / 2;
+  const COLUNAS_L2 = 3;
+  const LARGURA_COLUNA_L2 = (LARGURA - MARGEM * 2 - GAP_COLUNA * (COLUNAS_L2 - 1)) / COLUNAS_L2;
 
-  const linha1 = times.slice(0, 3);
-  const hardwareHacking = times[3] || { nome: 'Hardware Hacking', cor: '#ff884d', membros: [] };
-  const hackingEtico = times[4] || { nome: 'Hacking Ético', cor: '#a468ff', membros: [] };
+  const linha1 = times.slice(0, 4);
+  const linha2 = times.slice(4);
 
-  const alturaLinha1 = Math.max(...linha1.map((t) => medirAlturaCard(t, LARGURA_COLUNA_L1)));
-  const alturaHardware = medirAlturaCard(hardwareHacking, LARGURA_COLUNA_L2);
-  const alturaEtico = medirAlturaCard(hackingEtico, LARGURA_COLUNA_L2);
-  const alturaLinha2 = Math.max(alturaHardware, alturaEtico);
+  const alturaLinha1 = Math.max(100, ...linha1.map((t) => medirAlturaCard(t, LARGURA_COLUNA_L1)));
+  const alturaLinha2 = Math.max(100, ...linha2.map((t) => medirAlturaCard(t, LARGURA_COLUNA_L2)));
 
   const alturaTitulo = 76;
   const alturaPresidente = AVATAR_TAMANHO_PRESIDENTE + 80;
@@ -348,19 +381,20 @@ async function renderizarHierarquia(dados) {
   ctx.strokeStyle = COR_BORDA;
   ctx.lineWidth = 3;
 
-  const centrosColunas = [];
+  const centrosColunasL1 = [];
   for (let i = 0; i < COLUNAS_L1; i++) {
     const x = MARGEM + i * (LARGURA_COLUNA_L1 + GAP_COLUNA);
-    centrosColunas.push(x + LARGURA_COLUNA_L1 / 2);
+    centrosColunasL1.push(x + LARGURA_COLUNA_L1 / 2);
   }
 
+  // Barra horizontal dos conectores da Linha 1
   ctx.beginPath();
-  ctx.moveTo(centrosColunas[0], yBarra);
-  ctx.lineTo(centrosColunas[COLUNAS_L1 - 1], yBarra);
+  ctx.moveTo(centrosColunasL1[0], yBarra);
+  ctx.lineTo(centrosColunasL1[COLUNAS_L1 - 1], yBarra);
   ctx.stroke();
 
   const yFimGalho = y + alturaConectores;
-  for (const cx of centrosColunas) {
+  for (const cx of centrosColunasL1) {
     ctx.beginPath();
     ctx.moveTo(cx, yBarra);
     ctx.lineTo(cx, yFimGalho);
@@ -375,39 +409,49 @@ async function renderizarHierarquia(dados) {
   });
 
   const yLinha2 = y + alturaLinha1 + gapEntreLinhas;
-
-  const xHardware = MARGEM;
-  const xEtico = MARGEM + LARGURA_COLUNA_L2 + GAP_COLUNA;
-  const centroHardwareX = xHardware + LARGURA_COLUNA_L2 / 2;
-  const centroEticoX = xEtico + LARGURA_COLUNA_L2 / 2;
-
   const yTroncoLinha2 = yLinha2 - gapEntreLinhas / 2;
+
+  const xColunasL2 = [];
+  const centrosColunasL2 = [];
+  for (let j = 0; j < COLUNAS_L2; j++) {
+    const x = MARGEM + j * (LARGURA_COLUNA_L2 + GAP_COLUNA);
+    xColunasL2.push(x);
+    centrosColunasL2.push(x + LARGURA_COLUNA_L2 / 2);
+  }
+
+  // Gaps entre os 4 cards da Linha 1 para descida limpa dos conectores:
+  const xGap1 = MARGEM + LARGURA_COLUNA_L1 + GAP_COLUNA / 2;
+  const xGap2 = MARGEM + 2 * LARGURA_COLUNA_L1 + GAP_COLUNA + GAP_COLUNA / 2;
+  const xGap3 = MARGEM + 3 * LARGURA_COLUNA_L1 + 2 * GAP_COLUNA + GAP_COLUNA / 2;
+
   ctx.strokeStyle = COR_BORDA;
   ctx.lineWidth = 3;
 
-  // Os conectores para a Linha 2 descem pelos vãos (gaps) entre os cards da Linha 1,
-  // sem passar por cima do time de Recursos Humanos nem de nenhum card.
-  const xGap1 = MARGEM + LARGURA_COLUNA_L1 + GAP_COLUNA / 2;
-  const xGap2 = MARGEM + 2 * LARGURA_COLUNA_L1 + GAP_COLUNA + GAP_COLUNA / 2;
-
-  // Ramo esquerdo (para Hardware Hacking):
+  // Ramo esquerdo (para Linha 2, coluna 0 - Hardware Hacking):
   ctx.beginPath();
   ctx.moveTo(xGap1, yBarra);
   ctx.lineTo(xGap1, yTroncoLinha2);
-  ctx.lineTo(centroHardwareX, yTroncoLinha2);
-  ctx.lineTo(centroHardwareX, yLinha2);
+  ctx.lineTo(centrosColunasL2[0], yTroncoLinha2);
+  ctx.lineTo(centrosColunasL2[0], yLinha2);
   ctx.stroke();
 
-  // Ramo direito (para Hacking Ético):
+  // Ramo central (para Linha 2, coluna 1 - Hacking Ético, descida reta pelo vão central):
   ctx.beginPath();
   ctx.moveTo(xGap2, yBarra);
-  ctx.lineTo(xGap2, yTroncoLinha2);
-  ctx.lineTo(centroEticoX, yTroncoLinha2);
-  ctx.lineTo(centroEticoX, yLinha2);
+  ctx.lineTo(centrosColunasL2[1], yLinha2);
   ctx.stroke();
 
-  desenharCardTime(ctx, hardwareHacking, xHardware, yLinha2, LARGURA_COLUNA_L2, alturaLinha2);
-  desenharCardTime(ctx, hackingEtico, xEtico, yLinha2, LARGURA_COLUNA_L2, alturaLinha2);
+  // Ramo direito (para Linha 2, coluna 2 - Desenvolvimento):
+  ctx.beginPath();
+  ctx.moveTo(xGap3, yBarra);
+  ctx.lineTo(xGap3, yTroncoLinha2);
+  ctx.lineTo(centrosColunasL2[2], yTroncoLinha2);
+  ctx.lineTo(centrosColunasL2[2], yLinha2);
+  ctx.stroke();
+
+  linha2.forEach((time, j) => {
+    desenharCardTime(ctx, time, xColunasL2[j], yLinha2, LARGURA_COLUNA_L2, alturaLinha2);
+  });
 
   return canvas.encode('png');
 }

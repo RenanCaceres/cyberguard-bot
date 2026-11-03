@@ -8,16 +8,20 @@ const ORDEM_TIMES = [
   'Social Media & Copy',
   'Recursos Humanos',
   'Design',
+  'Educacional',
   'Hardware Hacking',
   'Hacking Ético',
+  'Desenvolvimento',
 ];
 
 const CORES_TIME = {
   'Social Media & Copy': '#ff6ea9',
   'Recursos Humanos': '#4cd6a0',
   Design: '#f4b942',
+  Educacional: '#38bdf8',
   'Hardware Hacking': '#ff884d',
   'Hacking Ético': '#a468ff',
+  Desenvolvimento: '#1dcac5',
 };
 
 const LIDERES_TIME = config.lideresTime || {};
@@ -25,7 +29,11 @@ const LIDERES_TIME = config.lideresTime || {};
 async function baixarAvatar(discordUser) {
   try {
     const url = discordUser.displayAvatarURL({ extension: 'png', size: 128, forceStatic: true });
-    const resposta = await axios.get(url, { responseType: 'arraybuffer', timeout: 10000 });
+    const resposta = await axios.get(url, {
+      responseType: 'arraybuffer',
+      timeout: 10000,
+      headers: { 'User-Agent': 'Mozilla/5.0 CyberGuard-Bot/1.0' },
+    });
     return await loadImage(Buffer.from(resposta.data));
   } catch (err) {
     console.error('[hierarquia] erro ao baixar avatar de', discordUser.id, err.message);
@@ -56,11 +64,11 @@ async function montarPessoa(guildMember) {
 }
 
 function obterMembrosDoTime(guild, nomeSecao) {
-  if (nomeSecao === 'Hacking Ético') {
+  if (nomeSecao === 'Hacking Ético' || nomeSecao === 'Hacking Etico') {
     const roleIdEtico = config.roleHackingEticoId;
     const roleEtico =
       (roleIdEtico && guild.roles.cache.get(roleIdEtico)) ||
-      guild.roles.cache.find((r) => r.name === nomeSecao);
+      guild.roles.cache.find((r) => r.name === nomeSecao || r.name === 'Hackink Ético');
     const roleRed = guild.roles.cache.find((r) => r.name === 'Red Team');
     const roleBlue = guild.roles.cache.find((r) => r.name === 'Blue Team');
     return guild.members.cache.filter(
@@ -71,7 +79,10 @@ function obterMembrosDoTime(guild, nomeSecao) {
     );
   }
 
-  const role = guild.roles.cache.find((r) => r.name === nomeSecao);
+  const roleIdFixo = config.rolesArea && config.rolesArea[nomeSecao];
+  const role =
+    (roleIdFixo && guild.roles.cache.get(roleIdFixo)) ||
+    guild.roles.cache.find((r) => r.name.toLowerCase() === nomeSecao.toLowerCase());
   if (!role) return null;
   return guild.members.cache.filter((m) => m.roles.cache.has(role.id));
 }
@@ -176,6 +187,7 @@ async function executarAtualizacao(guild) {
         await mensagem.edit({
           files: [{ attachment: buffer, name: 'hierarquia.png' }],
         });
+        console.log(`[hierarquia] Imagem da hierarquia atualizada com sucesso no canal #${canal.name || 'hierarquia'}.`);
         return;
       } catch (err) {
         console.warn('[hierarquia] mensagem antiga não encontrada, criando uma nova.');
@@ -186,20 +198,19 @@ async function executarAtualizacao(guild) {
       files: [{ attachment: buffer, name: 'hierarquia.png' }],
     });
     await db.salvarEstado('hierarquia_message_id', novaMensagem.id);
+    console.log(`[hierarquia] Nova imagem da hierarquia publicada com sucesso no canal #${canal.name || 'hierarquia'}.`);
   } finally {
     atualizacaoEmAndamento = false;
   }
 }
 
 function cargosRelevantesMudaram(oldMember, newMember) {
-  // Inclui Red Team e Blue Team aqui também, por causa do fallback
-  // temporário do Hacking Ético acima — remova os dois quando apagar o
-  // bloco temporário em obterMembrosDoTime().
   const nomesRelevantes = new Set([
     ...ORDEM_TIMES,
     'Red Team',
     'Blue Team',
     config.roleLiderNome,
+    config.roleViceLiderNome,
   ]);
   const guild = newMember.guild;
 
@@ -207,6 +218,9 @@ function cargosRelevantesMudaram(oldMember, newMember) {
     guild.roles.cache.filter((r) => nomesRelevantes.has(r.name)).map((r) => r.id)
   );
   if (config.roleHackingEticoId) idsRelevantes.add(config.roleHackingEticoId);
+  if (config.roleEducacionalId) idsRelevantes.add(config.roleEducacionalId);
+  if (config.roleDesenvolvimentoId) idsRelevantes.add(config.roleDesenvolvimentoId);
+  if (config.roleViceLiderId) idsRelevantes.add(config.roleViceLiderId);
 
   const antes = new Set(oldMember.roles.cache.filter((r) => idsRelevantes.has(r.id)).map((r) => r.id));
   const depois = new Set(newMember.roles.cache.filter((r) => idsRelevantes.has(r.id)).map((r) => r.id));

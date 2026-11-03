@@ -360,7 +360,7 @@ async function gerarDocumentacaoCompleta() {
   doc.novaPagina();
   doc.secao('10', 'Hierarquia Visual, Cartões de Servidor e Governança de Saídas');
   doc.subsecao('10.1. Organograma Dinâmico Renderizado (src/hierarquia.js & hierarquiaRender.js)');
-  doc.listaItem('Estrutura Visual (2400px de largura): renderiza o card do Presidente no topo, conectado ortogonalmente a 5 times distribuídos em 2 linhas: Linha 1 (Social Media & Copy, Recursos Humanos, Design) e Linha 2 (Hardware Hacking e Hacking Ético). As linhas conectoras da Linha 2 descem pelos vãos laterais sem cruzar sobre os cards.');
+  doc.listaItem('Estrutura Visual (2400px de largura): renderiza o card do Presidente e Vice-Presidente no topo, conectado ortogonalmente a 7 times distribuídos em 2 linhas: Linha 1 (Social Media & Copy, Recursos Humanos, Design, Educacional) e Linha 2 (Hardware Hacking, Hacking Ético e Desenvolvimento). As linhas conectoras da Linha 2 descem pelos vãos dos cards superiores sem cruzar sobre nenhum deles.');
   doc.listaItem('Unificação Hacking Ético: agrupa automaticamente membros com o cargo Hacking Ético, Red Team ou Blue Team.');
   doc.listaItem('Destaque de Liderança e Debounce: identifica líderes pelo cargo "Líderes" ou mapa fixo LIDERES_TIME, posicionando-os no topo do card com estrela dourada (*). Aplica debounce de 4.000 ms e atualiza o canal HIERARQUIA_CHANNEL_ID.');
 
@@ -377,7 +377,7 @@ async function gerarDocumentacaoCompleta() {
   doc.listaItem('Governança e Estrutura de Papéis:');
   doc.listaItem('• Coordenação Docente: Prof. Dr. André Luiz Przybysz e Profa. Dra. Natássya Barlate Floro da Silva possuem assento permanente como professores orientadores.', { nivel: 2, marcador: '-' });
   doc.listaItem('• Administração & Presidência: Renan Cáceres Anselmo e André Queiroz atuam como Workspace Owners / Administradores gerais.', { nivel: 2, marcador: '-' });
-  doc.listaItem('• Membros Acadêmicos: integrantes ativos distribuídos entre as 5 áreas operacionais, com controle de regularização de termos assinados e revogação automática de contas desligadas.', { nivel: 2, marcador: '-' });
+  doc.listaItem('• Membros Acadêmicos: integrantes ativos distribuídos entre as 7 áreas operacionais (Social Media & Copy, Recursos Humanos, Design, Educacional, Hardware Hacking, Hacking Ético e Desenvolvimento), com controle de regularização de termos assinados e revogação automática de contas desligadas.', { nivel: 2, marcador: '-' });
 
   // =========================================================================
   // SEÇÃO 11: REFERÊNCIA CONSOLIDADA (BANCO DE DADOS, CRONS E VARIÁVEIS)
