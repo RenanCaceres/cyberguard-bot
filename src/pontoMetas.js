@@ -32,10 +32,17 @@ const SETORES_PADRAO = [
 
 /**
  * Normaliza o nome do setor/área para os padrões conhecidos.
+ * Retorna null se for um cargo hierárquico (ex: Líderes, Presidência) ou desconhecido.
  */
 function normalizarSetor(str) {
   if (!str || typeof str !== 'string') return null;
   const s = str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+  // Cargos hierárquicos não são setores operacionais
+  if (s.includes('lider') || s.includes('presid') || s.includes('diretor')) {
+    return null;
+  }
+
   if ((s.includes('hack') && s.includes('etic')) || s.includes('red team') || s.includes('blue team') || s.includes('observatorio')) {
     return 'Hacking Ético';
   }
@@ -57,7 +64,9 @@ function normalizarSetor(str) {
   if (s.includes('hardware')) {
     return 'Hardware Hacking';
   }
-  return str.trim();
+
+  const exato = str.trim();
+  return SETORES_PADRAO.includes(exato) ? exato : null;
 }
 
 /**
@@ -156,8 +165,29 @@ async function obterCargaHoraria(client, member, discordId) {
  * Identifica o setor do membro a partir dos cargos do Discord ou dados cadastrais do banco.
  */
 function obterSetorDoMembro(guildMember, membroDb) {
+  const discordId = guildMember?.id || membroDb?.discord_id;
+
+  // 1. Presidência e Vice-Presidência
+  if (
+    discordId &&
+    (discordId === config.presidenteId ||
+      discordId === config.vicePresidenteId ||
+      discordId === config.purpleTeamId)
+  ) {
+    return 'Presidência';
+  }
+
+  // 2. Mapeamento explícito de líderes em LIDERES_TIME_JSON
+  if (discordId && config.lideresTime) {
+    for (const [setor, liderId] of Object.entries(config.lideresTime)) {
+      if (liderId === discordId && SETORES_PADRAO.includes(setor)) {
+        return setor;
+      }
+    }
+  }
+
+  // 3. Verifica IDs de setor fixos e cargos do Discord
   if (guildMember?.roles?.cache) {
-    // Verifica IDs de setor fixos
     if (config.roleHackingEticoId && guildMember.roles.cache.has(config.roleHackingEticoId)) return 'Hacking Ético';
     if (config.roleEducacionalId && guildMember.roles.cache.has(config.roleEducacionalId)) return 'Educacional';
     if (config.roleDesenvolvimentoId && guildMember.roles.cache.has(config.roleDesenvolvimentoId)) return 'Desenvolvimento';
@@ -166,16 +196,18 @@ function obterSetorDoMembro(guildMember, membroDb) {
     // Verifica nomes dos cargos do Discord
     for (const [, role] of guildMember.roles.cache) {
       const normalizado = normalizarSetor(role.name);
-      if (SETORES_PADRAO.includes(normalizado)) {
+      if (normalizado && SETORES_PADRAO.includes(normalizado)) {
         return normalizado;
       }
     }
   }
 
-  // Fallback: cadastro no banco (área de interesse preenchida no termo)
+  // 4. Fallback: cadastro no banco (área de interesse preenchida no termo)
   if (membroDb?.area_interesse) {
     const normalizado = normalizarSetor(membroDb.area_interesse);
-    if (normalizado) return normalizado;
+    if (normalizado && SETORES_PADRAO.includes(normalizado)) {
+      return normalizado;
+    }
   }
 
   return 'Geral';
@@ -205,6 +237,16 @@ async function identificarLideresSetor(guild, nomeSetor) {
     );
 
     if (temRoleLider) {
+      // Ignora a Presidência como líder operacional de um setor, exceto se configurado explicitamente em LIDERES_TIME
+      if (
+        (member.id === config.presidenteId ||
+          member.id === config.vicePresidenteId ||
+          member.id === config.purpleTeamId) &&
+        member.id !== liderConfigId
+      ) {
+        continue;
+      }
+
       const setorMembro = obterSetorDoMembro(member);
       if (setorMembro === nomeSetor) {
         lideres.push(member);
@@ -483,6 +525,11 @@ async function executarFechamentoSemanal(client, semanasAtras = 1, opcoes = {}) 
 
   for (const [nomeSetor, lista] of setoresMap.entries()) {
     if (lista.length === 0) continue;
+
+    // Relatórios de líderes por setor destinam-se exclusivamente aos setores operacionais reais
+    if (!SETORES_PADRAO.includes(nomeSetor)) {
+      continue;
+    }
 
     const totalMembros = lista.length;
     const atingiram = lista.filter((m) => m.atingiu).length;
