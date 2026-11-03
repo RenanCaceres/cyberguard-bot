@@ -137,6 +137,24 @@ const MODULOS = {
       '• **100% Efêmero:** Suas dúvidas e manuais chegam de forma privada para sua tranquilidade.',
     ],
   },
+  avisos: {
+    id: 'avisos',
+    titulo: '📢 Central de Avisos & Agenda Google Calendar',
+    subtitulo: 'Avisos restritos por setor, agendamento no Google Calendar e envio multicanal.',
+    cor: 0x2563eb,
+    pdfPrincipal: 'Manual_Membro_Avisos_Google_Calendar.pdf',
+    pdfSecundario: 'Manual_Lider_Avisos_Google_Calendar.pdf',
+    simulacao: 'simulacao_avisos_evento.png',
+    comandos: ['/painel-avisos', 'Canal #avisos'],
+    regras: [
+      '• **Painel Permanente:** Publicado no canal oficial de avisos com botões interativos.',
+      '• **Privacidade por Setor:** Comunicados segmentados em tópicos privados restritos.',
+      '• **Google Calendar:** Agendamento automático com convite RFC 5545 (METHOD:REQUEST).',
+      '• **Distribuição Multicanal:** Tópico no Discord, DM privada e e-mail institucional.',
+      '• **Permissões Claras:** Líderes enviam ao seu setor; RH e Presidência enviam para todos ou setores específicos.',
+      '• **Meus Avisos & Eventos:** Consulta rápida e confidencial do histórico pelo integrante.',
+    ],
+  },
   completa: {
     id: 'completa',
     titulo: '📘 Documentação Técnica e Operacional Completa',
@@ -211,7 +229,7 @@ function construirPainelModulo(moduloKey) {
     embed.setImage(`attachment://${mod.simulacao}`);
   }
 
-  // Anexo do Manual em PDF
+  // Anexo do Manual em PDF Principal
   const caminhoPdf = path.resolve(__dirname, '../../docs/manuais', mod.pdfPrincipal);
   if (fs.existsSync(caminhoPdf)) {
     attachments.push(new AttachmentBuilder(caminhoPdf, { name: mod.pdfPrincipal }));
@@ -219,6 +237,18 @@ function construirPainelModulo(moduloKey) {
       name: '📄 Manual Oficial Anexado',
       value: `O arquivo **${mod.pdfPrincipal}** foi anexado diretamente a esta mensagem para download e consulta off-line.`,
     });
+  }
+
+  // Anexo do Manual Secundário (ex.: Liderança)
+  if (mod.pdfSecundario) {
+    const caminhoPdfSec = path.resolve(__dirname, '../../docs/manuais', mod.pdfSecundario);
+    if (fs.existsSync(caminhoPdfSec)) {
+      attachments.push(new AttachmentBuilder(caminhoPdfSec, { name: mod.pdfSecundario }));
+      embed.addFields({
+        name: '📑 Manual da Liderança Anexado',
+        value: `O arquivo **${mod.pdfSecundario}** também foi disponibilizado para consulta.`,
+      });
+    }
   }
 
   // Botões de Ação
@@ -255,6 +285,7 @@ module.exports = {
           { name: '🎙️ Atas de Reunião com IA Gemini', value: 'reuniao' },
           { name: '🔒 Portal LGPD & Meus Dados', value: 'meusdados' },
           { name: '🛡️ Central de Apoio & Dúvidas', value: 'suporte' },
+          { name: '📢 Central de Avisos & Agenda Google Calendar', value: 'avisos' },
           { name: '📘 Documentação Completa do Sistema (v2.0)', value: 'completa' }
         )
     )

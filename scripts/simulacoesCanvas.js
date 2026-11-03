@@ -1154,6 +1154,169 @@ function simularModuloSuporte() {
   return simularModuloSuportePainel();
 }
 
+// =========================================================================
+// 12. SIMULAÇÃO: CENTRAL DE AVISOS & AGENDA DE EVENTOS (PAINEL FIXO)
+// =========================================================================
+function simularModuloAvisosPainel() {
+  const { canvas, ctx } = criarCanvas(550);
+  desenharBarraCanal(ctx, 'avisos • Central de Avisos & Agenda');
+
+  // Mensagem do Bot com Painel Fixado
+  desenharAvatar(ctx, 36, 75, 18, { ehBot: true });
+  desenharCabecalhoMensagem(ctx, 64, 70, 'Bot RH CyberGuard', { ehBot: true, horario: 'Hoje às 10:00' });
+
+  desenharEmbed(ctx, 64, 85, 800, 310, {
+    corBorda: DISCORD.azulCyber,
+    autor: 'Comunicação Interna & Agenda • CyberGuard UTFPR',
+    titulo: '📢 Central de Avisos & Agenda de Eventos • CyberGuard UTFPR',
+    campos: [
+      {
+        titulo: 'Bem-vindo(a) à Central Oficial de Comunicados e Agendamentos!',
+        valor: 'Envio de comunicados oficiais e marcação automática no Google Calendar direcionados exclusivamente aos membros autorizados.',
+      },
+      {
+        titulo: '🧭 Como funciona?',
+        valor: [
+          '• 📢 Enviar Aviso: Comunicações com título e corpo em tópicos privados no canal, na DM e por e-mail.',
+          '• 📅 Marcar Evento: Agendamento com sincronização no Google Calendar e envio de convites oficiais.',
+          '• 📬 Meus Avisos & Eventos: Consulta efêmera e confidencial dos comunicados e reuniões do seu setor.',
+        ],
+      },
+      {
+        titulo: '🔐 Permissões de Envio',
+        valor: [
+          '• Líderes de Setor: Podem enviar individualmente ou para todo o seu setor.',
+          '• Recursos Humanos, Presidência e Vice: Envio individual, por setor específico ou para todos os setores.',
+        ],
+      },
+    ],
+    rodape: 'CyberGuard UTFPR • Sincronização Google Calendar & Privacidade por Setor',
+  });
+
+  // Botões do Painel
+  desenharBotao(ctx, 64, 408, 'Enviar Aviso', 'azul', { icone: '📢' });
+  desenharBotao(ctx, 230, 408, 'Marcar Evento', 'verde', { icone: '📅' });
+  desenharBotao(ctx, 405, 408, 'Meus Avisos & Eventos', 'cinza', { icone: '📬' });
+
+  // Detalhes da barra inferior
+  ctx.save();
+  ctx.font = `11.5px ${FONTE}`;
+  ctx.fillStyle = DISCORD.txtMuted;
+  ctx.fillText('🔒 Privacidade Garantida: cada aviso é criado em um Tópico Privado visível unicamente pelo setor destinatário.', 64, 475);
+  ctx.fillText('📅 Sincronização Automática: convites gerados com padrão RFC 5545 integram diretamente à conta Google do membro.', 64, 495);
+  ctx.restore();
+
+  return canvas.toBuffer('image/png');
+}
+
+// =========================================================================
+// 13. SIMULAÇÃO: EVENTO NO GOOGLE CALENDAR & TÓPICO RESTRITO
+// =========================================================================
+function simularModuloAvisosEventoCalendar() {
+  const { canvas, ctx } = criarCanvas(550);
+  desenharBarraCanal(ctx, 'avisos > 📅 [Hacking Ético] 15/11 • Workshop de Segurança');
+
+  // Lado Esquerdo: Tópico Restrito no Discord
+  const mx1 = 30;
+  const my1 = 58;
+  ctx.save();
+  desenharAvatar(ctx, mx1 + 10, my1 + 22, 16, { ehBot: true });
+  desenharCabecalhoMensagem(ctx, mx1 + 36, my1 + 18, 'Bot RH CyberGuard', { ehBot: true, horario: 'Hoje às 14:30' });
+
+  desenharEmbed(ctx, mx1 + 10, my1 + 32, 410, 360, {
+    corBorda: DISCORD.verde,
+    autor: 'Evento Agendado • Setor Hacking Ético',
+    titulo: '📅 Evento Agendado: Workshop de Segurança',
+    campos: [
+      {
+        titulo: '🗓️ Data e Horário',
+        valor: 'Sexta-feira, 15 de novembro às 19:00 até 20:30 (em 5 dias)',
+      },
+      {
+        titulo: '📍 Local & Participantes',
+        valor: 'Discord • Sala de Reunião | Destino: Setor Hacking Ético',
+      },
+      {
+        titulo: '👤 Organizador(a)',
+        valor: 'Líder do Setor (CyberGuard UTFPR)',
+      },
+      {
+        titulo: '📆 Google Calendar',
+        valor: 'Convite enviado automaticamente ao seu e-mail institucional.\n🔗 Clique para visualizar na sua agenda Google.',
+      },
+      {
+        titulo: '📝 Pauta do Encontro',
+        valor: 'Análise de vulnerabilidades, boas práticas de defesa e planejamento prático das atividades.',
+      },
+    ],
+    rodape: 'Tópico Privado • Visível exclusivamente para membros do setor',
+  });
+
+  desenharBotao(ctx, mx1 + 10, my1 + 402, 'Abrir no Google Calendar', 'verde', { icone: '📅' });
+  ctx.restore();
+
+  // Lado Direito: Convite Recebido no E-mail / Google Calendar
+  const mx2 = 475;
+  const my2 = 58;
+  ctx.save();
+  ctx.fillStyle = DISCORD.bgModal;
+  ctx.beginPath();
+  ctx.roundRect(mx2, my2, 415, 435, 8);
+  ctx.fill();
+  ctx.strokeStyle = '#22c55e';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Cabeçalho Card E-mail
+  ctx.font = `bold 14px ${FONTE}`;
+  ctx.fillStyle = '#22c55e';
+  ctx.fillText('📨 E-mail Oficial com Convite Google Calendar', mx2 + 20, my2 + 30);
+
+  ctx.font = `12px ${FONTE}`;
+  ctx.fillStyle = DISCORD.txtMuted;
+  ctx.fillText('Destinatário: aluno@alunos.utfpr.edu.br', mx2 + 20, my2 + 52);
+  ctx.fillText('Assunto: 📅 [CyberGuard] Evento: Workshop de Segurança', mx2 + 20, my2 + 70);
+
+  // Bloco Interno do Convite
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.roundRect(mx2 + 18, my2 + 88, 378, 260, 6);
+  ctx.fill();
+
+  ctx.font = `bold 13px ${FONTE}`;
+  ctx.fillStyle = '#166534';
+  ctx.fillText('🗓️ Detalhes da Convocação Oficial', mx2 + 32, my2 + 115);
+
+  ctx.font = `12px ${FONTE}`;
+  ctx.fillStyle = '#1e293b';
+  ctx.fillText('Evento: [CyberGuard] Workshop de Segurança', mx2 + 32, my2 + 140);
+  ctx.fillText('Data: 15/11 às 19:00 às 20:30 (Horário de Brasília)', mx2 + 32, my2 + 162);
+  ctx.fillText('Local: Discord • CyberGuard UTFPR', mx2 + 32, my2 + 184);
+  ctx.fillText('Arquivo Anexo: evento-cyberguard.ics (METHOD:REQUEST)', mx2 + 32, my2 + 206);
+  ctx.fillText('Status: Adicionado automaticamente à sua agenda Google', mx2 + 32, my2 + 228);
+
+  ctx.fillStyle = '#16a34a';
+  ctx.beginPath();
+  ctx.roundRect(mx2 + 32, my2 + 250, 240, 32, 6);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `bold 12px ${FONTE}`;
+  ctx.fillText('📅 Ver no Google Calendar', mx2 + 65, my2 + 271);
+
+  // Status de Envio
+  ctx.font = `11.5px ${FONTE}`;
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('✅ Entrega Multiplataforma: Tópico Privado + DM Discord + E-mail', mx2 + 20, my2 + 375);
+  ctx.fillText('🔒 Sem vazamento de dados de outros setores ou integrantes.', mx2 + 20, my2 + 395);
+  ctx.restore();
+
+  return canvas.toBuffer('image/png');
+}
+
+function simularModuloAvisos() {
+  return simularModuloAvisosPainel();
+}
+
 // Exporta e compila todos os arquivos para a pasta docs/simulacoes
 async function gerarTodasSimulacoes() {
   const pasta = path.resolve(__dirname, '../docs/simulacoes');
@@ -1171,6 +1334,9 @@ async function gerarTodasSimulacoes() {
     { nome: 'simulacao_suporte_ia.png', fn: simularModuloSuporteIA },
     { nome: 'simulacao_suporte_lideranca.png', fn: simularModuloSuporteLideranca },
     { nome: 'simulacao_suporte.png', fn: simularModuloSuporte },
+    { nome: 'simulacao_avisos_painel.png', fn: simularModuloAvisosPainel },
+    { nome: 'simulacao_avisos_evento.png', fn: simularModuloAvisosEventoCalendar },
+    { nome: 'simulacao_avisos.png', fn: simularModuloAvisos },
   ];
 
   for (const m of mapas) {
@@ -1194,6 +1360,9 @@ module.exports = {
   simularModuloSuporteIA,
   simularModuloSuporteLideranca,
   simularModuloSuporte,
+  simularModuloAvisosPainel,
+  simularModuloAvisosEventoCalendar,
+  simularModuloAvisos,
 };
 
 if (require.main === module) {

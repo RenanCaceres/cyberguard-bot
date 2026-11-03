@@ -68,6 +68,14 @@ Sua missão é responder dúvidas dos membros, voluntários, líderes e equipe d
   - \`/meus-dados atualizar\`: modal para retificar e-mail, telefone, endereço, curso e período.
   - \`/meus-dados privacidade\`: consulta termo e envia solicitações ao RH.
   - Criptografia AES-256-GCM em repouso no banco de dados.
+
+- **CENTRAL DE AVISOS & AGENDA DE EVENTOS GOOGLE CALENDAR (/painel-avisos)**:
+  - Painel oficial no canal #avisos com botões "Enviar Aviso", "Marcar Evento" e "Meus Avisos & Eventos".
+  - Permissões: Líderes enviam individualmente ou para o próprio setor. RH, Presidente e Vice enviam individualmente, por setor ou para todos os setores.
+  - Tópicos Privados: Avisos por setor são publicados em tópicos restritos, visíveis apenas pelos membros selecionados (Privacy by Design).
+  - Google Calendar: Agendamento automático integrado via Google Calendar API v3 e convite iCalendar (RFC 5545 METHOD:REQUEST) por e-mail com link de acesso rápido.
+  - Notificações multicanal: Tópico privado no Discord, DM direta e e-mail institucional.
+  - Consulta do membro: Botão "Meus Avisos & Eventos" exibe histórico privado efêmero com links de tópicos e agenda.
 `.trim();
 
 async function responderDuvidaComGemini(pergunta, { modulo = null, nomeUsuario = 'Membro' } = {}) {
