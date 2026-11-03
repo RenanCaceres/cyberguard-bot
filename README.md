@@ -8,7 +8,7 @@
 </a>
 
 <img
-  src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=19&duration=3000&pause=1000&color=A78BFA&center=true&vCenter=true&width=800&lines=Sistema+Integrado+de+Gest%C3%A3o+e+Automa%C3%A7%C3%A3o+Discord;Ponto+Eletr%C3%B4nico+Inteligente+com+Notion+%26+Sheets;Onboarding+Automatizado+com+Assinatura+Gov.br;Declara%C3%A7%C3%A3o+de+Voluntariado+com+Assinatura+Digital;Atas+de+Reuni%C3%A3o+com+Transcri%C3%A7%C3%A3o+Gemini+AI;Sistema+Disciplinar+Completo+com+Contradit%C3%B3rio"
+  src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=19&duration=3000&pause=1000&color=A78BFA&center=true&vCenter=true&width=800&lines=Sistema+Integrado+de+Gest%C3%A3o+e+Automa%C3%A7%C3%A3o+Discord;Ponto+Eletr%C3%B4nico+Inteligente+com+Notion+%26+Sheets;Central+de+Avisos+Restrita+com+Google+Calendar;Onboarding+Automatizado+com+Assinatura+Gov.br;Central+de+Apoio+%26+D%C3%BAvidas+com+IA+Gemini;Declara%C3%A7%C3%A3o+de+Voluntariado+com+Assinatura+Digital;Atas+de+Reuni%C3%A3o+com+Transcri%C3%A7%C3%A3o+Gemini+AI;Sistema+Disciplinar+Completo+com+Contradit%C3%B3rio"
   alt="Typing SVG"
 />
 
@@ -17,8 +17,9 @@
 <img src="https://img.shields.io/badge/UTFPR-Campus%20Cornélio%20Procópio-5B21B6?style=for-the-badge" />
 <img src="https://img.shields.io/badge/Node.js-v18%2B-312E81?style=for-the-badge&logo=node.js&logoColor=white" />
 <img src="https://img.shields.io/badge/Discord.js-v14-5865F2?style=for-the-badge&logo=discord&logoColor=white" />
-<img src="https://img.shields.io/badge/PostgreSQL-Database-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" />
-<img src="https://img.shields.io/badge/Google%20Gemini-AI%20Transcription-4285F4?style=for-the-badge&logo=googlegemini&logoColor=white" />
+<img src="https://img.shields.io/badge/PostgreSQL-14%20Tabelas-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" />
+<img src="https://img.shields.io/badge/Google%20Gemini-3.8%20Flash-4285F4?style=for-the-badge&logo=googlegemini&logoColor=white" />
+<img src="https://img.shields.io/badge/Google%20Calendar-API%20v3-4285F4?style=for-the-badge&logo=googlecalendar&logoColor=white" />
 <img src="https://img.shields.io/badge/Notion-API%20Sync-000000?style=for-the-badge&logo=notion&logoColor=white" />
 
 <br><br>
@@ -58,6 +59,10 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
   - **Google Sheets API (3 Abas)**: Sincronização serializada com as abas `Raw Logs do Bot` (logs brutos com upsert), `Painel Transparente` (consolidado geral) e `Painel Transparente (Bot)` (exclusivo de horas do bot), utilizando resolução automática do **Nome Completo Real** do integrante.
   - **Histórico KoV**: Módulo integrado para backfill retroativo e captura em tempo real de registros do bot legado KoV Ponto.
 - **Ranking Visual Ilustrado com Pódio**: Geração dinâmica de banners com `@napi-rs/canvas` destacando Top 3 em pódio estilizado com coroa, avatares, barras proporcionais e fechamento automático na virada de semana (segunda-feira 00:00).
+- **Gamificação, Metas Semanais & Relatórios por Setor (`src/pontoMetas.js`, `/relatorio-semanal`)**:
+  - **Metas Regimentais por Perfil**: Atribuição automática de **4h semanais** para Membros regulares, **8h semanais** para Vice-Líderes e **10h semanais** para Líderes e Presidência.
+  - **Fechamento Semanal Automatizado**: Rotina semanal que consolida o saldo de todos os participantes, envia DM individual e privada com saldo cumprido, percentual da meta e horas restantes, e encaminha relatórios setoriais consolidados para a liderança de cada time.
+  - **Histórico Paginado Completo (`/relatorio-semanal`)**: Consulta interativa de todas as semanas desde a entrada do voluntário no projeto, além de permissão administrativa para forçar o fechamento semanal sob demanda (`fechar_semana: true`).
 
 ---
 
@@ -106,7 +111,7 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
 ### 🎙️ 5. Atas de Reunião com Inteligência Artificial (Gemini)
 - **Gravação por Falante Individual e Controle de Acesso (`/reuniao iniciar`, `/reuniao finalizar`)**: Restrito à Liderança, RH, Presidência e Administradores. Captura streams Opus individuais por participante em chamadas de voz (corte após 1s de silêncio e filtro mínimo de 0,3s contra ruídos).
 - **Aviso Ativo e Direito de Oposição / Opt-out (LGPD)**: Ao iniciar a gravação (ou quando um membro ingressa na call em andamento), o bot publica um alerta no chat do canal de voz com o botão **`🔇 Não gravar minha voz (Opt-out)`**, permitindo que qualquer participante desative imediatamente a captura da própria voz na sessão.
-- **Otimização de Áudio e Transcrição via Gemini 2.5 Flash**: Downsampling automático de 48kHz Estéreo para **16kHz Mono 16-bit**, concatenação em lotes com espaçamento de 500ms de silêncio, backoff exponencial contra rate limits e síntese estruturada (Resumo, Decisões, Itens de ação e Pontos discutidos).
+- **Otimização de Áudio e Transcrição via Gemini 3.8 Flash**: Downsampling automático de 48kHz Estéreo para **16kHz Mono 16-bit**, concatenação em lotes com espaçamento de 500ms de silêncio, retentativas automáticas com backoff exponencial contra limites de taxa e síntese estruturada (Resumo, Decisões, Itens de ação e Pontos discutidos), com fallback dinâmico entre modelos (`gemini-3.8-flash` -> `gemini-3.5-flash`).
 - **Retenção Inteligente de Backups e Reprocessamento (`/reuniao historico`, `/reuniao reprocessar`)**: Caso a cota diária da API seja atingida, os áudios e o `manifest.json` são preservados por **7 dias** (com limpeza diária automática às `04:00`), permitindo reprocessar e atualizar a ata em PDF assim que a cota normalizar.
 
 ---
@@ -129,6 +134,23 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
 
 ---
 
+### 📢 8. Central de Avisos & Agenda de Eventos no Google Calendar
+- **Painel Interativo Permanente (`/painel-avisos`)**: Interface fixada no canal oficial de avisos com botões rápidos para a Liderança, RH e Presidência emitirem comunicados setoriais ou gerais e agendarem reuniões técnicas.
+- **Segmentação Setorial e Tópicos Privados (`PrivateThread`)**: Comunicados específicos de um time geram automaticamente uma thread privada restrita no Discord, convidando apenas os membros do respectivo setor e blindando informações estratégicas.
+- **Agendamento no Google Calendar (API v3 & RFC 5545)**: Criação automática de eventos na agenda institucional (`GOOGLE_CALENDAR_ID`) e geração de convites universais iCalendar (`.ics`) anexados, permitindo confirmação de presença com um clique diretamente no Gmail, Outlook ou Apple Mail.
+- **Distribuição Multicanal Simultânea**: Publicação no tópico Discord + notificação privada e imediata por DM para cada participante + despacho de e-mail institucional responsivo em HTML.
+- **Consulta Rápida do Membro**: Botão `📬 Meus Avisos & Eventos` para visualização privada de comunicados e compromissos marcados.
+
+---
+
+### 🛡️ 9. Central de Apoio & Dúvidas dos Membros com IA (Gemini)
+- **Painel de Atendimento Permanente (`/painel-duvidas`)**: Interface fixa no canal `#dúvidas` com opções para download de manuais em PDF, tira-dúvidas inteligente com Inteligência Artificial e envio de chamados formais para a coordenação.
+- **Tira-Dúvidas com IA Gemini 3.8 Flash**: Respostas em segundos treinadas com todas as regras do CyberGuard, prazos regimentais, cargas horárias (4h/8h/10h) e conformidade LGPD.
+- **Abertura de Chamados com Protocolo (#DUVIDA-XXXX)**: Formulário interativo para envio de dúvidas diretamente para a liderança. O bot salva a solicitação em `duvidas_suporte` e dispara e-mail com protocolo para `EMAIL_SUPORTE_ADMIN`. Quando a coordenação responde, o integrante recebe a devolutiva diretamente na sua DM do Discord.
+- **Central de Manuais Interativa (`/documentacao`)**: Navegação interativa com download de todos os manuais operacionais em PDF ilustrados com fluxogramas visuais gerados via `@napi-rs/canvas`.
+
+---
+
 # 🏗️ Arquitetura do Sistema
 
 ```mermaid
@@ -141,19 +163,22 @@ flowchart TD
 
     subgraph Core [" CyberGuard Bot Core (Node.js) "]
         Onboarding[Onboarding, Validação Gov.br & Revisão RH]
-        Declaracao[Declarações 4h/10h & IMAP Worker]
-        Ponto[Ponto Eletrônico v2, Voz & Idle Checker]
+        Declaracao[Declarações 4h/8h/10h & IMAP Worker]
+        Ponto[Ponto Eletrônico v2, Voz & Metas Semanais]
         Disciplinar[Advertências, Fila & Contraditório]
         Reuniao[Áudio Recorder 16kHz & Gemini Engine]
+        Avisos[Central de Avisos & Google Calendar]
+        Suporte[Central de Apoio & Dúvidas com IA]
         CanvasRender[Renderizador Gráfico Canvas]
     end
 
     subgraph Integracoes [" Serviços & Nuvem "]
-        Postgres[(PostgreSQL - 12 Tabelas)]
+        Postgres[(PostgreSQL - 14 Tabelas)]
         Notion[(Notion API - Tarefas & Membros)]
         Sheets[(Google Sheets API - 3 Abas)]
         Drive[(Google Drive API - Armazenamento de PDFs)]
-        Gemini[(Google Gemini 2.5 Flash)]
+        Gemini[(Google Gemini 3.8 Flash)]
+        Calendar[(Google Calendar API v3)]
         SMTP[(Serviço de E-mail SMTP)]
         IMAP[(Servidor IMAP / Leitura)]
         LibreOffice[LibreOffice Headless]
@@ -177,10 +202,17 @@ flowchart TD
     Ponto --> Notion
     Ponto --> Sheets
     Ponto --> CanvasRender
+    Ponto --> Postgres
     Disciplinar --> Postgres
     Disciplinar --> CanvasRender
     Reuniao --> Gemini
     Reuniao --> Postgres
+    Avisos --> Calendar
+    Avisos --> SMTP
+    Avisos --> Postgres
+    Suporte --> Gemini
+    Suporte --> SMTP
+    Suporte --> Postgres
     Core --> Postgres
 ```
 
@@ -202,9 +234,9 @@ flowchart TD
 | :--- | :--- | :--- |
 | **Runtime & Base** | `Node.js (v18+)` | Ambiente de execução assíncrono |
 | **Discord Engine** | `discord.js (v14)`, `@discordjs/voice`, `prism-media` | Gateway de eventos, componentes interativos, modais e captura Opus |
-| **Banco de Dados** | `PostgreSQL` & `pg` | Persistência relacional de 12 tabelas com índices parciais únicos |
-| **Inteligência Artificial** | `@google/generative-ai` | Transcrição em lotes e estruturação de atas com Gemini 2.5 Flash |
-| **Integração em Nuvem** | `google-spreadsheet`, `google-auth-library`, `Notion API` | Sincronização contínua com Google Sheets (3 abas), Google Drive API (termos e declarações) e Notion |
+| **Banco de Dados** | `PostgreSQL` & `pg` | Persistência relacional de 14 tabelas com índices parciais únicos |
+| **Inteligência Artificial** | `@google/generative-ai` | Transcrição em lotes e assistente de dúvidas com Gemini 3.8 Flash |
+| **Integração em Nuvem** | `google-spreadsheet`, `google-auth-library`, `Notion API`, `Google Calendar API` | Sincronização com Google Sheets (3 abas), Drive API, Notion e Google Calendar v3 |
 | **Processamento de Docs** | `docxtemplater`, `pizzip`, `pdf-lib`, `pdfjs-dist` | Automação de DOCX/PDF, injeção de AcroForms e validação de objetos `/Sig` |
 | **Renderização Gráfica** | `@napi-rs/canvas` | Criação server-side de rankings, organogramas, catálogos e cartões |
 | **Serviços de Sistema** | `node-cron`, `nodemailer`, `imapflow`, `LibreOffice` | Agendamentos periódicos, disparo SMTP, escuta IMAP e conversão PDF |
@@ -215,11 +247,12 @@ flowchart TD
 
 | Comando | Acesso | Descrição |
 | :--- | :--- | :--- |
-| `/declaracao solicitar` | Qualquer Membro | Solicita emissão da declaração oficial (4h membro / 10h líder) com protocolo `#DECL-` |
+| `/declaracao solicitar` | Qualquer Membro | Solicita emissão da declaração oficial (4h membro / 8h vice-líder / 10h líder) com protocolo `#DECL-` |
 | `/declaracao status` | Qualquer Membro | Consulta o andamento das últimas 10 declarações e sincroniza respostas IMAP na hora |
 | `/painel-ponto` | Administrador | Publica o painel interativo de registro de ponto, criação de tarefas Notion e gestão |
 | `/ajustar-ponto` | Exclusivo RH | Permite ajustar horários de pontos fechados (máx. 24h) com auditoria e aviso em DM |
 | `/importar-horas` | Exclusivo RH | Importa ou substitui saldos consolidados de membros sem inflar o ranking semanal |
+| `/relatorio-semanal` | Membros & Líderes/RH | Consulta o histórico de metas e horas de todas as semanas desde o ingresso (com opção de fechar semana para líderes) |
 | `/painel-advertencias` | Liderança & RH | Publica o painel administrativo para abertura, fila e gestão do processo disciplinar |
 | `/advertir` | Liderança & RH | Registra uma advertência formal (*Leve*, *Média* ou *Grave*) contra um membro |
 | `/minhas-advertencias` | Qualquer Membro | Consulta privada (ephemeral) do histórico de advertências do próprio usuário |
@@ -228,11 +261,12 @@ flowchart TD
 | `/meus-dados atualizar` | Qualquer Membro | Permite retificar dados de contato, endereço, curso e período via Modal interativo |
 | `/meus-dados privacidade` | Qualquer Membro | Exibe o Termo de Ciência LGPD e permite enviar solicitações formais de privacidade ao RH |
 | `/reuniao iniciar` | Liderança, RH & Admin | Inicia a gravação de áudio individualizada por participante na sala de voz com botão de Opt-out |
-| `/reuniao finalizar` | Liderança, RH & Admin | Encerra a gravação, transcreve em lotes via Gemini AI e gera a Ata formal em PDF |
+| `/reuniao finalizar` | Liderança, RH & Admin | Encerra a gravação, transcreve em lotes via Gemini AI (3.8 Flash) e gera a Ata formal em PDF |
 | `/reuniao historico` | Qualquer Membro | Lista as últimas atas de reunião registradas no servidor (1 a 25 registros) |
 | `/reuniao reprocessar` | Liderança, RH & Admin | Reprocessa o backup de áudio de uma ata (retido por 7 dias) em caso de falha de cota |
-| `/documentacao` | Qualquer Membro | Central interativa de manuais, simulações visuais em Canvas, PDFs oficiais e assistente de dúvidas com IA (Gemini) |
+| `/painel-avisos` | Líderes, RH & Admin | Publica ou atualiza o painel de Avisos e Agendamento de Eventos (Google Calendar) |
 | `/painel-duvidas` | Administrador | Publica ou atualiza o painel interativo de atendimento e dúvidas com botões de regras, IA e liderança |
+| `/documentacao` | Qualquer Membro | Central interativa de manuais, simulações visuais em Canvas, PDFs oficiais e assistente de dúvidas com IA (Gemini) |
 
 ---
 
@@ -244,10 +278,12 @@ flowchart TD
 | `DISCORD_CLIENT_ID` | `123456789...` | Application Client ID do bot |
 | `GUILD_ID` | `987654321...` | ID do servidor do Discord |
 | `DATABASE_URL` | `postgresql://usr:pwd@localhost:5432/cyberguard_bot` | URL de conexão com o PostgreSQL |
+| `DATA_ENCRYPTION_KEY` | `a1b2c3... (64 hex)` | Chave de 256 bits para criptografia `AES-256-GCM` de dados sensíveis no banco |
 | `CHANNEL_RH_ID` | `154...` | ID do canal privado para aprovações, revisões de termos e alertas do RH |
 | `CHANNEL_BOASVINDAS_ID` | `150...` | ID do canal para postagem dos cartões gráficos de entrada e saída |
 | `HIERARQUIA_CHANNEL_ID` | `150...` | ID do canal onde o organograma visual (`hierarquia.png`) é mantido |
 | `PRESIDENTE_ID` | `3717...` | Discord ID do Presidente do projeto (topo da hierarquia e carga 10h) |
+| `VICE_PRESIDENTE_ID` / `PURPLE_TEAM_ID` | `150...` | Discord ID do Vice-Presidente / Purple Team Leader |
 | `ROLE_RH_NOME` | `Recursos Humanos` | Nome do cargo de RH com privilégios de aprovação e revisão de termos |
 | `ROLE_LIDER_NOME` | `Líderes` | Nome do cargo de liderança (destaque na hierarquia e declaração de 10h) |
 | `ROLE_VICE_LIDER_ID` | `156...` | ID do cargo de Vice-Liderança (declaração de 8h semanais) |
@@ -256,7 +292,9 @@ flowchart TD
 | `ROLE_ENTUSIASTA_NOME` | `Entusiasta` | Nome do cargo atribuído automaticamente aos membros sem compromisso formal |
 | `INVITE_ENTUSIASTA_CODES` | `xyz,abc...` | (Opcional) Lista de códigos de convite específicos de entusiastas |
 | `ROLE_HACKING_ETICO_ID` | `150...` | ID do cargo unificado de Hacking Ético |
-| `AREAS_INTERESSE` | `Social Media & Copy,Recursos Humanos,Design,Hardware Hacking,Hacking Ético` | Lista de áreas disponíveis no onboarding |
+| `ROLE_EDUCACIONAL_ID` | `150...` | ID do cargo de Educacional |
+| `ROLE_DESENVOLVIMENTO_ID` | `150...` | ID do cargo de Desenvolvimento |
+| `AREAS_INTERESSE` | `Social Media & Copy,Recursos Humanos,Design,Hardware Hacking,Hacking Ético,Educacional,Desenvolvimento` | Lista de áreas disponíveis no onboarding |
 | `PONTO_VOICE_CHANNEL_ID`| `151...` | ID da sala de voz monitorada para abertura/fechamento automático de ponto |
 | `PONTO_ROLE_RH_ID` | `154...` | ID do cargo de RH autorizado a ajustar ponto e importar horas |
 | `PONTO_ROLE_LIDERES_ID` | `154...` | ID do cargo de Líderes autorizado a consultar o Resumo e Histórico |
@@ -269,10 +307,14 @@ flowchart TD
 | `NOTION_ACTIVE_USER_ID` | `00000000-0000-0000-...` | ID do usuário administrador executor das requisições v3 |
 | `NOTION_DATA_SOURCE_ID` | `00000...` | ID do Data Source de tarefas no Notion (API `2025-09-03`) |
 | `NOTION_MEMBROS_DB_ID` | `00000...` | ID do Database histórico de membros no Notion (`Ativo` / `Inativo` / `Aguardando Assinatura` / `Expulso`) |
-| `DATA_ENCRYPTION_KEY` | `a1b2c3... (64 hex)` | Chave de 256 bits para criptografia `AES-256-GCM` de dados sensíveis no banco |
-| `GEMINI_API_KEY` | `AIza...` | Chave de API do Google Gemini para transcrição de atas |
+| `GEMINI_API_KEY` | `AIza...` | Chave de API do Google Gemini para transcrição de atas e tira-dúvidas |
+| `GEMINI_MODEL` | `gemini-3.8-flash` | Modelo padrão do Google Gemini (com fallback para `gemini-3.5-flash`) |
 | `CANAL_ADVERTENCIAS_ID` | `154...` | Canal restrito onde ocorrem as notificações e deliberações disciplinares |
 | `AUTORES_ADVERTENCIA_IDS`| `3717...,7366...` | IDs dos líderes autorizados a emitir e julgar advertências |
+| `CANAL_AVISOS_ID` | `156...` | ID do canal oficial de avisos onde o painel de comunicados é publicado |
+| `GOOGLE_CALENDAR_ID` | `primary` | ID da agenda do Google Calendar para agendamento de eventos e reuniões |
+| `CANAL_DUVIDAS_ID` | `156...` | ID do canal oficial de atendimento e dúvidas fixadas |
+| `EMAIL_SUPORTE_ADMIN` | `exemplo@alunos.utfpr.edu.br` | E-mail da liderança que recebe chamados com protocolo `#DUVIDA-XXXX` |
 | `EMAIL_TERMOS_DESTINATARIO`| `coordenacao@utfpr.edu.br` | Destinatário principal dos termos de voluntariado assinados |
 | `EMAIL_TERMOS_CC` | `lider1@alunos.utfpr.edu.br,...` | Lista de e-mails em cópia (CC) no envio dos termos assinados |
 | `EMAIL_PROFESSOR_COORDENADOR` | `coordenador@utfpr.edu.br` | E-mail do professor coordenador que assina as declarações |
@@ -280,8 +322,6 @@ flowchart TD
 | `GOOGLE_DRIVE_DECLARACOES_FOLDER_ID` | `1PastaDeclaracoesId...` | ID da pasta no Google Drive para declarações de voluntariado assinadas |
 | `IMAP_HOST` / `IMAP_PORT` | `imap.gmail.com` / `993` | Servidor e porta IMAP TLS para leitura autônoma das declarações assinadas |
 | `IMAP_USER` / `IMAP_PASS` | `bot@utfpr...`, `app-pass` | Credenciais IMAP/SMTP da conta institucional do bot |
-| `CANAL_DUVIDAS_ID` | `156...` | ID do canal de texto onde o painel de atendimento e dúvidas é fixado |
-| `EMAIL_SUPORTE_ADMIN` | `exemplo@alunos.utfpr.edu.br` | E-mail da liderança que recebe as dúvidas dos membros enviadas pelo Discord |
 
 ---
 
@@ -289,15 +329,18 @@ flowchart TD
 
 A pasta `docs/manuais/` (e `docs/`) conta com a documentação técnica completa do sistema e os manuais operacionais ilustrados com fluxogramas gerados automaticamente via `node scripts/gerarManuais.js`:
 
-- 📘 **`Documentacao_Completa_CyberGuard_Bot.pdf`** *(também em `docs/Documentacao_Completa_CyberGuard_Bot.pdf`)*: Especificação técnica e operacional completa de todos os módulos, regras de negócio, expressões regulares, validações, esquemas das 12 tabelas SQL, máquinas de estado, permissões, crons e integrações do bot.
+- 📘 **`Documentacao_Completa_CyberGuard_Bot.pdf`** *(também em `docs/Documentacao_Completa_CyberGuard_Bot.pdf`)*: Especificação técnica e operacional completa de todos os módulos, regras de negócio, expressões regulares, validações, esquemas das 14 tabelas SQL, máquinas de estado, permissões, crons e integrações do bot.
 - 📜 **`Manual_Membro_Declaracao_Voluntariado.pdf`**: Guia atualizado para membros, vice-líderes e líderes sobre emissão de declarações de voluntariado (regra automática de **4h semanais** para membros, **8h semanais** para vice-líderes e **10h semanais** para líderes), fluxo de assinatura digital no Gov.br, sincronização instantânea (`/declaracao status`) e entrega por DM com simulação da interface Discord.
-- 🕒 **`Manual_Membro_Ponto.pdf`**: Guia para membros sobre o ponto manual, criação de tarefas no Notion pelo Discord, registro automático por voz (com tolerância de 60s), confirmação periódica de atividade (1h), ranking e simulação gráfica interativa.
+- 🕒 **`Manual_Membro_Ponto.pdf`**: Guia para membros sobre o ponto manual, criação de tarefas no Notion pelo Discord, registro automático por voz (com tolerância de 60s), confirmação periódica de atividade (1h), metas semanais, ranking e simulação gráfica interativa.
 - 📕 **`Manual_Membro_Advertencias.pdf`**: Direitos, prazos de 7 e 90 dias, fluxo de contraditório para membros advertidos e simulação da notificação por DM.
 - 📗 **`Manual_Lider_RH_Ponto.pdf`**: Manual administrativo de ajuste de ponto pelo RH, importação de horas, painel de resumo de líderes e auditoria nas 3 abas da planilha.
 - 📙 **`Manual_Lider_Advertencias_Atualizado.pdf`**: Procedimentos operacionais para abertura de advertências, fila automática, reincidência e votação de expulsão.
 - 📝 **`Manual_Membro_Onboarding_GovBr.pdf`**: Guia passo a passo do voluntário para as 13 etapas na DM, consentimento LGPD, assinatura digital no portal Gov.br (ICP-Brasil) e critérios de validação.
-- 🎙️ **`Manual_Lider_Reunioes_IA.pdf`**: Manual de gravação de reuniões por voz, garantia de Opt-out LGPD, transcrição em lote com Google Gemini 2.5 Flash e geração de atas em PDF.
+- 🎙️ **`Manual_Lider_Reunioes_IA.pdf`**: Manual de gravação de reuniões por voz, garantia de Opt-out LGPD, transcrição em lote com Google Gemini 3.8 Flash e geração de atas em PDF.
 - 🔒 **`Manual_Membro_LGPD_MeusDados.pdf`**: Manual de exercício dos direitos do titular de dados (Art. 18 LGPD), mensagens efêmeras, retificação cadastral e auditoria.
+- 📢 **`Manual_Lider_Avisos_Google_Calendar.pdf`**: Guia operacional para líderes emitirem comunicados restritos por setor em tópicos privados e agendarem reuniões sincronizadas com o Google Calendar (API v3 & RFC 5545).
+- 📬 **`Manual_Membro_Avisos_Google_Calendar.pdf`**: Manual do integrante sobre tópicos privados de avisos, notificações na DM/e-mail, convites de reuniões no Google Calendar e consulta em `Meus Avisos`.
+- 🛡️ **`Manual_Membro_Central_Suporte_Duvidas.pdf`**: Guia da central de apoio e dúvidas `#dúvidas`, consulta a manuais em PDF, tira-dúvidas com IA Gemini e chamados à liderança com protocolo `#DUVIDA-XXXX`.
 
 ---
 

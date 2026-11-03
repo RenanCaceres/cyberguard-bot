@@ -3,6 +3,10 @@ const fs = require('fs');
 const path = require('path');
 const { DocBuilder, LARGURA_UTIL } = require('./pdfDocBuilder');
 const F = require('./fluxosCanvas');
+const {
+  simularModuloSuportePainel,
+  simularModuloAvisosEventoCalendar,
+} = require('./simulacoesCanvas');
 
 async function figura(doc, fig, escala = 0.76) {
   const larg = LARGURA_UTIL * escala;
@@ -31,7 +35,7 @@ async function gerarDocumentacaoCompleta() {
   // =========================================================================
   doc.secao('1', 'Visão Geral, Arquitetura e Ciclo de Inicialização');
   doc.paragrafo(
-    'O CyberGuard Bot é a plataforma central de governança, conformidade jurídica e automação operacional do projeto de extensão CyberGuard (UTFPR - Câmpus Cornélio Procópio). Desenvolvido em Node.js (v18+) sobre Discord.js v14 e PostgreSQL, o sistema integra geração e validação criptográfica de documentos PDF (ICP-Brasil / Gov.br), ponto eletrônico híbrido (manual e por voz), sincronização em nuvem (Notion API e Google Sheets API), gestão disciplinar com contraditório e transcrição de atas de reunião com Inteligência Artificial (Google Gemini 2.5 Flash).'
+    'O CyberGuard Bot é a plataforma central de governança, conformidade jurídica e automação operacional do projeto de extensão CyberGuard (UTFPR - Câmpus Cornélio Procópio). Desenvolvido em Node.js (v18+) sobre Discord.js v14 e PostgreSQL, o sistema integra geração e validação criptográfica de documentos PDF (ICP-Brasil / Gov.br), ponto eletrônico híbrido (manual e por voz), metas semanais, sincronização em nuvem (Notion API, Google Sheets API e Google Calendar API v3), gestão disciplinar com contraditório, central de avisos multicanal e transcrição de atas com Inteligência Artificial (Google Gemini 3.8 Flash).'
   );
 
   doc.subsecao('1.1. Stack Tecnológica e Módulos Core');
@@ -43,11 +47,11 @@ async function gerarDocumentacaoCompleta() {
     ],
     [
       ['Gateway & Voz', 'discord.js v14, @discordjs/voice, prism-media', 'Eventos do servidor, Slash Commands, Modais, DMs e captura de streams Opus em chamadas de voz.'],
-      ['Persistência Relacional', 'PostgreSQL (pg Pool)', '12 tabelas relacionais com índices parciais de integridade, histórico de auditoria e metadados.'],
+      ['Persistência Relacional', 'PostgreSQL (pg Pool)', '14 tabelas relacionais com índices parciais de integridade, histórico de auditoria e metadados.'],
       ['Documentos & AcroForm', 'docxtemplater, pizzip, pdf-lib, pdfjs-dist, LibreOffice', 'Preenchimento de templates .docx, conversão headless para .pdf, injeção de AcroForm e leitura de assinaturas /Sig.'],
       ['Mensageria E-mail', 'nodemailer (SMTP) & imapflow (IMAP)', 'Envio de termos e declarações para assinatura e leitura autônoma de respostas na INBOX.'],
-      ['Integrações Cloud', 'Notion API (2025-09-03 / 2022-06-28) & Google Sheets v4', 'Gestão de tarefas/progresso, base histórica de membros (Ativo/Inativo/Expulso) e planilhas de horas.'],
-      ['Inteligência Artificial', '@google/generative-ai (Gemini 2.5 Flash)', 'Transcrição em lotes de áudio 16kHz Mono e estruturação automática de Atas de Reunião.'],
+      ['Integrações Cloud', 'Notion API, Google Sheets v4 e Google Calendar API v3', 'Gestão de tarefas/membros no Notion, planilhas de horas e agendamento de eventos RFC 5545.'],
+      ['Inteligência Artificial', '@google/generative-ai (Gemini 3.8 Flash)', 'Transcrição em lotes de áudio 16kHz Mono, síntese de atas e assistente inteligente de dúvidas.'],
       ['Motor Gráfico 2D', '@napi-rs/canvas', 'Renderização server-side do Organograma (2400px), Pódio de Ranking Semanal, Catálogo de Membros e Cartões.'],
     ]
   );
@@ -246,6 +250,13 @@ async function gerarDocumentacaoCompleta() {
   doc.listaItem('3) Aba "Painel Transparente (Bot)": soma exclusivamente sessões com origem "manual" ou "voz" registradas no CyberGuard Bot.', { nivel: 2, marcador: '-' });
   doc.listaItem('Ranking Semanal e Virada de Semana: inicia na segunda-feira 00:00 (America/Sao_Paulo), corta sessões que atravessam a meia-noite de domingo/segunda exatamente nos limites da semana, atualiza a mensagem fixa ao vivo a cada 3 minutos e publica o pódio fechado da semana anterior na virada de semana.');
 
+  doc.subsecao('5.4. Gamificação, Metas Semanais por Perfil e Relatórios por Setor (src/pontoMetas.js)');
+  doc.listaItem('Metas Regimentais Diferenciadas: Membro Regular (4h semanais), Vice-Líder (8h semanais) e Líderes / Presidência (10h semanais).');
+  doc.listaItem('Fechamento Semanal Automatizado (executarFechamentoSemanal): executado todo domingo às 23:59:50 / virada de semana junto ao ranking, ou forçado manualmente pela Liderança/RH via comando /relatorio-semanal fechar_semana:true.');
+  doc.listaItem('Disparos em Massa aos Integrantes: cada voluntário com registros na semana recebe DM privada contendo o consolidado de horas, percentual da meta atingido, horas restantes e status regimental.');
+  doc.listaItem('Relatórios Setoriais para Líderes: consolidado detalhado da equipe de cada setor enviado diretamente para a DM do respectivo Líder (com fallback automático ao RH se o setor não possuir líder ativo).');
+  doc.listaItem('Consulta Histórica Completa (/relatorio-semanal): paginação interativa que permite navegar e auditar o histórico de todas as semanas desde o ingresso do voluntário na organização.');
+
   // =========================================================================
   // SEÇÃO 6: SISTEMA DISCIPLINAR E ADVERTÊNCIAS
   // =========================================================================
@@ -279,7 +290,7 @@ async function gerarDocumentacaoCompleta() {
   // =========================================================================
   doc.secao('7', 'Módulo de Atas de Reunião com Inteligência Artificial (Gemini)');
   doc.paragrafo(
-    'O módulo de Reuniões (commands/reuniao/*) grava chamadas de voz por falante individual, realiza downsampling de áudio, transcreve em lotes via Google Gemini 2.5 Flash e gera atas formais em PDF.'
+    'O módulo de Reuniões (commands/reuniao/*) grava chamadas de voz por falante individual, realiza downsampling de áudio, transcreve em lotes via Google Gemini 3.8 Flash (gemini-3.8-flash com fallback) e gera atas formais em PDF.'
   );
 
   doc.subsecao('7.1. Comandos, Captura Opus por Falante e Filtro de Ruído (recorder.js)');
@@ -291,38 +302,89 @@ async function gerarDocumentacaoCompleta() {
   doc.subsecao('7.2. Downsampling 16kHz Mono, Batching, Retries e Retenção de Backup');
   doc.listaItem('Downsampling (audioBatch.js): converte cada WAV de 48kHz Estéreo 16-bit para 16kHz Mono 16-bit (fator de decimação 3 com média aritmética dos canais L/R e clamp em [-32768, 32767]).');
   doc.listaItem('Agrupamento em Lotes: divide as falas visando LOTES_ALVO = 12 requisições (mínimo de 3 áudios por lote), concatenando os WAVs separados por 500 ms de silêncio (16.000 bytes de zeros) e aguardando 4.000 ms entre lotes.');
-  doc.listaItem('Política de Retry e Cota Diária (gemini.js): realiza até 5 tentativas com backoff exponencial (4000 * 2^tentativa + jitter de até 1000ms) para erros 429 (Rate Limit por minuto) ou 503. Se detectar erro de Cota Diária Esgotada ("PerDay" ou "GenerateRequestsPerDayPerProjectPerModel"), aborta os retries imediatamente e marca os trechos restantes.');
-  doc.listaItem('Geração do PDF e Retenção de Áudio (pdfGenerator.js & limpezaBackup.js): gera o PDF da ata estruturada (Resumo, Decisões, Itens de ação com checkboxes e Pontos discutidos). Se 100% dos lotes forem transcritos com sucesso, apaga a pasta de backup imediatamente; se houver falha parcial/cota, preserva a pasta e o manifest.json por 7 dias (permitindo /reuniao reprocessar <id>), com faxina automática diária às 04:00 ("0 4 * * *").');
+  doc.listaItem('Política de Retry e Cota Diária (gemini.js): realiza até 5 tentativas com backoff exponencial para rate limits ou 503. Se detectar cota diária esgotada, aborta os retries e salva o manifest.');
+  doc.listaItem('Geração do PDF e Retenção de Áudio (pdfGenerator.js & limpezaBackup.js): gera a ata estruturada (Resumo, Decisões, Itens de ação e Pontos discutidos). Se houver falha de cota, preserva os áudios por 7 dias para reprocessamento, com faxina automática diária às 04:00.');
 
   // =========================================================================
-  // SEÇÃO 8: HIERARQUIA VISUAL, CARTÕES E GOVERNANÇA DE SAÍDAS
+  // SEÇÃO 8: CENTRAL DE APOIO E DÚVIDAS DOS MEMBROS COM IA (GEMINI)
   // =========================================================================
-  doc.secao('8', 'Hierarquia Visual, Cartões de Servidor e Governança de Saídas');
-  doc.subsecao('8.1. Organograma Dinâmico Renderizado (src/hierarquia.js & hierarquiaRender.js)');
-  doc.listaItem('Estrutura Visual (2400px de largura): renderiza o card do Presidente no topo, conectado ortogonalmente a 5 times distribuídos em 2 linhas: Linha 1 (Social Media & Copy, Recursos Humanos, Design) e Linha 2 (Hardware Hacking e Hacking Ético). As linhas conectoras da Linha 2 descem pelos vãos laterais (xGap1 e xGap2) sem cruzar sobre o card de Recursos Humanos.');
-  doc.listaItem('Unificação Hacking Ético: agrupa automaticamente membros com o cargo Hacking Ético (ROLE_HACKING_ETICO_ID ou nome), Red Team ou Blue Team.');
-  doc.listaItem('Destaque de Liderança e Debounce: identifica líderes pelo cargo "Líderes" ou mapa fixo LIDERES_TIME, posicionando-os no topo do card com estrela dourada (*). Aplica debounce de 4.000 ms em mudanças de cargos relevantes e edita a mesma mensagem fixa no canal HIERARQUIA_CHANNEL_ID (salva em bot_state).');
+  doc.novaPagina();
+  doc.secao('8', 'Central de Apoio & Dúvidas dos Membros com IA (Gemini)');
+  doc.paragrafo(
+    'A Central de Apoio & Dúvidas (src/suporteDuvidas.js, commands/documentacao/* e commands/painel-duvidas/*) unifica o acesso permanente aos manuais do projeto, tira-dúvidas inteligente com Google Gemini 3.8 Flash e abertura de chamados formais para a liderança via e-mail e Discord.'
+  );
 
-  doc.subsecao('8.2. Cartões de Entrada/Saída e Sincronização de Desligamento no Notion');
-  doc.listaItem('Cartões Ilustrados (cartaoServidor.js): gera banners 1000x320px em PNG ("EMBARCOU NO SERVIDOR" em azul com mascote sorrindo na aprovação do onboarding; "DESEMBARCOU DO SERVIDOR" em âmbar com mascote triste na saída).');
-  doc.listaItem('Detecção de Saída/Desligamento e Revogação Notion (guildMemberRemove): quando um membro sai do servidor, o bot inspeciona os últimos 5 registros do Audit Log (actions 20 Kick e 22 Ban nos últimos 30s), atualiza o cadastro do membro no Notion (notionMembros.js) para Status = "Inativo" (mantendo estritamente os estados "Ativo" ou "Inativo" conforme a LGPD) com a Data de Saída, e executa a revogação automática da conta no Workspace Notion.');
+  const simSuporte = simularModuloSuportePainel();
+  await doc.imagem(simSuporte, { largura: LARGURA_UTIL, altura: (LARGURA_UTIL * 550) / 920, espacoDepois: 12 });
 
-  doc.subsecao('8.3. Gestão Automatizada de Membros do Notion Workspace (src/notionWorkspace.js)');
+  doc.subsecao('8.1. Painel Permanente no Canal #dúvidas e Consulta de Manuais');
+  doc.listaItem('Painel Fixo Interativo: publicado via /painel-duvidas pelo Administrador, contendo 3 opções: "📜 Regras e Manuais (PDF)", "🤖 Tirar Dúvida com a IA (Gemini)" e "👤 Tirar Dúvidas Comigo (Liderança)".');
+  doc.listaItem('Download Instantâneo em Mensagem Efêmera: a consulta a manuais e regras pelo menu seletor (/documentacao) entrega os PDFs e simulações gráficas em resposta 100% efêmera, preservando a discrição do integrante.');
+
+  doc.subsecao('8.2. Assistente Inteligente com IA (gemini-3.8-flash)');
+  doc.listaItem('Contexto Regimental Especializado: o prompt do assistente integra todas as regras do CyberGuard, cargas horárias (4h/8h/10h), prazos disciplinares (7 e 90 dias), comandos slash, LGPD e rotinas do ponto eletrônico.');
+  doc.listaItem('Respostas Assertivas e Privadas: o membro digita sua dúvida em modal interativo e recebe a resposta imediata na tela, com fallback automático entre modelos (gemini-3.8-flash -> gemini-3.5-flash).');
+
+  doc.subsecao('8.3. Chamados para a Liderança (Protocolos #DUVIDA-XXXX) e Entrega na DM');
+  doc.listaItem('Abertura Formal: caso a IA não seja suficiente, o membro envia sua dúvida para a coordenação. O sistema gera um protocolo exclusivo (#DUVIDA-XXXX) e armazena o chamado na tabela duvidas_suporte.');
+  doc.listaItem('Despacho SMTP e Retorno IMAP: envia e-mail formatado para EMAIL_SUPORTE_ADMIN. Quando a coordenação responde, o worker IMAP detecta o protocolo e entrega o parecer na DM do autor no Discord.');
+
+  // =========================================================================
+  // SEÇÃO 9: CENTRAL DE AVISOS E AGENDAMENTO NO GOOGLE CALENDAR
+  // =========================================================================
+  doc.novaPagina();
+  doc.secao('9', 'Central de Avisos & Agendamento de Eventos no Google Calendar');
+  doc.paragrafo(
+    'O módulo da Central de Avisos & Agenda de Eventos (src/avisos.js, src/calendarService.js, commands/painel-avisos/*) gerencia comunicados oficiais restritos por setor ou gerais, integrando criação de tópicos privados no Discord, agendamento no Google Calendar via API v3 e distribuição multicanal (Discord, DM e E-mail).'
+  );
+
+  const simAvisos = simularModuloAvisosEventoCalendar();
+  await doc.imagem(simAvisos, { largura: LARGURA_UTIL, altura: (LARGURA_UTIL * 550) / 920, espacoDepois: 12 });
+
+  doc.subsecao('9.1. Segmentação Setorial, Permissões e Tópicos Privados');
+  doc.listaItem('Painel Fixo no Canal de Avisos: publicado via /painel-avisos por Líderes, RH, Presidente ou Vice-Presidente.');
+  doc.listaItem('Permissões de Envio: Líderes enviam comunicados restritos ao seu respectivo setor; Presidência e Recursos Humanos podem emitir avisos para qualquer setor ou para toda a organização.');
+  doc.listaItem('Tópicos Estritamente Privados (PrivateThread): o bot cria uma thread restrita no canal de avisos e convida unicamente os integrantes daquele setor, impedindo vazamento de informações para outras equipes.');
+
+  doc.subsecao('9.2. Agendamento Automático no Google Calendar (API v3 & RFC 5545)');
+  doc.listaItem('Google Calendar API v3: eventos com data e hora informados pelo líder são criados diretamente na agenda institucional (GOOGLE_CALENDAR_ID), vinculando participantes resolvidos por e-mail.');
+  doc.listaItem('Convite Universal iCalendar (.ics): anexa arquivo no padrão RFC 5545 (METHOD:REQUEST) com PRODID, UID criptográfico, fuso horário America/Sao_Paulo e botões de confirmação nativos no e-mail.');
+
+  doc.subsecao('9.3. Distribuição Multicanal Simultânea e Consulta "Meus Avisos"');
+  doc.listaItem('Tríplice Notificação: publicação no tópico privado + mensagem direta individual (DM) com embed detalhado + despacho de e-mail institucional responsivo.');
+  doc.listaItem('Botão "📬 Meus Avisos & Eventos": permite que qualquer membro consulte instantaneamente na mensagem efêmera seus avisos pendentes e compromissos agendados.');
+
+  // =========================================================================
+  // SEÇÃO 10: HIERARQUIA VISUAL, CARTÕES E GOVERNANÇA DE SAÍDAS
+  // =========================================================================
+  doc.novaPagina();
+  doc.secao('10', 'Hierarquia Visual, Cartões de Servidor e Governança de Saídas');
+  doc.subsecao('10.1. Organograma Dinâmico Renderizado (src/hierarquia.js & hierarquiaRender.js)');
+  doc.listaItem('Estrutura Visual (2400px de largura): renderiza o card do Presidente no topo, conectado ortogonalmente a 5 times distribuídos em 2 linhas: Linha 1 (Social Media & Copy, Recursos Humanos, Design) e Linha 2 (Hardware Hacking e Hacking Ético). As linhas conectoras da Linha 2 descem pelos vãos laterais sem cruzar sobre os cards.');
+  doc.listaItem('Unificação Hacking Ético: agrupa automaticamente membros com o cargo Hacking Ético, Red Team ou Blue Team.');
+  doc.listaItem('Destaque de Liderança e Debounce: identifica líderes pelo cargo "Líderes" ou mapa fixo LIDERES_TIME, posicionando-os no topo do card com estrela dourada (*). Aplica debounce de 4.000 ms e atualiza o canal HIERARQUIA_CHANNEL_ID.');
+
+  doc.subsecao('10.2. Cartões de Entrada/Saída e Sincronização de Desligamento no Notion');
+  doc.listaItem('Cartões Ilustrados (cartaoServidor.js): gera banners 1000x320px em PNG ("EMBARCOU NO SERVIDOR" na aprovação; "DESEMBARCOU DO SERVIDOR" na saída).');
+  doc.listaItem('Detecção de Saída/Desligamento e Revogação Notion (guildMemberRemove): quando um membro sai do servidor, o bot inspeciona o Audit Log, atualiza o cadastro do membro no Notion para Status = "Inativo" com a Data de Saída, e executa a revogação automática da conta no Workspace Notion.');
+
+  doc.subsecao('10.3. Gestão Automatizada de Membros do Notion Workspace (src/notionWorkspace.js)');
   doc.paragrafo(
     'O bot implementa automação direta de gestão do Workspace institucional no Notion através de endpoints v3 autenticados (token_v2, NOTION_SPACE_ID e NOTION_ACTIVE_USER_ID), eliminando as restrições da API pública oficial que impedem a gestão autônoma de membros:'
   );
-  doc.listaItem('Adição Automática ao Workspace (addMembersToSpace): imediatamente após a aprovação do onboarding e validação do termo pelo RH (src/approval.js), o bot resolve o ID do membro por e-mail (ou provisiona via createEmailUser) e adiciona o integrante diretamente como Membro oficial do espaço.');
-  doc.listaItem('Revogação Automática no Desligamento (removeUsersFromSpace): caso o integrante saia por conta própria ou seja expulso (src/index.js), o bot revoga o acesso imediatamente do Workspace, preservando o histórico de tarefas já concluídas.');
+  doc.listaItem('Adição Automática ao Workspace (addMembersToSpace): imediatamente após a aprovação do onboarding e validação do termo pelo RH (src/approval.js), o bot resolve o ID do membro por e-mail e adiciona o integrante diretamente como Membro oficial do espaço.');
+  doc.listaItem('Revogação Automática no Desligamento (removeUsersFromSpace): caso o integrante saia por conta própria ou seja expulso (src/index.js), o bot revoga o acesso imediatamente do Workspace.');
   doc.listaItem('Governança e Estrutura de Papéis:');
   doc.listaItem('• Coordenação Docente: Prof. Dr. André Luiz Przybysz e Profa. Dra. Natássya Barlate Floro da Silva possuem assento permanente como professores orientadores.', { nivel: 2, marcador: '-' });
   doc.listaItem('• Administração & Presidência: Renan Cáceres Anselmo e André Queiroz atuam como Workspace Owners / Administradores gerais.', { nivel: 2, marcador: '-' });
-  doc.listaItem('• Membros Acadêmicos: integrantes ativos distribuídos entre as 5 áreas operacionais (Social Media, RH, Design, Hardware Hacking e Hacking Ético), com controle de regularização de termos assinados e revogação automática de contas desligadas.', { nivel: 2, marcador: '-' });
+  doc.listaItem('• Membros Acadêmicos: integrantes ativos distribuídos entre as 5 áreas operacionais, com controle de regularização de termos assinados e revogação automática de contas desligadas.', { nivel: 2, marcador: '-' });
 
   // =========================================================================
-  // SEÇÃO 9: REFERÊNCIA CONSOLIDADA (BANCO DE DADOS, CRONS E VARIÁVEIS)
+  // SEÇÃO 11: REFERÊNCIA CONSOLIDADA (BANCO DE DADOS, CRONS E VARIÁVEIS)
   // =========================================================================
-  doc.secao('9', 'Referência Consolidada: Banco de Dados, Crons e Variáveis (.env)');
-  doc.subsecao('9.1. Esquema Relacional PostgreSQL (12 Tabelas)');
+  doc.novaPagina();
+  doc.secao('11', 'Referência Consolidada: Banco de Dados, Crons e Variáveis (.env)');
+  doc.subsecao('11.1. Esquema Relacional PostgreSQL (14 Tabelas)');
   doc.tabela(
     [
       { nome: 'Tabela SQL', largura: 135 },
@@ -333,19 +395,21 @@ async function gerarDocumentacaoCompleta() {
       ['membros', 'PK id, UNIQUE discord_id', 'Cadastro oficial, status do onboarding/termo, RA, CPF, curso, email, data_inicio, termo_arquivo_path e flags de lembrete/saída.'],
       ['historico_recusas', 'PK id, IDX discord_id, ra, nome', 'Memória permanente de candidatos reprovados pelo RH ("rejeitado") ou que sofreram timeout/saída ("abandonado").'],
       ['cadastro_legado', 'PK discord_id', 'Mapeamento de nomes completos de integrantes antigos pré-onboarding.'],
-      ['bot_state', 'PK chave', 'Estado persistente geral (ex.: ID da mensagem fixa da hierarquia).'],
+      ['bot_state', 'PK chave', 'Estado persistente geral (ex.: ID da mensagem fixa da hierarquia, painéis).'],
       ['declaracoes_solicitadas', 'PK id, UNIQUE codigo', 'Protocolos #DECL-, carga_horaria (4h/10h), status, caminhos dos PDFs gerado/assinado e message_id_email.'],
       ['pontos', 'PK id, UNIQUE aberto/user e kov_msg_id', 'Sessões de ponto (manual, voz, kov, importado), progresso, feito, falta, avisos_inatividade e auditoria de ajustes do RH.'],
-      ['ponto_meta', 'PK chave', 'Metadados do ponto (ranking_ao_vivo_msg e ultima_semana_ranking).'],
+      ['ponto_meta', 'PK chave', 'Metadados do ponto (ranking_ao_vivo_msg, ultima_semana_ranking, ultima_semana_fechada_metas).'],
       ['advertencias_categorias', 'PK id, UNIQUE nome, ordem', 'Catálogo regimental: Leve (1), Média (2) e Grave (3).'],
       ['advertencias', 'PK id, IDX discord_id, status', 'Ocorrências disciplinares, reincidência, fila ("na_fila"), prazos de 7 e 90 dias e decisão de expulsão.'],
       ['advertencias_historico_status', 'PK id, FK advertencia_id', 'Trilha de auditoria imutável de todas as mudanças de status disciplinar.'],
       ['advertencias_argumentos', 'PK id, FK advertencia_id', 'Histórico cronológico de todas as rodadas de réplicas e contra-argumentos.'],
       ['atas_reuniao', 'PK id, IDX guild_id, finalizado_em', 'Atas geradas pelo Gemini AI, transcrição, participantes JSONB, caminho do PDF e controle de backup de áudio (7 dias).'],
+      ['duvidas_suporte', 'PK id, UNIQUE codigo', 'Protocolos #DUVIDA-XXXX de suporte com a liderança, assunto, dúvida, remetente, status e trâmite por e-mail/DM.'],
+      ['avisos_eventos', 'PK id, IDX setor, data_evento', 'Registro de avisos oficiais, threads privadas vinculadas, eventos no Google Calendar e status de entrega.'],
     ]
   );
 
-  doc.subsecao('9.2. Mapa de Todos os Agendadores (Crons) e Loops Temporizados');
+  doc.subsecao('11.2. Mapa de Todos os Agendadores (Crons) e Loops Temporizados');
   doc.tabela(
     [
       { nome: 'Processo / Serviço', largura: 135 },
@@ -354,7 +418,7 @@ async function gerarDocumentacaoCompleta() {
     ],
     [
       ['Monitoramento IMAP Declarações', '* * * * * (a cada 1 min) + 10s boot', 'Busca respostas de e-mail com #DECL-, baixa o PDF assinado pelo coordenador, arquiva, entrega na DM e avisa o RH.'],
-      ['Tick do Ponto Eletrônico', 'A cada 3 min (setInterval) + 20s boot', 'Envia checks de 1h de inatividade, encerra por inatividade (3 avisos) ou teto (8h), cobra reportes (3h) e atualiza o Ranking ao vivo.'],
+      ['Tick do Ponto & Metas', 'A cada 3 min (setInterval) + 20s boot', 'Envia checks de 1h de inatividade, encerra inativos/teto (8h), atualiza Ranking ao vivo e fecha metas semanais aos domingos.'],
       ['Sync Retry KoV -> Sheets', 'A cada 15 min (setInterval) + 5s debounce', 'Reenvia para o Google Sheets eventuais sessões importadas do KoV com sheet_ok = false.'],
       ['Limpeza de Backups de Áudio', '0 4 * * * (diário às 04:00) + boot', 'Remove pastas de áudio de reuniões com mais de 7 dias ou cuja ata já expirou (audio_expira_em).'],
       ['Cron de Advertências', '0 6 * * * (diário às 06:00)', 'Marca como "sem_resposta" advertências sem manifestação há > 7 dias e expira advertências vigentes há > 90 dias.'],
@@ -362,7 +426,7 @@ async function gerarDocumentacaoCompleta() {
     ]
   );
 
-  doc.subsecao('9.3. Catálogo de Comandos Slash e Permissões Exigidas');
+  doc.subsecao('11.3. Catálogo de Comandos Slash e Permissões Exigidas');
   doc.tabela(
     [
       { nome: 'Comando Slash', largura: 145 },
@@ -370,20 +434,25 @@ async function gerarDocumentacaoCompleta() {
       { nome: 'Comportamento e Regras Principais', largura: 230 },
     ],
     [
-      ['/declaracao solicitar', 'Membros Cadastrados', 'Gera declaração PDF (4h regular / 10h líder), cria protocolo #DECL- e envia por SMTP ao coordenador.'],
+      ['/declaracao solicitar', 'Membros Cadastrados', 'Gera declaração PDF (4h regular / 8h vice / 10h líder), cria protocolo #DECL- e envia ao coordenador.'],
       ['/declaracao status', 'Membros Cadastrados', 'Sincroniza a caixa IMAP em tempo real e exibe as últimas 10 solicitações do membro.'],
       ['/painel-ponto', 'Administrator (Guild)', 'Publica o painel interativo fixo de ponto eletrônico com 6 botões de ação.'],
       ['/ajustar-ponto <membro>', 'Cargo PONTO_ROLE_RH_ID', 'Lista últimos 25 pontos fechados do membro para ajuste de horário (máx 24h) com auditoria e DM.'],
-      ['/importar-horas ...', 'Cargo PONTO_ROLE_RH_ID', 'Importa ou substitui saldo acumulado (dias, horas, min, seg) sem inflar o ranking semanal.'],
+      ['/importar-horas ...', 'Cargo PONTO_ROLE_RH_ID', 'Importa ou substitui saldo acumulado sem inflar o ranking semanal.'],
+      ['/relatorio-semanal', 'Qualquer Membro / RH', 'Consulta histórico completo de semanas de horas e permite forçar fechamento semanal (RH/Líderes).'],
       ['/painel-advertencias', 'AUTORES_ADVERTENCIA_IDS', 'Publica o painel administrativo de advertências, fila e consultas no canal.'],
       ['/advertir ...', 'AUTORES_ADVERTENCIA_IDS', 'Inicia abertura de advertência (Leve, Média, Grave) via parâmetros slash + modal de evidências.'],
       ['/advertencias [membro]', 'AUTORES_ADVERTENCIA_IDS', 'Consulta histórico disciplinar completo do servidor ou de um membro (incluindo fila).'],
       ['/minhas-advertencias', 'Qualquer Membro', 'Exibe histórico privado das próprias advertências (ocultando itens ainda "na_fila").'],
-      ['/reuniao iniciar | finalizar | historico | reprocessar', 'Membros em Canal de Voz', 'Grava áudio por falante, transcreve em lotes com Gemini 2.5 Flash, gera ata em PDF e reprocessa backups.'],
+      ['/meus-dados ...', 'Qualquer Membro', 'Consulta efêmera de dados pessoais, retificação cadastral e solicitação formal de privacidade (LGPD).'],
+      ['/reuniao ...', 'Liderança, RH & Admin', 'Grava áudio por falante, transcreve em lotes com Gemini 3.8 Flash e gera ata em PDF.'],
+      ['/painel-avisos [canal]', 'Líderes, RH & Admin', 'Publica painel de comunicados restritos por setor e agendamento de reuniões no Google Calendar.'],
+      ['/painel-duvidas', 'Administrator (Guild)', 'Publica o painel interativo fixo de atendimento, regras regimentais e tira-dúvidas no canal #dúvidas.'],
+      ['/documentacao', 'Qualquer Membro', 'Abre a central interativa de manuais operacionais em PDF, simulações visuais e assistente de dúvidas com IA.'],
     ]
   );
 
-  doc.subsecao('9.4. Variáveis de Ambiente da Gestão de Workspace (.env)');
+  doc.subsecao('11.4. Variáveis de Ambiente e Integrações (.env)');
   doc.tabela(
     [
       { nome: 'Chave de Configuração', largura: 160 },
@@ -394,6 +463,11 @@ async function gerarDocumentacaoCompleta() {
       ['NOTION_TOKEN_V2', 'v03%3AeyJhbGciOi...', 'Cookie de sessão privada com privilégios de Workspace Owner para endpoints v3.'],
       ['NOTION_SPACE_ID', '00000000-0000-0000-...', 'UUID do Workspace CyberGuard no Notion (addMembers / removeUsers).'],
       ['NOTION_ACTIVE_USER_ID', '00000000-0000-0000-...', 'UUID do usuário autenticado remetente das ações administrativas.'],
+      ['CANAL_AVISOS_ID', '156... (Snowflake)', 'ID do canal oficial onde o painel de avisos e eventos é publicado.'],
+      ['GOOGLE_CALENDAR_ID', 'primary ou email', 'ID da agenda institucional no Google Calendar para criação de eventos.'],
+      ['CANAL_DUVIDAS_ID', '156... (Snowflake)', 'ID do canal oficial de atendimento e dúvidas fixadas.'],
+      ['EMAIL_SUPORTE_ADMIN', 'exemplo@alunos.utfpr.edu.br', 'E-mail da coordenação para encaminhamento de protocolos #DUVIDA-XXXX.'],
+      ['GEMINI_MODEL', 'gemini-3.8-flash', 'Modelo de inteligência artificial utilizado para transcrição e tira-dúvidas.'],
     ]
   );
 

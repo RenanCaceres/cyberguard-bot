@@ -352,6 +352,7 @@ const { gerarManualReunioesIA } = require('./gerarManualReuniao');
 const { gerarManualMembroOnboarding } = require('./gerarManualOnboarding');
 const { gerarManualLGPDMeusDados } = require('./gerarManualMeusDados');
 const { gerarManualCentralSuporteDuvidas } = require('./gerarManualSuporteDuvidas');
+const { gerarManualLiderAvisos, gerarManualMembroAvisos } = require('./gerarManualAvisos');
 
 (async () => {
   console.log('Compilando manuais e documentação completa em PDF com fluxogramas visuais...');
@@ -364,6 +365,8 @@ const { gerarManualCentralSuporteDuvidas } = require('./gerarManualSuporteDuvida
   await gerarManualReunioesIA();
   await gerarManualLGPDMeusDados();
   await gerarManualCentralSuporteDuvidas();
+  await gerarManualLiderAvisos();
+  await gerarManualMembroAvisos();
   await gerarDocumentoFluxoTermosOnboarding();
   await gerarDocumentacaoCompleta();
   console.log('Todos os manuais e a documentação completa foram compilados com sucesso!');
