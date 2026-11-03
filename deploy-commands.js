@@ -13,6 +13,7 @@ const meusDadosCommand = require('./commands/meus-dados/meusDadosCommand');
 const relatorioSemanalCommand = require('./commands/relatorio-semanal/relatorioSemanalCommand');
 const documentacaoCommand = require('./commands/documentacao/documentacaoCommand');
 const painelDuvidasCommand = require('./commands/painel-duvidas/painelDuvidasCommand');
+const painelAvisosCommand = require('./commands/painel-avisos/painelAvisosCommand');
 
 const comandos = [
   reuniaoCommand.data.toJSON(),
@@ -28,6 +29,7 @@ const comandos = [
   relatorioSemanalCommand.data.toJSON(),
   documentacaoCommand.data.toJSON(),
   painelDuvidasCommand.data.toJSON(),
+  painelAvisosCommand.data.toJSON(),
 ];
 
 const rest = new REST({ version: '10' }).setToken(config.discordToken);

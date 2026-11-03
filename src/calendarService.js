@@ -58,9 +58,9 @@ function parseDataHoraEvento(dataTexto, horarioTexto) {
     };
   }
 
-  // Regex para "19:00 - 20:30", "19h às 20h30", "19:00 as 21:00", "19:00"
+  // Regex para "19:00 - 20:30", "19h às 20h30", "14h às 16h", "19:00 as 21:00", "19:00", "19h"
   const matchHorario = horarioLimpo.match(
-    /^(\d{1,2})(?:[:hH](\d{2}))?\s*(?:(?:-|–|—|a|às|as|ate|até)\s*(\d{1,2})(?:[:hH](\d{2}))?\s*[hH]?)?[hH]?$/i
+    /^(\d{1,2})(?:[:hH](\d{2})?)?\s*(?:(?:-|–|—|a|às|as|ate|até)\s*(\d{1,2})(?:[:hH](\d{2})?)?)?$/i
   );
 
   if (!matchHorario) {
