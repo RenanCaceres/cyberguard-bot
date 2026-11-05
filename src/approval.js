@@ -11,8 +11,17 @@ const { adicionarMembroWorkspace } = require('./notionWorkspace');
 function construirEmbedResumidoRH(membro, aprovado, responsavelUsername, ehLider = false) {
   const campos = [
     { name: 'Discord', value: `<@${membro.discord_id}>`, inline: true },
-    { name: 'Nome', value: membro.nome || '—', inline: true },
   ];
+
+  if (membro.nome_social && membro.nome_social.trim()) {
+    campos.push(
+      { name: 'Nome Civil', value: membro.nome || '—', inline: true },
+      { name: 'Nome Social', value: membro.nome_social, inline: true }
+    );
+  } else {
+    campos.push({ name: 'Nome', value: membro.nome || '—', inline: true });
+  }
+
   if (membro.pronomes && membro.pronomes !== 'Prefiro não responder') {
     campos.push({ name: 'Pronomes', value: membro.pronomes, inline: true });
   }
@@ -139,7 +148,7 @@ async function handleAprovacaoInteraction(interaction) {
 
     await db.registrarRecusa({
       discordId,
-      nome: membro.nome,
+      nome: membro.nome_social || membro.nome,
       ra: membro.ra,
       tipo: 'rejeitado',
       motivo,
@@ -200,9 +209,11 @@ async function handleAprovacaoInteraction(interaction) {
     console.error('Erro ao registrar membro no Notion:', errNotion.message);
   }
 
+  const nomeReferencia = membroAtualizado.nome_social || membroAtualizado.nome;
+
   await postarCartao(interaction.client, config.channelBoasVindasId, {
     tipo: 'entrada',
-    nome: membroAtualizado.nome,
+    nome: nomeReferencia,
     discordTag: usuarioDiscord.tag,
     avatarUrl: usuarioDiscord.displayAvatarURL({ extension: 'png', size: 256 }),
   });
@@ -281,7 +292,7 @@ async function handleAprovacaoInteraction(interaction) {
           : `\n📧 **E-mail:** \`${membroAtualizado.email}\``;
 
       await canalRh.send({
-        content: `🔑 **Liberação de Acesso ao Notion:**\nO integrante **${membroAtualizado.nome}** (<@${discordId}> - RA: \`${membroAtualizado.ra || 'N/A'}\`) foi aprovado no onboarding!${emailTexto}\n📌 *O cadastro foi registrado como Ativo no Notion.*${statusNotionWorkspace}`,
+        content: `🔑 **Liberação de Acesso ao Notion:**\nO integrante **${nomeReferencia}** (<@${discordId}> - RA: \`${membroAtualizado.ra || 'N/A'}\`) foi aprovado no onboarding!${emailTexto}\n📌 *O cadastro foi registrado como Ativo no Notion.*${statusNotionWorkspace}`,
       });
     } catch (errRhNotif) {
       console.error('Erro ao notificar canal do RH sobre e-mail Notion:', errRhNotif.message);
@@ -306,9 +317,11 @@ async function handleAprovacaoInteraction(interaction) {
     ? `Você também recebeu um convite por e-mail para o nosso Notion! Acesse a página oficial do CyberGuard por aqui: ${config.notionHomeUrl}\n\n`
     : '';
 
+  const saudacaoNome = membroAtualizado.nome_social ? `Olá, **${membroAtualizado.nome_social}**! ` : '';
+
   await usuarioDiscord.send({
     content:
-      'Sua entrada foi aprovada! 🎉\n\n' +
+      `${saudacaoNome}Sua entrada foi aprovada! 🎉\n\n` +
       `Aqui está o link da comunidade geral no WhatsApp: ${config.whatsappLink}\n\n` +
       linhaLinkArea +
       linhaNotion +

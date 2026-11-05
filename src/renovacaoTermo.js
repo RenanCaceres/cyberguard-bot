@@ -107,7 +107,11 @@ async function verificarRenovacoes(client) {
           `Para manter a regularidade institucional perante a UTFPR e a continuidade do voluntário no projeto, é necessário emitir a **renovação semestral** do termo.`
         )
         .addFields(
-          { name: 'Voluntário(a)', value: `<@${membro.discord_id}> (${membro.nome || '—'})`, inline: true },
+          {
+            name: 'Voluntário(a)',
+            value: `<@${membro.discord_id}> (${membro.nome_social ? `${membro.nome_social} (Nome Civil: ${membro.nome})` : (membro.nome || '—')})`,
+            inline: true,
+          },
           { name: 'RA', value: `\`${membro.ra || 'N/A'}\``, inline: true },
           { name: 'Setor / Função', value: `${setorNome} (${papelLabel})`, inline: true },
           { name: 'Data de Início/Assinatura', value: formatarDataBr(dInicio), inline: true },
@@ -190,10 +194,14 @@ async function enviarTermoRenovadoAoMembroERh(client, interaction, membro, camin
         ? '✅ *O novo termo foi enviado automaticamente na DM do aluno com as instruções de assinatura gov.br.*'
         : '⚠️ *Não foi possível enviar por DM (privacidade fechada). O RH pode encaminhar o arquivo anexado abaixo.*';
 
+      const nomeVoluntario = membro.nome_social
+        ? `${membro.nome_social} (Nome Civil: ${membro.nome})`
+        : (membro.nome || '—');
+
       await canalRh.send({
         content:
           `📄 **Termo de Renovação Emitido (Vigência de 6 Meses)**\n` +
-          `**Voluntário(a):** <@${membro.discord_id}> (${membro.nome || '—'})\n` +
+          `**Voluntário(a):** <@${membro.discord_id}> (${nomeVoluntario})\n` +
           `**RA:** \`${membro.ra || 'N/A'}\` | **Setor:** ${membro.area_interesse || 'Geral'}\n` +
           `**Emitido por:** ${interaction.user.username}\n` +
           `${msgDmStatus}`,

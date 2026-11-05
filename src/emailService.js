@@ -18,13 +18,18 @@ async function encaminharTermoAssinado(membro, caminhoArquivo, nomeArquivoOrigin
       ? config.smtp.emailTermosCc
       : [];
 
+  const nomeRef = membro.nome_social
+    ? `${membro.nome_social} (Nome Civil: ${membro.nome})`
+    : (membro.nome || 'Membro');
+  const nomeAssunto = membro.nome_social || membro.nome || 'Membro';
+
   await transporter.sendMail({
     from: config.smtp.from || config.smtp.user,
     to: destinatario,
     cc: copias,
-    subject: `Termo de voluntariado assinado - ${membro.nome}`,
+    subject: `Termo de voluntariado assinado - ${nomeAssunto}`,
     text:
-      `Segue em anexo o termo de voluntariado assinado por ${membro.nome} (RA: ${membro.ra}).\n\n` +
+      `Segue em anexo o termo de voluntariado assinado por ${nomeRef} (RA: ${membro.ra || 'N/A'}).\n\n` +
       `Discord: ${membro.discord_id}\nCurso: ${membro.curso}\nE-mail: ${membro.email}` +
       (membro.email_notion && membro.email_notion !== membro.email ? `\nE-mail Notion: ${membro.email_notion}` : ''),
     attachments: [

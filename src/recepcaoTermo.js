@@ -86,7 +86,8 @@ async function concluirTermoAssinado({ membro, caminhoArquivo, nomeOriginal }) {
       area: membro.area_interesse,
     });
     if (driveUpload) {
-      console.log(`[drive] Termo de ${membro.nome} sincronizado no Google Drive: ${driveUpload.name}`);
+      const nomeRef = membro.nome_social || membro.nome;
+      console.log(`[drive] Termo de ${nomeRef} sincronizado no Google Drive: ${driveUpload.name}`);
     }
   } catch (errDrive) {
     console.error('Erro ao enviar termo assinado para o Google Drive:', errDrive.message);
@@ -152,9 +153,13 @@ async function encaminharParaRevisaoManual(client, membro, caminhoArquivo, nomeO
       .setEmoji('❌')
   );
 
+  const nomeRefMembro = membro.nome_social
+    ? `${membro.nome_social} (Nome Civil: ${membro.nome})`
+    : membro.nome;
+
   const conteudoRh =
     `⚠️ **Termo pendente de revisão manual**\n` +
-    `**Membro:** <@${membro.discord_id}> (${membro.nome})\n` +
+    `**Membro:** <@${membro.discord_id}> (${nomeRefMembro})\n` +
     `**RA:** \`${membro.ra || 'N/A'}\` | **Área:** ${membro.area_interesse || 'Geral'}\n` +
     `**Motivo da não validação automática:**\n> *${motivo || 'Data de assinatura ou posição não confirmada automaticamente.'}*\n\n` +
     `Por favor, baixe o PDF anexado abaixo para verificar. Se estiver tudo certo, clique em **Aprovar e Enviar E-mail**. ` +
@@ -258,8 +263,11 @@ async function handleMensagemDM(message) {
   if (config.channelRhId) {
     try {
       const canalRh = await message.client.channels.fetch(config.channelRhId);
+      const nomeRef = membro.nome_social
+        ? `${membro.nome_social} (Nome Civil: ${membro.nome})`
+        : membro.nome;
       await canalRh.send({
-        content: `📋 **Termo Validado Automaticamente**\nO termo de <@${membro.discord_id}> (${membro.nome} - RA: \`${membro.ra || 'N/A'}\`) foi validado e enviado por e-mail para a coordenação com sucesso!`,
+        content: `📋 **Termo Validado Automaticamente**\nO termo de <@${membro.discord_id}> (${nomeRef} - RA: \`${membro.ra || 'N/A'}\`) foi validado e enviado por e-mail para a coordenação com sucesso!`,
       });
     } catch (e) {
       console.error('Erro ao avisar RH sobre termo auto-validado:', e);
@@ -374,10 +382,14 @@ async function handleBotaoAprovarTermo(interaction, discordId) {
     ? '📌 *O documento foi arquivado e o e-mail foi disparado para a coordenação com sucesso!*'
     : `⚠️ *O termo foi arquivado, mas houve erro no envio do e-mail: ${erroEmailMsg}*`;
 
+  const nomeRefMembro = membro.nome_social
+    ? `${membro.nome_social} (Nome Civil: ${membro.nome})`
+    : membro.nome;
+
   await interaction.editReply({
     content:
       `✅ **Termo Aprovado Manualmente** por <@${interaction.user.id}>\n` +
-      `**Membro:** <@${discordId}> (${membro.nome})\n` +
+      `**Membro:** <@${discordId}> (${nomeRefMembro})\n` +
       `**RA:** \`${membro.ra || 'N/A'}\` | **Área:** ${membro.area_interesse || 'Geral'}\n` +
       avisoEmail,
     components: [],
@@ -450,9 +462,13 @@ async function handleModalReprovarTermo(interaction, discordId) {
     ? 'O aluno foi notificado por DM e poderá enviar o termo corrigido.'
     : '⚠️ Não consegui notificar o aluno por DM (DMs fechadas).';
 
+  const nomeRefMembro = membro?.nome_social
+    ? `${membro.nome_social} (Nome Civil: ${membro.nome})`
+    : (membro?.nome || 'Desconhecido');
+
   const conteudoAtualizado =
     `❌ **Termo Reprovado Manualmente** por <@${interaction.user.id}>\n` +
-    `**Membro:** <@${discordId}> (${membro?.nome || 'Desconhecido'})\n` +
+    `**Membro:** <@${discordId}> (${nomeRefMembro})\n` +
     `**RA:** \`${membro?.ra || 'N/A'}\` | **Área:** ${membro?.area_interesse || 'Geral'}\n` +
     `**Motivo informado ao aluno:**\n> *${motivo}*\n\n` +
     `📌 *${statusDm}*`;

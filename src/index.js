@@ -189,13 +189,16 @@ client.on('guildMemberUpdate', (oldMember, newMember) => {
 client.on('guildMemberRemove', async (member) => {
   try {
     const registro = await db.getMembro(member.id);
-    const nome = registro && registro.nome ? registro.nome : member.user.username;
+    const nome =
+      registro && (registro.nome_social || registro.nome)
+        ? (registro.nome_social || registro.nome)
+        : member.user.username;
 
     if (registro && registro.status !== 'concluido') {
       try {
         await db.registrarRecusa({
           discordId: member.id,
-          nome: registro.nome,
+          nome: registro.nome_social || registro.nome,
           ra: registro.ra,
           tipo: 'abandonado',
           motivo: `Saiu do servidor antes de concluir o processo (status: ${registro.status})`,
@@ -265,7 +268,7 @@ client.on('guildMemberRemove', async (member) => {
     try {
       const { registrarSaidaMembro } = require('./notionMembros');
       await registrarSaidaMembro(member.id, {
-        nome: registro?.nome || nome,
+        nome: registro?.nome_social || registro?.nome || nome,
         ra: registro?.ra || null,
         email: emailNotion,
         expulso: foiExpulso,

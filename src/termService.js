@@ -154,6 +154,37 @@ async function gerarTermo(membro, opcoes = {}) {
       );
     }
 
+    const temNomeSocial = Boolean(membro.nome_social && membro.nome_social.trim());
+    if (temNomeSocial) {
+      // Quando houver nome social, alteramos o rótulo da linha civil para "Nome civil:"
+      // e inserimos logo abaixo uma linha adicional dedicada para "Nome social: {nome_social}"
+      const rowNomeRegex = /(<w:tr\b[^>]*>(?:(?!<\/w:tr>)[\s\S])*?\{nome\}[\s\S]*?<\/w:tr>)/;
+      const match = xml.match(rowNomeRegex);
+      if (match) {
+        const rowOriginal = match[1];
+        const rowComNomeCivil = rowOriginal.replace(
+          /<w:t xml:space="preserve">Nome: <\/w:t>/,
+          '<w:t xml:space="preserve">Nome civil: </w:t>'
+        );
+        const novaLinhaNomeSocial =
+          '<w:tr><w:trPr><w:trHeight w:val="253" w:hRule="atLeast"/></w:trPr>' +
+          '<w:tc><w:tcPr><w:tcW w:w="9547" w:type="dxa"/><w:gridSpan w:val="6"/>' +
+          '<w:tcBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>' +
+          '<w:left w:val="single" w:sz="4" w:space="0" w:color="000000"/>' +
+          '<w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>' +
+          '<w:right w:val="single" w:sz="4" w:space="0" w:color="000000"/></w:tcBorders></w:tcPr>' +
+          '<w:p><w:pPr><w:pStyle w:val="TableParagraph"/><w:widowControl w:val="false"/>' +
+          '<w:spacing w:lineRule="exact" w:line="234" w:before="0" w:after="0"/><w:ind w:left="105"/>' +
+          '<w:jc w:val="left"/><w:rPr><w:color w:val="000000"/><w:kern w:val="0"/><w:sz w:val="22"/>' +
+          '<w:szCs w:val="22"/><w:lang w:eastAsia="en-US" w:bidi="ar-SA"/></w:rPr></w:pPr>' +
+          '<w:r><w:rPr><w:color w:val="000000"/><w:kern w:val="0"/><w:sz w:val="22"/><w:szCs w:val="22"/>' +
+          '<w:lang w:eastAsia="en-US" w:bidi="ar-SA"/></w:rPr><w:t xml:space="preserve">Nome social: </w:t></w:r>' +
+          '<w:r><w:rPr><w:color w:val="000000"/><w:kern w:val="0"/><w:sz w:val="22"/><w:szCs w:val="22"/>' +
+          '<w:lang w:eastAsia="en-US" w:bidi="ar-SA"/></w:rPr><w:t>{nome_social}</w:t></w:r></w:p></w:tc></w:tr>';
+        xml = xml.replace(rowOriginal, rowComNomeCivil + novaLinhaNomeSocial);
+      }
+    }
+
     const { aplicarAtividadesECronogramaNoXml } = require('./atividadesVoluntariado');
     xml = aplicarAtividadesECronogramaNoXml(
       xml,
@@ -171,12 +202,14 @@ async function gerarTermo(membro, opcoes = {}) {
     linebreaks: true,
     nullGetter: (part) => {
       if (part.value === 'data_assinatura') return '';
+      if (part.value === 'nome_social') return '';
       return `[[FALTA PREENCHER: ${part.value}]]`;
     },
   });
 
   doc.render({
     nome: membro.nome,
+    nome_social: membro.nome_social || '',
     ra: membro.ra,
     curso: membro.curso,
     periodo: membro.periodo,

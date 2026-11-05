@@ -112,13 +112,14 @@ async function processarSaidasPerdidas(client, membrosAtuais) {
         );
       }
 
-      const nome = registro.nome || (usuario ? usuario.username : registro.discord_id);
+      const nome =
+        registro.nome_social || registro.nome || (usuario ? usuario.username : registro.discord_id);
 
       if (registro.status !== 'concluido') {
         try {
           await db.registrarRecusa({
             discordId: registro.discord_id,
-            nome: registro.nome,
+            nome: registro.nome_social || registro.nome,
             ra: registro.ra,
             tipo: 'abandonado',
             motivo: `Saiu do servidor antes de concluir o processo (status: ${registro.status}) — detectado retroativamente no boot`,

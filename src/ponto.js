@@ -68,7 +68,9 @@ const nomeDe = (i) => i.member?.displayName ?? i.user.globalName ?? i.user.usern
 async function resolverNomeCompleto(discordId, fallbackUser) {
   try {
     const membro = await db.getMembro(discordId).catch(() => null);
-    if (membro && membro.nome) return membro.nome.trim();
+    if (membro && (membro.nome_social || membro.nome)) {
+      return (membro.nome_social || membro.nome).trim();
+    }
 
     const legado = await db.getNomeLegado(discordId).catch(() => null);
     if (legado) return legado.trim();
@@ -427,7 +429,7 @@ async function resolverMembroNotion(discordId, fallbackUser) {
   try {
     const membro = await db.getMembro(discordId).catch(() => null);
     if (membro) {
-      nome = membro.nome?.trim() || null;
+      nome = (membro.nome_social || membro.nome)?.trim() || null;
       email = membro.email_notion?.trim() || membro.email?.trim() || null;
       ra = membro.ra?.trim() || null;
     }

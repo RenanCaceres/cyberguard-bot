@@ -59,7 +59,8 @@ const TERMO_CIENCIA_TEXTO =
   'atualizar informações cadastrais ou entrar em contato com o RH sobre sua privacidade.';
 
 const PERGUNTAS = [
-  { campo: 'nome', texto: 'Qual seu **nome completo**?', validator: validators.naoVazio },
+  { campo: 'nome', texto: 'Qual seu **nome civil completo**?', validator: validators.naoVazio },
+  { campo: 'nome_social', tipo: 'botoes_nome_social' },
   { campo: 'pronomes', tipo: 'select_pronomes' },
   {
     campo: 'data_nascimento',
@@ -119,7 +120,8 @@ const PERGUNTAS = [
 ];
 
 const LABELS = {
-  nome: 'Nome completo',
+  nome: 'Nome civil',
+  nome_social: 'Nome social',
   pronomes: 'Pronomes de tratamento',
   data_nascimento: 'Data de nascimento',
   nacionalidade: 'Nacionalidade',
@@ -146,6 +148,69 @@ async function coletarResposta(dmChannel, userId) {
     errors: ['time'],
   });
   return collected.first().content.trim();
+}
+
+async function coletarNomeSocial(dm, userId, respostas) {
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('nome_social_sim')
+      .setLabel('Sim, utilizo nome social')
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji('🏳️‍⚧️'),
+    new ButtonBuilder()
+      .setCustomId('nome_social_nao')
+      .setLabel('Não utilizo')
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  await dm.send({
+    content:
+      'Você utiliza **nome social**?\n' +
+      '*(Conforme o Decreto Federal nº 8.727/2016 e as normas da UTFPR, pessoas trans e travestis têm direito garantido ao uso do nome social em todos os registros, cadastros e comunicações do projeto)*',
+    components: [row],
+  });
+
+  coletoresAtivos.add(userId);
+  let interacao;
+  try {
+    interacao = await dm.awaitMessageComponent({
+      filter: (i) =>
+        i.user.id === userId &&
+        (i.customId === 'nome_social_sim' || i.customId === 'nome_social_nao'),
+      time: 30 * 60 * 1000,
+    });
+  } finally {
+    coletoresAtivos.delete(userId);
+  }
+
+  const querNomeSocial = interacao.customId === 'nome_social_sim';
+  if (!querNomeSocial) {
+    respostas.nome_social = null;
+    respostas.possui_nome_social = false;
+    await interacao.update({
+      content: 'Uso de nome social: **Não utiliza**',
+      components: [],
+    });
+    return null;
+  }
+
+  respostas.possui_nome_social = true;
+  await interacao.update({
+    content:
+      'Qual é o seu **nome social**?\n' +
+      '*(Como você gostaria e deve ser sempre chamado(a) no projeto e em todas as nossas mensagens)*',
+    components: [],
+  });
+
+  while (true) {
+    const resposta = await coletarResposta(dm, userId);
+    if (validators.naoVazio(resposta)) {
+      respostas.nome_social = resposta;
+      await dm.send(`Nome social registrado com sucesso: **${respostas.nome_social}**`);
+      return respostas.nome_social;
+    }
+    await dm.send('Por favor, informe seu nome social.');
+  }
 }
 
 async function coletarPronomes(dm, userId) {
@@ -365,8 +430,18 @@ async function coletarAreaInteresse(dm, userId) {
 
 function montarResumo(respostas) {
   return Object.entries(LABELS)
-    .filter(([campo]) => campo !== 'instituicao' || respostas.estudante_utfpr === 'Não')
-    .map(([campo, label]) => `**${label}:** ${respostas[campo] || '—'}`)
+    .filter(([campo]) => {
+      if (campo === 'instituicao' && respostas.estudante_utfpr !== 'Não') return false;
+      if (campo === 'nome_social' && (!respostas.nome_social || !respostas.nome_social.trim())) return false;
+      return true;
+    })
+    .map(([campo, label]) => {
+      const rotulo =
+        campo === 'nome' && (!respostas.nome_social || !respostas.nome_social.trim())
+          ? 'Nome completo'
+          : label;
+      return `**${rotulo}:** ${respostas[campo] || '—'}`;
+    })
     .join('\n');
 }
 
@@ -405,7 +480,13 @@ async function pedirConfirmacao(dm, userId, respostas) {
 async function escolherCampoParaCorrigir(dm, userId, respostas) {
   const opcoes = Object.entries(LABELS)
     .filter(([campo]) => campo !== 'instituicao' || respostas.estudante_utfpr === 'Não')
-    .map(([campo, label]) => ({ label, value: campo }));
+    .map(([campo, label]) => {
+      let labelFinal = label;
+      if (campo === 'nome_social' && (!respostas.nome_social || !respostas.nome_social.trim())) {
+        labelFinal = 'Nome social (adicionar)';
+      }
+      return { label: labelFinal, value: campo };
+    });
 
   const menu = new StringSelectMenuBuilder()
     .setCustomId('campo_corrigir')
@@ -589,6 +670,8 @@ async function executarColetaDados(member, dm, respostasIniciais = {}) {
   const salvo = await db.getMembro(user.id);
   const respostas = {
     nome: salvo?.nome || null,
+    nome_social: salvo?.nome_social || null,
+    possui_nome_social: salvo?.possui_nome_social ?? null,
     pronomes: salvo?.pronomes || null,
     data_nascimento: salvo?.data_nascimento || null,
     nacionalidade: salvo?.nacionalidade || null,
@@ -609,6 +692,21 @@ async function executarColetaDados(member, dm, respostasIniciais = {}) {
   };
 
   for (const pergunta of PERGUNTAS) {
+    if (pergunta.tipo === 'botoes_nome_social') {
+      if (
+        respostas.possui_nome_social !== null &&
+        (respostas.possui_nome_social === false || Boolean(respostas.nome_social))
+      ) {
+        continue;
+      }
+      await coletarNomeSocial(dm, user.id, respostas);
+      await db.salvarProgressoOnboarding(user.id, {
+        nome_social: respostas.nome_social,
+        possui_nome_social: respostas.possui_nome_social,
+      });
+      continue;
+    }
+
     if (respostas[pergunta.campo]) {
       continue;
     }
@@ -655,6 +753,15 @@ async function executarColetaDados(member, dm, respostasIniciais = {}) {
 
     const campoEscolhido = await escolherCampoParaCorrigir(dm, user.id, respostas);
 
+    if (campoEscolhido === 'nome_social') {
+      await coletarNomeSocial(dm, user.id, respostas);
+      await db.salvarProgressoOnboarding(user.id, {
+        nome_social: respostas.nome_social,
+        possui_nome_social: respostas.possui_nome_social,
+      });
+      continue;
+    }
+
     if (campoEscolhido === 'area_interesse') {
       respostas.area_interesse = await coletarAreaInteresse(dm, user.id);
       await db.salvarProgressoOnboarding(user.id, { area_interesse: respostas.area_interesse });
@@ -699,8 +806,9 @@ async function executarColetaDados(member, dm, respostasIniciais = {}) {
   }
 
   await db.atualizarDados(user.id, respostas);
+  const nomeRef = respostas.nome_social || respostas.nome || user.username;
   await dm.send(
-    'Obrigado! Seus dados foram criptografados e enviados para análise do RH. ' +
+    `Obrigado, **${nomeRef}**! Seus dados foram criptografados e enviados para análise do RH. ` +
       'Assim que forem aprovados, você receberá o link da comunidade e o termo para assinar.'
   );
 
@@ -937,29 +1045,42 @@ async function enviarParaAprovacaoRH(guild, discordId, dados) {
     discordId,
     nome: dados.nome,
     ra: dados.ra,
+    nomeSocial: dados.nome_social || null,
   });
 
+  const campos = [{ name: 'Discord', value: `<@${discordId}>` }];
+
+  if (dados.nome_social && dados.nome_social.trim()) {
+    campos.push(
+      { name: 'Nome Civil', value: dados.nome || '—' },
+      { name: 'Nome Social', value: dados.nome_social }
+    );
+  } else {
+    campos.push({ name: 'Nome', value: dados.nome || '—' });
+  }
+
+  campos.push(
+    { name: 'Pronomes', value: dados.pronomes || '—', inline: true },
+    { name: 'Data de nascimento', value: dados.data_nascimento || '—', inline: true },
+    { name: 'Nacionalidade', value: dados.nacionalidade || '—', inline: true },
+    { name: 'CPF (Mascarado LGPD)', value: mascararCPF(dados.cpf) },
+    { name: 'Estudante da UTFPR', value: dados.estudante_utfpr || 'Sim', inline: true },
+    { name: 'Instituição', value: dados.instituicao || 'UTFPR', inline: true },
+    { name: 'Curso', value: dados.curso || '—' },
+    { name: 'Período', value: dados.periodo || '—', inline: true },
+    { name: 'RA', value: dados.ra || '—', inline: true },
+    { name: 'Endereço', value: dados.endereco || '—' },
+    { name: 'Cidade/UF', value: `${dados.cidade || '—'} / ${dados.estado || '—'}` },
+    { name: 'Telefone', value: dados.telefone || '—', inline: true },
+    { name: 'E-mail Oficial', value: dados.email || '—', inline: true },
+    { name: 'E-mail Notion', value: dados.email_notion || dados.email || '—', inline: true },
+    { name: 'Área solicitada', value: dados.area_interesse || '—' }
+  );
+
+  const nomeExibicao = dados.nome_social || dados.nome || 'Novo membro';
   const embed = new EmbedBuilder()
-    .setTitle('Nova solicitação de entrada')
-    .addFields(
-      { name: 'Discord', value: `<@${discordId}>` },
-      { name: 'Nome', value: dados.nome || '—' },
-      { name: 'Pronomes', value: dados.pronomes || '—', inline: true },
-      { name: 'Data de nascimento', value: dados.data_nascimento || '—', inline: true },
-      { name: 'Nacionalidade', value: dados.nacionalidade || '—', inline: true },
-      { name: 'CPF (Mascarado LGPD)', value: mascararCPF(dados.cpf) },
-      { name: 'Estudante da UTFPR', value: dados.estudante_utfpr || 'Sim', inline: true },
-      { name: 'Instituição', value: dados.instituicao || 'UTFPR', inline: true },
-      { name: 'Curso', value: dados.curso || '—' },
-      { name: 'Período', value: dados.periodo || '—', inline: true },
-      { name: 'RA', value: dados.ra || '—', inline: true },
-      { name: 'Endereço', value: dados.endereco || '—' },
-      { name: 'Cidade/UF', value: `${dados.cidade || '—'} / ${dados.estado || '—'}` },
-      { name: 'Telefone', value: dados.telefone || '—', inline: true },
-      { name: 'E-mail Oficial', value: dados.email || '—', inline: true },
-      { name: 'E-mail Notion', value: dados.email_notion || dados.email || '—', inline: true },
-      { name: 'Área solicitada', value: dados.area_interesse || '—' }
-    )
+    .setTitle(`Nova solicitação de entrada • ${nomeExibicao}`)
+    .addFields(campos)
     .setColor(0x5865f2)
     .setTimestamp();
 

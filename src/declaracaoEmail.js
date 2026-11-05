@@ -26,15 +26,19 @@ async function enviarDeclaracaoParaProfessor({ declaracao, caminhoPdf }) {
     throw new Error('Nenhum destinatário de e-mail configurado para o professor (EMAIL_PROFESSOR_COORDENADOR ou EMAIL_DESTINATARIOS).');
   }
 
-  const nomeArquivo = `Declaracao_CyberGuard_${declaracao.ra}_${(declaracao.nome || 'aluno').replace(/\s+/g, '_')}.pdf`;
+  const nomeAssunto = declaracao.nome_social || declaracao.nome;
+  const nomeAluno = declaracao.nome_social
+    ? `${declaracao.nome_social} (Nome Civil: ${declaracao.nome})`
+    : declaracao.nome;
+  const nomeArquivo = `Declaracao_CyberGuard_${declaracao.ra}_${(nomeAssunto || 'aluno').replace(/\s+/g, '_')}.pdf`;
 
   const info = await transporter.sendMail({
     from: config.smtp.from || config.smtp.user,
     to: destinatario,
-    subject: `[CyberGuard] Solicitação de Declaração #${declaracao.codigo} - ${declaracao.nome}`,
+    subject: `[CyberGuard] Solicitação de Declaração #${declaracao.codigo} - ${nomeAssunto}`,
     text:
       `Olá Prof. André Luiz Przybysz,\n\n` +
-      `O(A) acadêmico(a) ${declaracao.nome} (RA: ${declaracao.ra}, Curso: ${declaracao.curso}) solicitou uma declaração de comprovação de participação voluntária no projeto de extensão CyberGuard.\n\n` +
+      `O(A) acadêmico(a) ${nomeAluno} (RA: ${declaracao.ra}, Curso: ${declaracao.curso}) solicitou uma declaração de comprovação de participação voluntária no projeto de extensão CyberGuard.\n\n` +
       `Em anexo está o documento gerado automaticamente com início registrado em ${declaracao.data_inicio} e carga horária semanal de ${declaracao.carga_horaria || '4 horas'}.\n\n` +
       `Para assinar e concluir:\n` +
       `1. Baixe o PDF em anexo;\n` +
@@ -174,9 +178,10 @@ async function verificarRespostasDeclaracoes(client) {
           // Envia na DM do aluno no Discord
           try {
             const usuarioDiscord = await client.users.fetch(declaracao.discord_id);
+            const nomeRef = declaracao.nome_social || declaracao.nome;
             await usuarioDiscord.send({
               content:
-                `Olá, ${declaracao.nome}! 🎉\n\n` +
+                `Olá, ${nomeRef}! 🎉\n\n` +
                 `Sua **Declaração de Participação no CyberGuard** foi assinada pelo Prof. André Luiz Przybysz e está pronta!\n` +
                 `Segue o documento oficial assinado em anexo.`,
               files: [
@@ -186,7 +191,7 @@ async function verificarRespostasDeclaracoes(client) {
                 },
               ],
             });
-            console.log(`[declaracao-imap] Declaração ${codigo} entregue via DM para ${declaracao.nome} (<@${declaracao.discord_id}>).`);
+            console.log(`[declaracao-imap] Declaração ${codigo} entregue via DM para ${nomeRef} (<@${declaracao.discord_id}>).`);
           } catch (errDm) {
             console.error(`[declaracao-imap] Erro ao enviar DM para o aluno ${declaracao.discord_id}:`, errDm.message);
           }
@@ -195,8 +200,11 @@ async function verificarRespostasDeclaracoes(client) {
           if (config.channelRhId) {
             try {
               const canalRh = await client.channels.fetch(config.channelRhId);
+              const nomeRefRh = declaracao.nome_social
+                ? `${declaracao.nome_social} (Nome Civil: ${declaracao.nome})`
+                : declaracao.nome;
               await canalRh.send({
-                content: `📄 **Declaração Assinada e Entregue!**\nO documento de <@${declaracao.discord_id}> (${declaracao.nome} - RA: ${declaracao.ra}) foi assinado pelo coordenador e entregue automaticamente ao aluno. (Código: \`${codigo}\`)`,
+                content: `📄 **Declaração Assinada e Entregue!**\nO documento de <@${declaracao.discord_id}> (${nomeRefRh} - RA: ${declaracao.ra}) foi assinado pelo coordenador e entregue automaticamente ao aluno. (Código: \`${codigo}\`)`,
                 files: [{ attachment: caminhoPdfAssinado, name: `Declaracao_${declaracao.ra}_assinada.pdf` }],
               });
             } catch (errRh) {

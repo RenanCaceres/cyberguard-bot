@@ -44,7 +44,9 @@ async function baixarAvatar(discordUser) {
 async function resolverNome(discordId, discordUser) {
   try {
     const membro = await db.getMembro(discordId);
-    if (membro && membro.nome) return membro.nome;
+    if (membro && (membro.nome_social || membro.nome)) {
+      return (membro.nome_social || membro.nome).trim();
+    }
 
     const legado = await db.getNomeLegado(discordId);
     if (legado) return legado;

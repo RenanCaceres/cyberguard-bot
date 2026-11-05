@@ -48,6 +48,8 @@ async function initSchema() {
 
   const colunas = [
     'nome TEXT',
+    'nome_social TEXT',
+    'possui_nome_social BOOLEAN',
     'pronomes TEXT',
     'ra TEXT',
     'curso TEXT',
@@ -347,6 +349,8 @@ function atualizarDados(discordId, dados) {
   const dadosSeguros = criptografarObjetoMembro(dados);
   const {
     nome,
+    nome_social = null,
+    possui_nome_social = null,
     pronomes = 'Prefiro não responder',
     ra,
     curso,
@@ -370,7 +374,7 @@ function atualizarDados(discordId, dados) {
        nome=$2, ra=$3, curso=$4, periodo=$5, cpf=$6, data_nascimento=$7,
        nacionalidade=$8, endereco=$9, cidade=$10, estado=$11, telefone=$12, email=$13,
        email_notion=$14, area_interesse=$15, estudante_utfpr=$16, instituicao=$17,
-       pronomes=$18, status='pendente_aprovacao'
+       pronomes=$18, nome_social=$19, possui_nome_social=$20, status='pendente_aprovacao'
      WHERE discord_id=$1`,
     [
       discordId,
@@ -391,6 +395,8 @@ function atualizarDados(discordId, dados) {
       estudante_utfpr,
       instituicao,
       pronomes,
+      nome_social,
+      possui_nome_social !== null ? possui_nome_social : Boolean(nome_social),
     ]
   );
 }
@@ -400,7 +406,19 @@ function atualizarDados(discordId, dados) {
  * aplicando criptografia automática nos campos sensíveis.
  */
 function atualizarDadosParciaisMembro(discordId, camposObj = {}) {
-  const permitidos = ['email', 'email_notion', 'pronomes', 'telefone', 'endereco', 'cidade', 'estado', 'curso', 'periodo'];
+  const permitidos = [
+    'email',
+    'email_notion',
+    'pronomes',
+    'nome_social',
+    'possui_nome_social',
+    'telefone',
+    'endereco',
+    'cidade',
+    'estado',
+    'curso',
+    'periodo',
+  ];
   const filtrados = {};
   for (const chave of permitidos) {
     if (Object.prototype.hasOwnProperty.call(camposObj, chave) && camposObj[chave] !== undefined) {
@@ -426,6 +444,8 @@ function atualizarDadosParciaisMembro(discordId, camposObj = {}) {
 function salvarProgressoOnboarding(discordId, camposObj = {}) {
   const permitidos = [
     'nome',
+    'nome_social',
+    'possui_nome_social',
     'pronomes',
     'ra',
     'curso',
@@ -505,7 +525,7 @@ function registrarRecusa({ discordId, nome, ra, tipo, motivo }) {
   );
 }
 
-function buscarRecusasAnteriores({ discordId, nome, ra }) {
+function buscarRecusasAnteriores({ discordId, nome, ra, nomeSocial = null }) {
   const condicoes = [];
   const valores = [];
   let i = 1;
@@ -521,6 +541,10 @@ function buscarRecusasAnteriores({ discordId, nome, ra }) {
   if (nome) {
     condicoes.push(`LOWER(nome) = LOWER($${i++})`);
     valores.push(nome);
+  }
+  if (nomeSocial) {
+    condicoes.push(`LOWER(nome) = LOWER($${i++})`);
+    valores.push(nomeSocial);
   }
 
   if (condicoes.length === 0) return Promise.resolve([]);
@@ -540,35 +564,53 @@ function getNomeLegado(discordId) {
 }
 
 /**
- * Retorna um Map(discord_id -> nome_real) consolidando cadastro_legado e membros
- * (mesma lógica da hierarquia: membros tem prioridade sobre cadastro_legado).
+ * Retorna um Map(discord_id -> nome_real) consolidando cadastro_legado e membros,
+ * priorizando nome social quando houver, seguido de nome civil e depois legado.
  */
 async function obterMapaNomesReais() {
   const { rows } = await pool.query(`
     SELECT discord_id, nome FROM cadastro_legado WHERE nome IS NOT NULL AND TRIM(nome) <> ''
     UNION ALL
-    SELECT discord_id, nome FROM membros WHERE nome IS NOT NULL AND TRIM(nome) <> ''
+    SELECT discord_id, COALESCE(NULLIF(TRIM(nome_social), ''), NULLIF(TRIM(nome), '')) AS nome
+    FROM membros
+    WHERE (nome IS NOT NULL AND TRIM(nome) <> '') OR (nome_social IS NOT NULL AND TRIM(nome_social) <> '')
   `);
   const mapa = new Map();
   for (const r of rows) {
-    mapa.set(String(r.discord_id).trim(), r.nome.trim());
+    if (r.nome && r.nome.trim()) {
+      mapa.set(String(r.discord_id).trim(), r.nome.trim());
+    }
   }
   return mapa;
 }
 
 /**
- * Resolve o nome verdadeiro de um integrante (membros.nome -> cadastro_legado.nome -> fallback).
+ * Resolve o nome de exibição de um integrante (membros.nome_social -> membros.nome -> cadastro_legado.nome -> fallback).
+ * Sempre prioriza o nome social quando houver.
  */
 async function resolverNomeReal(discordId, fallback = null) {
   try {
     const membro = await getMembro(discordId);
-    if (membro && membro.nome && membro.nome.trim()) return membro.nome.trim();
+    if (membro) {
+      const social = membro.nome_social && membro.nome_social.trim();
+      if (social) return social;
+      const civil = membro.nome && membro.nome.trim();
+      if (civil) return civil;
+    }
     const legado = await getNomeLegado(discordId);
     if (legado && legado.trim()) return legado.trim();
   } catch (err) {
     console.error('[db] erro ao resolver nome real de', discordId, err.message);
   }
   return fallback;
+}
+
+/**
+ * Retorna o nome com o qual devemos nos referir ao membro (nome social se houver, caso contrário nome civil).
+ */
+function obterNomeMembro(membro, fallback = 'Membro') {
+  if (!membro) return fallback;
+  return (membro.nome_social && membro.nome_social.trim()) || (membro.nome && membro.nome.trim()) || fallback;
 }
 
 function getEstado(chave) {
@@ -588,7 +630,7 @@ function salvarEstado(chave, valor) {
 /** Membros que ainda não tivemos certeza se saíram do servidor (usado no boot). */
 function listarMembrosParaChecarSaida() {
   return pool
-    .query('SELECT discord_id, nome, ra, status FROM membros WHERE saida_processada = false')
+    .query('SELECT discord_id, nome, nome_social, ra, status FROM membros WHERE saida_processada = false')
     .then((r) => r.rows);
 }
 
@@ -1041,6 +1083,7 @@ module.exports = {
   getNomeLegado,
   obterMapaNomesReais,
   resolverNomeReal,
+  obterNomeMembro,
   getEstado,
   salvarEstado,
   marcarLembreteResolvido,

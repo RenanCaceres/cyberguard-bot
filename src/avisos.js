@@ -235,6 +235,7 @@ async function obterCatalogoMembrosServidor(guild) {
 
     const regDb = dbPorId.get(m.id) || null;
     const nomeReal =
+      (regDb?.nome_social && regDb.nome_social.trim()) ||
       (regDb?.nome && regDb.nome.trim()) ||
       mapaNomesReais.get(m.id) ||
       m.displayName ||

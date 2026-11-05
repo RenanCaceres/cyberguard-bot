@@ -193,9 +193,13 @@ module.exports = {
       const codigo = `DECL-${membro.ra}-${Date.now().toString().slice(-4)}`;
 
       try {
+        const nomeDeclaracao = membro.nome_social
+          ? `${membro.nome_social} (Nome civil: ${membro.nome})`
+          : membro.nome;
+
         // 1. Gera o PDF oficial
         const caminhoPdf = await gerarDeclaracaoPdf({
-          nome: membro.nome,
+          nome: nomeDeclaracao,
           curso: membro.curso || 'Engenharia / Tecnologia',
           ra: membro.ra,
           dataInicio: dataInicioFinal,
@@ -207,7 +211,7 @@ module.exports = {
         const declaracao = await db.criarSolicitacaoDeclaracao({
           codigo,
           discordId: interaction.user.id,
-          nome: membro.nome,
+          nome: membro.nome_social || membro.nome,
           ra: membro.ra,
           curso: membro.curso || 'Engenharia / Tecnologia',
           dataInicio: dataInicioFinal,
@@ -241,7 +245,11 @@ module.exports = {
           )
           .addFields(
             { name: 'Código da Solicitação', value: `\`#${codigo}\``, inline: true },
-            { name: 'Aluno', value: membro.nome, inline: true },
+            {
+              name: 'Aluno',
+              value: membro.nome_social ? `${membro.nome_social} (${membro.nome})` : membro.nome,
+              inline: true,
+            },
             { name: 'RA', value: membro.ra, inline: true },
             { name: 'Curso', value: membro.curso || '—', inline: true },
             { name: 'Início no Projeto', value: dataInicioFinal, inline: true },

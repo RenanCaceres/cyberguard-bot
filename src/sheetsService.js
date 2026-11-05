@@ -38,7 +38,7 @@ async function adicionarLinhaPlanilha(membro, discordTag) {
 
     await sheet.loadHeaderRow();
 
-    await sheet.addRow({
+    const dadosLinha = {
       'Carimbo de data/hora': dataHoraAgoraBrasil(),
       'Nome completo': membro.nome,
       'RA (apenas números)': membro.ra,
@@ -47,9 +47,16 @@ async function adicionarLinhaPlanilha(membro, discordTag) {
       Time: membro.area_interesse,
       'Email institucional (@alunos.utfpr.edu.br)': membro.email,
       'Nick do Discord': discordTag,
-    });
+    };
 
-    console.log(`Linha adicionada na planilha pra ${membro.nome}.`);
+    if (sheet.headerValues && sheet.headerValues.includes('Nome social')) {
+      dadosLinha['Nome social'] = membro.nome_social || '';
+    }
+
+    await sheet.addRow(dadosLinha);
+
+    const nomeRef = membro.nome_social || membro.nome;
+    console.log(`Linha adicionada na planilha pra ${nomeRef}.`);
   } catch (err) {
     console.error('Erro ao adicionar linha na planilha do Google Sheets:', err);
   }

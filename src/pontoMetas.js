@@ -271,7 +271,9 @@ async function identificarLideresSetor(guild, nomeSetor) {
 async function resolverNomeCompleto(discordId, fallbackUser) {
   try {
     const membro = await db.getMembro(discordId).catch(() => null);
-    if (membro && membro.nome) return membro.nome.trim();
+    if (membro && (membro.nome_social || membro.nome)) {
+      return (membro.nome_social || membro.nome).trim();
+    }
 
     const legado = await db.getNomeLegado(discordId).catch(() => null);
     if (legado) return legado.trim();

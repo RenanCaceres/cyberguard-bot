@@ -117,14 +117,21 @@ module.exports = {
         ? `✅ Aceito em ${new Date(membro.termo_ciencia_aceito_em).toLocaleString('pt-BR')}`
         : '⏳ Pendente de aceite eletrônico (use `/meus-dados privacidade` para registrar)';
 
+      const camposNome = membro?.nome_social
+        ? [
+            { name: 'Nome Civil', value: membro?.nome || legado?.nome || '—', inline: true },
+            { name: 'Nome Social', value: membro.nome_social, inline: true },
+          ]
+        : [{ name: 'Nome Completo', value: membro?.nome || legado?.nome || '—', inline: true }];
+
       const embed = new EmbedBuilder()
         .setTitle('🔐 Seus Dados Pessoais Armazenados (LGPD — Art. 18, I e II)')
         .setDescription(
           'Esta mensagem é **100% privada (efêmera)** — apenas você pode visualizá-la.\n' +
             'Seus dados sensíveis (CPF, data de nascimento, endereço e telefone) encontram-se **criptografados em repouso (AES-256-GCM)** no banco de dados e são utilizados **exclusivamente para fins de registros e acadêmicos** junto ao projeto CyberGuard e à UTFPR.'
         )
-        .addFields(
-          { name: 'Nome Completo', value: membro?.nome || legado?.nome || '—', inline: true },
+        .addFields([
+          ...camposNome,
           { name: 'Pronomes', value: membro?.pronomes || '—', inline: true },
           { name: 'RA / Matrícula', value: membro?.ra || legado?.ra || '—', inline: true },
           { name: 'Status no Sistema', value: `\`${membro?.status || 'legado'}\``, inline: true },
@@ -166,7 +173,7 @@ module.exports = {
             value: dataAceite,
             inline: false,
           }
-        )
+        ])
         .setColor(0x57f287)
         .setFooter({
           text: 'Para corrigir algum dado, utilize /meus-dados atualizar',
@@ -200,6 +207,10 @@ module.exports = {
         new ButtonBuilder()
           .setCustomId('lgpd_btn_pronomes')
           .setLabel('👤 Pronomes')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId('lgpd_modal_nome_social')
+          .setLabel('🏳️‍⚧️ Nome Social')
           .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
           .setCustomId('lgpd_modal_academico')
@@ -596,6 +607,29 @@ module.exports = {
         return true;
       }
 
+      if (interaction.customId === 'lgpd_modal_nome_social') {
+        const membro = await db.getMembro(interaction.user.id);
+        if (!membro) {
+          await interaction.reply({ content: 'Registro não encontrado.', ephemeral: true });
+          return true;
+        }
+
+        const modal = new ModalBuilder()
+          .setCustomId('lgpd_submit_nome_social')
+          .setTitle('Atualizar Nome Social');
+
+        const inputNomeSocial = new TextInputBuilder()
+          .setCustomId('nome_social')
+          .setLabel('Nome Social (vazio para remover)')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(false)
+          .setValue(membro.nome_social || '');
+
+        modal.addComponents(new ActionRowBuilder().addComponents(inputNomeSocial));
+        await interaction.showModal(modal);
+        return true;
+      }
+
       if (interaction.customId === 'lgpd_modal_academico') {
         const membro = await db.getMembro(interaction.user.id);
         if (!membro) {
@@ -700,6 +734,36 @@ module.exports = {
         return true;
       }
 
+      if (interaction.customId === 'lgpd_submit_nome_social') {
+        await interaction.deferReply({ ephemeral: true });
+
+        const novoNomeSocial = interaction.fields.getTextInputValue('nome_social').trim() || null;
+
+        await db.atualizarDadosParciaisMembro(interaction.user.id, {
+          nome_social: novoNomeSocial,
+          possui_nome_social: Boolean(novoNomeSocial),
+        });
+
+        const membroAtualizado = await db.getMembro(interaction.user.id);
+        try {
+          const { registrarMembroAtivo } = require('../../src/notionMembros');
+          if (membroAtualizado && membroAtualizado.status === 'concluido') {
+            await registrarMembroAtivo(membroAtualizado);
+          }
+        } catch (errNotion) {
+          console.error('[meus-dados] Erro ao sincronizar nome social no Notion:', errNotion.message);
+        }
+
+        const msg = novoNomeSocial
+          ? `✅ **Nome social atualizado para: ${novoNomeSocial}!** A partir de agora, a equipe e o bot se referirão a você com este nome.`
+          : '✅ **Nome social removido.** A equipe e o bot voltarão a se referir a você pelo seu nome civil.';
+
+        await interaction.editReply({
+          content: `${msg} Use \`/meus-dados visualizar\` para conferir.`,
+        });
+        return true;
+      }
+
       if (interaction.customId === 'lgpd_submit_notion') {
         await interaction.deferReply({ ephemeral: true });
 
@@ -761,10 +825,14 @@ module.exports = {
         if (config.channelRhId) {
           try {
             const canalRh = await interaction.client.channels.fetch(config.channelRhId);
+            const nomeRef = membro?.nome_social
+              ? `${membro.nome_social} (Nome Civil: ${membro.nome})`
+              : (membro?.nome || interaction.user.tag);
+
             const embedRh = new EmbedBuilder()
               .setTitle('⚖️ Solicitação de Titular de Dados (LGPD — Art. 18)')
               .addFields(
-                { name: 'Integrante', value: `<@${interaction.user.id}> (${membro?.nome || interaction.user.tag})`, inline: true },
+                { name: 'Integrante', value: `<@${interaction.user.id}> (${nomeRef})`, inline: true },
                 { name: 'RA', value: membro?.ra || '—', inline: true },
                 { name: 'Assunto', value: assunto, inline: false },
                 { name: 'Descrição', value: detalhes, inline: false }

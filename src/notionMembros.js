@@ -114,11 +114,12 @@ async function registrarMembroAguardandoAssinatura(membro) {
   if (!token || !dbId) return;
 
   try {
-    const existente = await buscarPaginaMembro(membro.discord_id, membro.ra, membro.nome);
+    const nomeExibicao = (membro.nome_social && membro.nome_social.trim()) || membro.nome || 'Membro';
+    const existente = await buscarPaginaMembro(membro.discord_id, membro.ra, nomeExibicao);
 
     const propriedades = {
       Nome: {
-        title: [{ text: { content: membro.nome || 'Membro' } }],
+        title: [{ text: { content: nomeExibicao } }],
       },
       Status: {
         select: { name: 'Aguardando Assinatura' },
@@ -146,13 +147,13 @@ async function registrarMembroAguardandoAssinatura(membro) {
 
     if (existente) {
       await req('PATCH', `/pages/${existente.id}`, { properties: propriedades });
-      console.log(`[notion-membros] Membro ${membro.nome} atualizado como Aguardando Assinatura no Notion.`);
+      console.log(`[notion-membros] Membro ${nomeExibicao} atualizado como Aguardando Assinatura no Notion.`);
     } else {
       await req('POST', '/pages', {
         parent: { database_id: dbId },
         properties: propriedades,
       });
-      console.log(`[notion-membros] Membro ${membro.nome} cadastrado como Aguardando Assinatura no Notion.`);
+      console.log(`[notion-membros] Membro ${nomeExibicao} cadastrado como Aguardando Assinatura no Notion.`);
     }
   } catch (err) {
     console.error('[notion-membros] Erro ao registrar membro aguardando assinatura:', err.message);
@@ -169,11 +170,12 @@ async function registrarMembroAtivo(membro, dataAssinaturaIso = null) {
   if (!token || !dbId) return;
 
   try {
-    const existente = await buscarPaginaMembro(membro.discord_id, membro.ra, membro.nome);
+    const nomeExibicao = (membro.nome_social && membro.nome_social.trim()) || membro.nome || 'Membro';
+    const existente = await buscarPaginaMembro(membro.discord_id, membro.ra, nomeExibicao);
 
     const propriedades = {
       Nome: {
-        title: [{ text: { content: membro.nome || 'Membro' } }],
+        title: [{ text: { content: nomeExibicao } }],
       },
       Status: {
         select: { name: 'Ativo' },
@@ -207,13 +209,13 @@ async function registrarMembroAtivo(membro, dataAssinaturaIso = null) {
 
     if (existente) {
       await req('PATCH', `/pages/${existente.id}`, { properties: propriedades });
-      console.log(`[notion-membros] Membro ${membro.nome} atualizado como Ativo no Notion.`);
+      console.log(`[notion-membros] Membro ${nomeExibicao} atualizado como Ativo no Notion.`);
     } else {
       await req('POST', '/pages', {
         parent: { database_id: dbId },
         properties: propriedades,
       });
-      console.log(`[notion-membros] Membro ${membro.nome} cadastrado como Ativo no Notion.`);
+      console.log(`[notion-membros] Membro ${nomeExibicao} cadastrado como Ativo no Notion.`);
     }
   } catch (err) {
     console.error('[notion-membros] Erro ao registrar membro ativo:', err.message);
