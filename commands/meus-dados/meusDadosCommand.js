@@ -125,6 +125,7 @@ module.exports = {
         )
         .addFields(
           { name: 'Nome Completo', value: membro?.nome || legado?.nome || '—', inline: true },
+          { name: 'Pronomes', value: membro?.pronomes || '—', inline: true },
           { name: 'RA / Matrícula', value: membro?.ra || legado?.ra || '—', inline: true },
           { name: 'Status no Sistema', value: `\`${membro?.status || 'legado'}\``, inline: true },
           { name: 'CPF', value: membro?.cpf || '—', inline: true },
@@ -195,6 +196,10 @@ module.exports = {
         new ButtonBuilder()
           .setCustomId('lgpd_modal_notion')
           .setLabel('📧 E-mail do Notion')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId('lgpd_btn_pronomes')
+          .setLabel('👤 Pronomes')
           .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
           .setCustomId('lgpd_modal_academico')
@@ -571,6 +576,26 @@ module.exports = {
         return true;
       }
 
+      if (interaction.customId === 'lgpd_btn_pronomes') {
+        const menu = new StringSelectMenuBuilder()
+          .setCustomId('lgpd_select_pronomes')
+          .setPlaceholder('Escolha seus pronomes de tratamento')
+          .addOptions([
+            { label: 'Ele / Dele', value: 'Ele/Dele', emoji: '🙋‍♂️' },
+            { label: 'Ela / Dela', value: 'Ela/Dela', emoji: '🙋‍♀️' },
+            { label: 'Elu / Delu', value: 'Elu/Delu', emoji: '🧑' },
+            { label: 'Prefiro não responder', value: 'Prefiro não responder', emoji: '🤐' },
+          ]);
+
+        const row = new ActionRowBuilder().addComponents(menu);
+        await interaction.reply({
+          content: 'Selecione abaixo seus **pronomes de tratamento**:',
+          components: [row],
+          ephemeral: true,
+        });
+        return true;
+      }
+
       if (interaction.customId === 'lgpd_modal_academico') {
         const membro = await db.getMembro(interaction.user.id);
         if (!membro) {
@@ -756,6 +781,18 @@ module.exports = {
         await interaction.editReply({
           content:
             '✅ **Sua solicitação foi encaminhada para a equipe de Recursos Humanos (RH).** Em breve o RH entrará em contato com você.',
+        });
+        return true;
+      }
+    }
+
+    if (interaction.isStringSelectMenu()) {
+      if (interaction.customId === 'lgpd_select_pronomes') {
+        const pronome = interaction.values[0];
+        await db.atualizarDadosParciaisMembro(interaction.user.id, { pronomes: pronome });
+        await interaction.update({
+          content: `✅ **Pronomes de tratamento atualizados para: ${pronome}!** Use \`/meus-dados visualizar\` para conferir.`,
+          components: [],
         });
         return true;
       }
