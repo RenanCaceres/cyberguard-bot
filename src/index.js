@@ -258,12 +258,13 @@ client.on('guildMemberRemove', async (member) => {
       if (entry) foiExpulso = true;
     } catch {}
 
+    const emailNotion = registro?.email_notion || registro?.email || null;
     try {
       const { registrarSaidaMembro } = require('./notionMembros');
       await registrarSaidaMembro(member.id, {
         nome: registro?.nome || nome,
         ra: registro?.ra || null,
-        email: registro?.email || null,
+        email: emailNotion,
         expulso: foiExpulso,
       });
     } catch (errNotion) {
@@ -271,10 +272,10 @@ client.on('guildMemberRemove', async (member) => {
     }
 
     let statusRevogacaoWs = '';
-    if (registro && registro.email) {
+    if (emailNotion) {
       try {
         const { removerMembroWorkspace } = require('./notionWorkspace');
-        const resWs = await removerMembroWorkspace(registro.email);
+        const resWs = await removerMembroWorkspace(emailNotion);
         if (resWs.sucesso) {
           statusRevogacaoWs = '\n✅ *Acesso ao Workspace do Notion revogado automaticamente!*';
         } else {
@@ -288,7 +289,12 @@ client.on('guildMemberRemove', async (member) => {
     if (config.channelRhId) {
       try {
         const canalRh = await member.guild.channels.fetch(config.channelRhId);
-        const emailInfo = registro && registro.email ? `\`${registro.email}\`` : 'não registrado';
+        const emailInfo =
+          registro && (registro.email || registro.email_notion)
+            ? registro.email_notion && registro.email_notion !== registro.email
+              ? `Oficial: \`${registro.email}\` | Notion: \`${registro.email_notion}\``
+              : `\`${registro.email}\``
+            : 'não registrado';
         const tipoAviso = foiExpulso ? '🚫 **Expulsão do Servidor — Revogação Notion:**' : '🚪 **Saída do Servidor — Revogação Notion:**';
         const statusTexto = 'Inativo';
         await canalRh.send({

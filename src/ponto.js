@@ -420,7 +420,7 @@ async function resolverMembroNotion(discordId, fallbackUser) {
     const membro = await db.getMembro(discordId).catch(() => null);
     if (membro) {
       nome = membro.nome?.trim() || null;
-      email = membro.email?.trim() || null;
+      email = membro.email_notion?.trim() || membro.email?.trim() || null;
       ra = membro.ra?.trim() || null;
     }
 
