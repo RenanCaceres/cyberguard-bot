@@ -412,6 +412,52 @@ async function criarTarefa({
 }
 
 /**
+ * Envia um arquivo diretamente para o armazenamento nativo do Notion (/v1/file_uploads).
+ * Retorna o objeto { id, status } ou null em caso de falha.
+ */
+async function fazerUploadArquivoNotion({ buffer, nomeArquivo, mimeType = 'application/octet-stream' }) {
+  const { token } = cfg();
+  if (!token || !buffer) return null;
+
+  try {
+    const init = await req('POST', '/file_uploads', {
+      filename: nomeArquivo,
+      content_type: mimeType,
+    });
+
+    if (!init?.upload_url || !init?.id) {
+      console.warn('[notion] resposta inesperada ao iniciar file_upload:', init);
+      return null;
+    }
+
+    const form = new FormData();
+    form.append('file', new Blob([buffer], { type: mimeType }), nomeArquivo);
+
+    const uploadRes = await fetch(init.upload_url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Notion-Version': '2025-09-03',
+      },
+      body: form,
+      signal: AbortSignal.timeout(60000),
+    });
+
+    if (!uploadRes.ok) {
+      const errText = await uploadRes.text();
+      console.warn(`[notion] erro ao enviar binário do arquivo ${nomeArquivo} (${uploadRes.status}):`, errText);
+      return null;
+    }
+
+    const data = await uploadRes.json();
+    return { id: data.id, status: data.status };
+  } catch (err) {
+    console.warn(`[notion] falha no upload nativo de arquivo (${nomeArquivo}):`, err.message);
+    return null;
+  }
+}
+
+/**
  * Registra arquivos e comprovantes na tarefa do Notion:
  * 1) Na propriedade "Arquivos e mídia" da página
  * 2) No corpo da página (blocos de imagem / arquivo / callout)
@@ -429,11 +475,20 @@ async function anexarArquivosNaTarefa(pageId, arquivos, { usuarioNome = 'Membro'
     )?.[0] || 'Arquivos e mídia';
 
     const existentes = page.properties?.[propArquivosNome]?.files || [];
-    const novosArquivos = arquivos.map((a) => ({
-      name: a.name || 'comprovante',
-      type: 'external',
-      external: { url: a.url },
-    }));
+    const novosArquivos = arquivos.map((a) => {
+      if (a.notionFileId) {
+        return {
+          name: a.name || 'comprovante',
+          type: 'file_upload',
+          file_upload: { id: a.notionFileId },
+        };
+      }
+      return {
+        name: a.name || 'comprovante',
+        type: 'external',
+        external: { url: a.driveUrl || a.url },
+      };
+    });
 
     await req('PATCH', `/pages/${pageId}`, {
       properties: {
@@ -467,25 +522,56 @@ async function anexarArquivosNaTarefa(pageId, arquivos, { usuarioNome = 'Membro'
 
     for (const a of arquivos) {
       const isImg = a.contentType?.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(a.name || a.url);
+      const fileCaption = [
+        { type: 'text', text: { content: a.name || 'Documento anexado' } },
+        ...(a.driveUrl ? [{ type: 'text', text: { content: ' • Ver no Google Drive', link: { url: a.driveUrl } } }] : []),
+      ];
+
       if (isImg) {
-        children.push({
-          object: 'block',
-          type: 'image',
-          image: {
-            type: 'external',
-            external: { url: a.url },
-          },
-        });
+        if (a.notionFileId) {
+          children.push({
+            object: 'block',
+            type: 'image',
+            image: {
+              type: 'file_upload',
+              file_upload: { id: a.notionFileId },
+              caption: a.driveUrl
+                ? [{ type: 'text', text: { content: 'Abrir no Google Drive', link: { url: a.driveUrl } } }]
+                : [],
+            },
+          });
+        } else {
+          children.push({
+            object: 'block',
+            type: 'image',
+            image: {
+              type: 'external',
+              external: { url: a.driveUrl || a.url },
+            },
+          });
+        }
       } else {
-        children.push({
-          object: 'block',
-          type: 'file',
-          file: {
-            type: 'external',
-            external: { url: a.url },
-            caption: [{ type: 'text', text: { content: a.name || 'Documento anexado' } }],
-          },
-        });
+        if (a.notionFileId) {
+          children.push({
+            object: 'block',
+            type: 'file',
+            file: {
+              type: 'file_upload',
+              file_upload: { id: a.notionFileId },
+              caption: fileCaption,
+            },
+          });
+        } else {
+          children.push({
+            object: 'block',
+            type: 'file',
+            file: {
+              type: 'external',
+              external: { url: a.driveUrl || a.url },
+              caption: fileCaption,
+            },
+          });
+        }
       }
     }
 
@@ -496,9 +582,13 @@ async function anexarArquivosNaTarefa(pageId, arquivos, { usuarioNome = 'Membro'
 
   // 3. Adiciona comentário na página da tarefa
   try {
+    const linhasComentarios = arquivos.map((a) => {
+      const link = a.driveUrl || a.url;
+      return `• ${a.name}${link ? `: ${link}` : ''}`;
+    });
     await comentar(
       pageId,
-      `📎 ${usuarioNome} anexou ${arquivos.length} comprovante(s):\n${arquivos.map((a) => `• ${a.name}: ${a.url}`).join('\n')}`
+      `📎 ${usuarioNome} anexou ${arquivos.length} comprovante(s):\n${linhasComentarios.join('\n')}`
     );
   } catch (err) {
     console.error('[notion] erro ao comentar anexos:', err.message);
@@ -513,6 +603,7 @@ module.exports = {
   comentar,
   criarTarefa,
   anexarArquivosNaTarefa,
+  fazerUploadArquivoNotion,
   buscarUsuarioNotion,
   listarUsuariosNotion,
 };

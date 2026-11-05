@@ -296,7 +296,7 @@ async function tornarArquivoPublico(fileId) {
  * Envia um Comprovante de Entrega para a pasta de comprovantes no Google Drive.
  */
 async function fazerUploadComprovante({ caminhoArquivo, buffer, nomeArquivo, mimeType }) {
-  const pastaComprovantes = process.env.GOOGLE_DRIVE_COMPROVANTES_FOLDER_ID || '1_3Z5vtZ6VKxIRkKs6cJY7AghgGoA4y7W';
+  const pastaComprovantes = config.googleDrive?.comprovantesFolderId || process.env.GOOGLE_DRIVE_COMPROVANTES_FOLDER_ID || '';
   if (!pastaComprovantes) {
     console.warn('[driveService] GOOGLE_DRIVE_COMPROVANTES_FOLDER_ID não configurado. Upload ignorado.');
     return null;
@@ -338,6 +338,7 @@ async function verificarAcessoDrive() {
     const pastas = [
       { nome: 'Termos Assinados', id: config.googleDrive?.termosFolderId },
       { nome: 'Declarações Assinadas', id: config.googleDrive?.declaracoesFolderId },
+      { nome: 'Comprovantes de Entrega', id: config.googleDrive?.comprovantesFolderId || process.env.GOOGLE_DRIVE_COMPROVANTES_FOLDER_ID },
     ];
 
     for (const p of pastas) {

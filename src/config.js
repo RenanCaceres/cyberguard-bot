@@ -96,6 +96,7 @@ module.exports = {
   googleDrive: {
     termosFolderId: process.env.GOOGLE_DRIVE_TERMOS_FOLDER_ID || '',
     declaracoesFolderId: process.env.GOOGLE_DRIVE_DECLARACOES_FOLDER_ID || '',
+    comprovantesFolderId: process.env.GOOGLE_DRIVE_COMPROVANTES_FOLDER_ID || '',
   },
   kov: {
     logChannelId: process.env.KOV_LOG_CHANNEL_ID || '',

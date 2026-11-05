@@ -21,6 +21,14 @@ try {
   console.warn('[ponto] planilha desativada:', e.code === 'MODULE_NOT_FOUND' ? 'src/pontoSheets.js não instalado' : e.message);
 }
 
+// Google Drive (upload de comprovantes permanente): opcional
+let driveService = null;
+try {
+  driveService = require('./driveService');
+} catch (e) {
+  console.warn('[ponto] driveService desativado:', e.message);
+}
+
 const EPH = MessageFlags.Ephemeral;
 const TZ = 'America/Sao_Paulo';
 const POR_PAGINA_SELECT = 25; // limite do Discord para opções de um select
@@ -890,32 +898,80 @@ async function iniciarColetaComprovantes(interaction, row, dados) {
     finalizado = true;
     btnCollector.stop('anexo');
 
-    const anexos = msg.attachments.map((att) => ({
-      url: att.url,
-      proxyUrl: att.proxyURL,
-      name: att.name,
-      contentType: att.contentType,
-      size: att.size,
-    }));
+    const rawAttachments = Array.from(msg.attachments.values());
 
     try {
       await msgPrompt.edit({
-        content: `⏳ Registrando **${anexos.length}** comprovante(s) na tarefa do Notion e na planilha...`,
+        content: `⏳ Baixando e salvando **${rawAttachments.length}** comprovante(s) no Notion e Google Drive...`,
         components: [],
       }).catch(() => {});
 
+      const anexosProcessados = [];
+      for (const att of rawAttachments) {
+        let buffer = null;
+        try {
+          const resp = await fetch(att.url, { signal: AbortSignal.timeout(30000) });
+          if (resp.ok) {
+            buffer = Buffer.from(await resp.arrayBuffer());
+          }
+        } catch (errDl) {
+          console.warn(`[ponto] falha ao baixar anexo ${att.name} do Discord:`, errDl.message);
+        }
+
+        let driveRes = null;
+        if (buffer && driveService?.fazerUploadComprovante) {
+          try {
+            driveRes = await driveService.fazerUploadComprovante({
+              buffer,
+              nomeArquivo: att.name,
+              mimeType: att.contentType || 'application/octet-stream',
+            });
+          } catch (errDrive) {
+            console.warn(`[ponto] falha no upload para Drive (${att.name}):`, errDrive.message);
+          }
+        }
+
+        let notionUpload = null;
+        if (buffer && notion?.fazerUploadArquivoNotion) {
+          try {
+            notionUpload = await notion.fazerUploadArquivoNotion({
+              buffer,
+              nomeArquivo: att.name,
+              mimeType: att.contentType || 'application/octet-stream',
+            });
+          } catch (errNotion) {
+            console.warn(`[ponto] falha no upload nativo para Notion (${att.name}):`, errNotion.message);
+          }
+        }
+
+        const driveUrl = driveRes?.webViewLink || null;
+        // Prioriza a URL permanente do Google Drive para armazenamento seguro
+        const urlFinal = driveUrl || att.url;
+
+        anexosProcessados.push({
+          name: att.name,
+          contentType: att.contentType,
+          size: att.size,
+          notionFileId: notionUpload?.id || null,
+          driveUrl,
+          driveId: driveRes?.id || null,
+          discordUrl: att.url,
+          url: urlFinal,
+        });
+      }
+
       // 1. Notion: propriedade "Arquivos e mídia", corpo da página e comentário
-      await notion.anexarArquivosNaTarefa(row.tarefa_id, anexos, { usuarioNome: row.nome });
+      await notion.anexarArquivosNaTarefa(row.tarefa_id, anexosProcessados, { usuarioNome: row.nome });
 
-      // 2. Salva no banco de dados (pontos)
-      await pdb.salvarAnexos(row.id, anexos);
+      // 2. Salva no banco de dados (pontos) com links permanentes
+      await pdb.salvarAnexos(row.id, anexosProcessados);
 
-      // 3. Atualiza na planilha (Google Sheets)
-      const linksStr = anexos.map((a) => a.url).join(' | ');
+      // 3. Atualiza na planilha (Google Sheets) com links permanentes
+      const linksStr = anexosProcessados.map((a) => a.url).join(' | ');
       await sincronizarPlanilha({
         ...row,
         link_entrega: linksStr,
-        anexos,
+        anexos: anexosProcessados,
         progresso: dados.progresso,
         feito: dados.feito,
         falta: dados.falta,
@@ -928,18 +984,18 @@ async function iniciarColetaComprovantes(interaction, row, dados) {
         .addFields(
           { name: 'Membro', value: `<@${row.discord_id}> (${row.nome})`, inline: true },
           { name: 'Tarefa', value: trunc(row.tarefa_titulo, 256), inline: true },
-          { name: 'Total de anexos', value: `${anexos.length}`, inline: true },
+          { name: 'Total de anexos', value: `${anexosProcessados.length}`, inline: true },
           {
             name: 'Arquivos',
             value: trunc(
-              anexos.map((a, idx) => `${idx + 1}. [${trunc(a.name, 45)}](${a.url})`).join('\n'),
+              anexosProcessados.map((a, idx) => `${idx + 1}. [${trunc(a.name, 45)}](${a.url})`).join('\n'),
               1024,
             ),
           },
         )
-        .setFooter({ text: 'CyberGuard • Registrado no Notion e na Planilha' });
+        .setFooter({ text: 'CyberGuard • Hospedado no Notion e no Google Drive' });
 
-      const primeiraImg = anexos.find(
+      const primeiraImg = rawAttachments.find(
         (a) => a.contentType?.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(a.name)
       );
       if (primeiraImg) {
@@ -950,8 +1006,8 @@ async function iniciarColetaComprovantes(interaction, row, dados) {
 
       await msgPrompt.edit({
         content:
-          `✅ **${anexos.length} comprovante(s) anexado(s) com sucesso na tarefa do Notion!**\n` +
-          anexos.map((a) => `• 📄 **${a.name}**`).join('\n') +
+          `✅ **${anexosProcessados.length} comprovante(s) anexado(s) com sucesso no Notion e Google Drive!**\n` +
+          anexosProcessados.map((a) => `• 📄 **${a.name}**${a.driveUrl ? ` ([Abrir no Drive](${a.driveUrl}))` : ''}`).join('\n') +
           `\n\n*Esta janela será encerrada em instantes.*`,
         components: [],
       }).catch(() => {});
