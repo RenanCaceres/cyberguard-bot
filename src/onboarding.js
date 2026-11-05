@@ -104,7 +104,13 @@ const PERGUNTAS = [
   { campo: 'cidade', texto: 'Qual sua **cidade**?', validator: validators.naoVazio },
   { campo: 'estado', texto: 'Qual seu **estado** (UF)?', validator: validators.naoVazio },
   { campo: 'telefone', texto: 'Qual seu **telefone**? (com DDD)', validator: validators.naoVazio },
-  { campo: 'email', texto: 'Qual seu **e-mail**?', validator: validators.naoVazio },
+  {
+    campo: 'email',
+    texto:
+      'Qual seu **e-mail**?\n' +
+      '*(⚠️ **Importante:** deve ser o mesmo e-mail vinculado à sua conta do **Notion**, se já tiver uma. Caso não tenha, informe o e-mail que for mais fácil para você criar uma conta no Notion posteriormente).*',
+    validator: validators.naoVazio,
+  },
 ];
 
 const LABELS = {
