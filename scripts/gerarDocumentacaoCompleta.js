@@ -118,20 +118,15 @@ async function gerarDocumentacaoCompleta() {
   doc.listaItem('Clicar em "Quero corrigir algo" abre o menu "campo_corrigir" com os 13 campos; o usuário refaz apenas o campo selecionado (com a mesma validação estrita) e retorna à tela de confirmação.');
   doc.listaItem('Timeout de 10 minutos (Abandono): se o usuário não responder a qualquer etapa em 10 minutos, o bot grava registro na tabela "historico_recusas" com tipo = "abandonado", remove o registro de "membros" (db.removerMembro) e avisa por DM.');
 
-  doc.subsecao('2.4. Deliberação do RH: Aprovação vs. Rejeição (src/approval.js)');
+  doc.subsecao('2.4. Deliberação do RH: Aprovação (Membro ou Líder) vs. Rejeição (src/approval.js)');
   doc.listaItem('Alerta de Histórico Anterior: ao enviar o card para o canal do RH (CHANNEL_RH_ID), o bot consulta "historico_recusas" buscando coincidência por discord_id OU ra OU LOWER(nome). Se encontrar passagens anteriores (rejeições ou abandonos), exibe um bloco de alerta exclusivo no card do RH.');
-  doc.listaItem('Permissão Estrita: apenas integrantes com o cargo nominal configurado em ROLE_RH_NOME ("Recursos Humanos") podem clicar em "Aprovar" (aprovar_<id>) ou "Rejeitar" (rejeitar_<id>).');
+  doc.listaItem('Permissão Estrita: apenas integrantes com o cargo nominal configurado em ROLE_RH_NOME ("Recursos Humanos") podem deliberar sobre a aprovação ou rejeição.');
   doc.listaItem('Trava de Concorrência: exige status === "pendente_aprovacao" e substitui os botões imediatamente por botões desabilitados ("Processando...").');
-  doc.listaItem('Fluxo de Rejeição (rejeitar_<id>):');
-  doc.listaItem('1) Solicita no canal que o membro do RH digite o motivo em até 5 minutos (fallback automático se expirar).', { nivel: 2, marcador: '-' });
-  doc.listaItem('2) Registra em "historico_recusas" (tipo = "rejeitado"), envia DM cordial ao candidato (sem expor o motivo interno), executa guildMember.kick() caso EXPULSAR_AO_REJEITAR !== "false", e apaga o registro de "membros".', { nivel: 2, marcador: '-' });
-  doc.listaItem('Fluxo de Aprovação (aprovar_<id>):');
-  doc.listaItem('1) Define status = "aguardando_assinatura", data_aprovacao = now() e data_limite_assinatura = now() + PRAZO_DIAS (padrão 7 dias).', { nivel: 2, marcador: '-' });
-  doc.listaItem('2) Gera o PDF personalizado do Termo de Voluntariado com campo AcroForm preenchível.', { nivel: 2, marcador: '-' });
-  doc.listaItem('3) Grava linha na planilha de cadastro (Google Sheets) e cadastra o membro como "Ativo" na base de Membros do Notion.', { nivel: 2, marcador: '-' });
-  doc.listaItem('4) Publica cartão gráfico de boas-vindas no canal CHANNEL_BOASVINDAS_ID e atribui os cargos no Discord (ROLE_APROVADO_NOME + área escolhida, usando fallback pelo ID ROLE_HACKING_ETICO_ID para Hacking Ético).', { nivel: 2, marcador: '-' });
-  doc.listaItem('5) Envia lembrete no canal do RH com o e-mail do membro para liberação de acesso como convidado no Workspace do Notion.', { nivel: 2, marcador: '-' });
-  doc.listaItem('6) Envia 3 mensagens na DM do aprovado: (a) Boas-vindas com links do WhatsApp Geral e da Área + Termo em PDF; (b) Tutorial de Assinatura Gov.br em PDF; (c) Manual de Conduta completo com link do Google Forms de free-time.', { nivel: 2, marcador: '-' });
+  doc.listaItem('Três Ações Possíveis:');
+  doc.listaItem('1) Botão "Aprovar (Membro)" (aprovar_<id>): define status = "aguardando_assinatura", data_aprovacao = now() e data_limite_assinatura = now() + PRAZO_DIAS (padrão 7 dias). Gera o Termo de Voluntariado com a síntese e cronograma semestral de Membro do respectivo setor e atribui os cargos de membro regular e da área.', { nivel: 2, marcador: '-' });
+  doc.listaItem('2) Botão "Aprovar como Líder" (aprovar_lider_<id>): aprova o candidato diretamente no cargo executivo de liderança (ROLE_LIDER_NOME = "Líderes"), atribui os cargos de membro e área, envia boas-vindas executivas e gera o Termo de Voluntariado configurado com a síntese de liderança e cronograma executivo.', { nivel: 2, marcador: '-' });
+  doc.listaItem('3) Botão "Rejeitar" (rejeitar_<id>): solicita no canal que o membro do RH digite o motivo em até 5 minutos (fallback automático se expirar), registra em "historico_recusas" (tipo = "rejeitado"), envia DM cordial ao candidato (sem expor o motivo interno), executa guildMember.kick() caso EXPULSAR_AO_REJEITAR !== "false", e apaga o registro de "membros".', { nivel: 2, marcador: '-' });
+  doc.listaItem('Pós-Aprovação Automática: grava linha na planilha de cadastro (Google Sheets), cadastra o membro como "Ativo" no Notion, publica cartão gráfico de boas-vindas no canal CHANNEL_BOASVINDAS_ID, envia aviso ao RH para convite no Notion Workspace e envia na DM do aprovado o Termo em PDF, o Tutorial de Assinatura Gov.br e o Manual de Conduta.');
 
   // =========================================================================
   // SEÇÃO 3: TERMO DE VOLUNTARIADO, VALIDAÇÃO GOV.BR E REVISÃO MANUAL
@@ -174,6 +169,14 @@ async function gerarDocumentacaoCompleta() {
   doc.listaItem('Arquivamento Permanente e Nuvem (Google Drive): o PDF validado é copiado para docs/Termos-Voluntarios-Assinados/<Subpasta>/termo_assinado_<RA>_<Nome>.pdf e sincronizado na pasta correspondente no Google Drive (src/driveService.js), onde <Subpasta> é mapeada automaticamente pela área (HackingEtico, Design, HardwareHacking, Recursos Humanos, SocialMedia, Líderes ou Geral).');
   doc.listaItem('Disparo SMTP (emailService.js): envia o termo assinado para EMAIL_TERMOS_DESTINATARIO com cópia (CC) para os endereços definidos em EMAIL_TERMOS_CC no .env.');
   doc.listaItem('Cron de Lembretes (reminders.js): roda diariamente às 09:00 (CRON_LEMBRETE = "0 9 * * *") para membros em "aguardando_assinatura" com lembrete_resolvido_manualmente = false. Se dentro do prazo de 7 dias, envia DM com contagem regressiva; se vencido, cobra o membro por DM e alerta o canal do RH com o botão "✅ Já está tudo certo, parar de avisar" (lembrete_resolvido_<id>).');
+
+  doc.subsecao('3.5. Modelos Setoriais, Vigência Semestral (6 Meses) e Renovação Automática (src/atividadesVoluntariado.js, src/renovacaoTermo.js)');
+  doc.listaItem('7 Setores Operacionais: Hacking Ético, Hardware Hacking, Design, Copywriting & Redes Sociais, Desenvolvimento & Automações, Educacional e Recursos Humanos.');
+  doc.listaItem('Diferenciação Membro vs. Líder: cada setor conta com síntese de 5 atividades específicas e cronograma adaptado. Membros focam em execução técnica, estudos práticos e apoio operacional; Líderes assumem planejamento estratégico, gestão de metas/prazos, mentoria e representação institucional.');
+  doc.listaItem('Vigência Semestral Estrita (6 Meses): o documento registra o período exato (INÍCIO: MM/AAAA e FIM: MM/AAAA), garantindo conformidade semestral com as diretrizes acadêmicas da UTFPR.');
+  doc.listaItem('Cronograma Dinâmico de Atividades: tabela oficial de 12 meses preenchida com marcação "x" nos meses 1 a 6 distribuídos conforme o tempo e complexidade de cada atividade, mantendo os meses 7 a 12 em branco.');
+  doc.listaItem('Monitoramento Diário de Renovação: serviço em background (node-cron diário e na inicialização) que consulta membros cujos termos completaram 6 meses da data de assinatura (data_assinatura_termo).');
+  doc.listaItem('Interface Interativa de Renovação no RH: envia alerta detalhado no canal do RH com dois botões: (a) "🔄 Gerar Novo Termo (Renovar)", que gera instantaneamente o novo termo de 6 meses e entrega na DM do voluntário e no RH; (b) "✏️ Editar Atividades do Termo", que abre um Modal com 5 campos de texto pré-carregados para o RH customizar as atividades antes da emissão.');
 
   // =========================================================================
   // SEÇÃO 4: EMISSÃO DE DECLARAÇÃO DE VOLUNTARIADO

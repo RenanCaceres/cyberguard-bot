@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📘 Documentação Oficial Completa
+    url: https://github.com/RenanCaceres/cyberguard-bot#readme
+    about: Consulte as regras de negócio, manuais em PDF e a arquitetura técnica completa do bot.
+  - name: 🛡️ Suporte & Central de Dúvidas
+    url: https://github.com/RenanCaceres/cyberguard-bot/issues
+    about: Utilize o comando /documentacao ou o canal #dúvidas no Discord para tirar dúvidas com IA.

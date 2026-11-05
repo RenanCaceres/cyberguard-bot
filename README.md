@@ -66,13 +66,29 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
 
 ---
 
-### 📝 2. Onboarding Automatizado, Privacidade (LGPD) & Assinatura Digital Gov.br
+### 📝 2. Onboarding Automatizado, Modelos Setoriais & Assinatura Digital Gov.br
 - **Termo de Ciência e Privacidade (LGPD — Lei nº 13.709/2018)**: Etapa inicial obrigatória na DM com aceite explícito (`Concordo` / `Não concordo`), informando que os dados coletados são utilizados **exclusivamente para fins de registros e acadêmicos** junto ao projeto CyberGuard e à UTFPR (vedando qualquer outro uso), com registro da data/hora do aceite (`termo_ciencia_aceito_em`).
 - **Criptografia de Dados em Repouso (`AES-256-GCM`)**: Campos sensíveis (`cpf`, `data_nascimento`, `nacionalidade`, `endereco`, `cidade`, `estado` e `telefone`) são criptografados com chave dedicada de 256 bits e IV aleatório antes de serem persistidos no PostgreSQL, permanecendo arquivados de forma segura para histórico institucional mesmo após eventual saída ou desligamento.
-- **Coleta Guiada via DM**: Formulário interativo de 13 etapas com validação estrita por expressões regulares (CPF com máscara, data de nascimento com validação de calendário real, RA numérico, endereço padronizado, contatos e seleção de área de interesse) e menu de retificação campo a campo antes do envio.
-- **Deliberação do RH, Mascaramento e Sanitização**: Cards no canal privado do RH com CPF mascarado (`***.222.333-**`), alerta automático caso o candidato já possua passagens anteriores na tabela `historico_recusas` e sanitização automática do card após a decisão do RH (ocultando endereço, telefone e CPF do histórico do chat).
+- **Coleta Guiada via DM (13 Etapas)**: Formulário interativo com validação estrita por expressões regulares (CPF com máscara, data de nascimento com validação de calendário real, RA numérico, endereço padronizado, contatos e seleção de área de interesse entre os 7 setores) e menu de retificação campo a campo antes do envio.
+- **Modelos Setoriais de Voluntariado & Papéis Especializados (`src/atividadesVoluntariado.js`)**:
+  - Geração de termos personalizados para **7 setores operacionais**: *Hacking Ético*, *Hardware Hacking*, *Design*, *Copywriting & Redes Sociais*, *Desenvolvimento & Automações*, *Educacional* e *Recursos Humanos*.
+  - Matrizes de atividades e cronogramas customizados diferenciando **Membro** (foco técnico, estudos práticos e suporte operacional) de **Líder** (planejamento estratégico, mentoria, gestão de equipes, auditoria e representação externa).
+- **Vigência Semestral (6 Meses) & Cronograma Dinâmico**:
+  - Duração estrita semestral calculada a partir do mês de ingresso (`INÍCIO: MM/AAAA`, `FIM: MM/AAAA`), atendendo com precisão ao calendário acadêmico da universidade.
+  - Tabela de cronograma de 12 meses preenchida dinamicamente com marcação de `x` nas atividades 1 a 5 ao longo dos meses 1 a 6 de acordo com a progressão e complexidade de cada área, preservando os meses 7 a 12 em branco.
+- **Deliberação do RH com Atribuição de Liderança (`src/approval.js`)**:
+  - Card interativo no canal restrito do RH com CPF mascarado (`***.222.333-**`), alerta automático caso o candidato possua passagens anteriores na tabela `historico_recusas` e sanitização automática do card após a decisão (ocultando endereço, telefone e CPF do chat).
+  - Três opções de deliberação rápida:
+    - **`✅ Aprovar (Membro)`**: Homologa o voluntário regular, atribui os cargos de membro e área, e gera o Termo de Adesão com o plano de trabalho técnico de membro.
+    - **`👑 Aprovar como Líder`**: Atribui imediatamente o cargo de liderança (`Líderes`), envia boas-vindas executivas e gera o Termo com o plano de trabalho e cronograma executivo de líder.
+    - **`❌ Rejeitar`**: Abre janela de 5 minutos para coleta do motivo interno, notifica cordialmente o candidato, realiza o desligamento (`kick`) e arquiva em `historico_recusas`.
+- **Monitoramento e Renovação Semestral Automática (`src/renovacaoTermo.js`)**:
+  - Rotina em segundo plano (executada diariamente e na inicialização) que audita os termos cuja data de assinatura completou 6 meses.
+  - Alerta automático detalhado no canal do RH (`#aprovacao-termos`) com os dados do integrante, setor e botões interativos:
+    - **`🔄 Gerar Novo Termo (Renovar)`**: Emite instantaneamente o novo termo de 6 meses (calculando novas datas de vigência e cronograma) e entrega diretamente na DM do voluntário e no canal do RH.
+    - **`✏️ Editar Atividades do Termo`**: Abre um Modal interativo no Discord com 5 campos de texto pré-carregados, permitindo ao RH ajustar as atividades antes de gerar a renovação.
 - **Geração Dinâmica de Documentos**:
-  - Preenchimento automático do modelo oficial `.docx` via `docxtemplater`.
+  - Preenchimento do `.docx` via manipulação de árvore XML (`@xmldom/xmldom`) e `docxtemplater`, preservando rigorosamente o layout e a diagramação oficial de 3 páginas da UTFPR.
   - Conversão headless de `.docx` para `.pdf` via LibreOffice (`soffice`).
   - Localização dinâmica de coordenadas (`pdfjs-dist`) e injeção de campo AcroForm preenchível (`data_assinatura` via `pdf-lib`).
 - **Validação Criptográfica ICP-Brasil / Gov.br 100% Assertiva**:

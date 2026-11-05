@@ -57,12 +57,12 @@ async function gerarManualMembroOnboarding() {
   doc.secao('4', 'Jornada Passo a Passo do Integrante');
   doc.subsecao('Passo 1: Aceite da LGPD e Coleta Guiada (13 Etapas)');
   doc.paragrafo(
-    'Ao entrar no Discord, você receberá uma Mensagem Direta do CyberGuard Bot. Clique em "Concordo" para iniciar. O bot solicitará Nome Completo, CPF (com validação de dígitos), Data de Nascimento, RA acadêmico, Curso, Período, Endereço e Área de Interesse (Hacking Ético, Design, Hardware Hacking, Recursos Humanos ou Social Media).'
+    'Ao entrar no Discord, você receberá uma Mensagem Direta do CyberGuard Bot. Clique em "Concordo" para iniciar. O bot solicitará Nome Completo, CPF (com validação de dígitos), Data de Nascimento, RA acadêmico, Curso, Período, Endereço e Área de Interesse (Hacking Ético, Hardware Hacking, Design, Copywriting, Desenvolvimento, Educacional ou Recursos Humanos).'
   );
 
-  doc.subsecao('Passo 2: Revisão do RH e Geração do PDF');
+  doc.subsecao('Passo 2: Revisão do RH e Geração do Modelo Setorial');
   doc.paragrafo(
-    'A diretoria de RH analisa seu cadastro. Após a aprovação, o bot preenche automaticamente o modelo oficial da UTFPR e envia o PDF na sua DM com um campo de data preenchível ("data_assinatura") ao lado de "Local: Cornélio Procópio".'
+    'A diretoria de RH analisa seu cadastro com opções de aprovação para Membro ou Líder. Após a aprovação, o bot preenche automaticamente o modelo oficial da UTFPR correspondente ao seu setor e papel (com vigência semestral de 6 meses e cronograma dinâmico de atividades) e envia o PDF na sua DM com um campo de data preenchível ("data_assinatura") ao lado de "Local: Cornélio Procópio".'
   );
 
   doc.subsecao('Passo 3: Assinatura Digital no Portal Gov.br');
