@@ -74,6 +74,7 @@ async function initSchema() {
     'data_fim_termo TIMESTAMPTZ',
     'alerta_renovacao_enviado_em TIMESTAMPTZ',
     'atividades_customizadas JSONB',
+    'papel TEXT',
   ];
 
   for (const coluna of colunas) {

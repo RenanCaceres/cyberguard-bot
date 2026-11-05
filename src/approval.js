@@ -8,7 +8,7 @@ const { postarCartao } = require('./cartaoServidor');
 const { TEXTO_MANUAL_CONDUTA } = require('./manualConduta');
 const { adicionarMembroWorkspace } = require('./notionWorkspace');
 
-function construirEmbedResumidoRH(membro, aprovado, responsavelUsername) {
+function construirEmbedResumidoRH(membro, aprovado, responsavelUsername, ehLider = false) {
   const campos = [
     { name: 'Discord', value: `<@${membro.discord_id}>`, inline: true },
     { name: 'Nome', value: membro.nome || '—', inline: true },
@@ -19,17 +19,32 @@ function construirEmbedResumidoRH(membro, aprovado, responsavelUsername) {
   campos.push(
     { name: 'RA', value: membro.ra || '—', inline: true },
     { name: 'Curso / Período', value: `${membro.curso || '—'} (${membro.periodo || '—'})`, inline: true },
-    { name: 'Área solicitada', value: membro.area_interesse || '—', inline: true },
-    { name: 'Processado por', value: responsavelUsername || 'RH', inline: true }
+    { name: 'Área solicitada', value: membro.area_interesse || '—', inline: true }
   );
 
+  if (aprovado) {
+    campos.push({
+      name: 'Função atribuída',
+      value: ehLider ? '👑 Líder de Setor' : '👤 Membro Voluntário',
+      inline: true,
+    });
+  }
+
+  campos.push({ name: 'Processado por', value: responsavelUsername || 'RH', inline: true });
+
+  const tituloEmbed = aprovado
+    ? ehLider
+      ? '👑 Solicitação de entrada — Aprovada como Líder'
+      : '✅ Solicitação de entrada — Aprovada (Membro)'
+    : '❌ Solicitação de entrada — Rejeitada';
+
   return new EmbedBuilder()
-    .setTitle(aprovado ? '✅ Solicitação de entrada — Aprovada' : '❌ Solicitação de entrada — Rejeitada')
+    .setTitle(tituloEmbed)
     .setDescription(
       '🔒 *Os dados pessoais sensíveis (CPF, endereço, telefone e data de nascimento) foram ocultados deste histórico do canal em conformidade com a LGPD (Art. 6º, III e Art. 46) e encontram-se arquivados com criptografia no banco de dados.*'
     )
     .addFields(campos)
-    .setColor(aprovado ? 0x57f287 : 0xed4245)
+    .setColor(aprovado ? (ehLider ? 0xfee75c : 0x57f287) : 0xed4245)
     .setTimestamp();
 }
 
@@ -37,12 +52,18 @@ function membroTemRoleRh(interactionMember) {
   return interactionMember.roles.cache.some((r) => r.name === config.roleRhNome);
 }
 
-function botoesProcessando(aprovado) {
+function botoesProcessando(aprovado, ehLider = false) {
+  const labelAprovar = aprovado
+    ? ehLider
+      ? 'Aprovando como Líder...'
+      : 'Aprovando Membro...'
+    : 'Aprovar';
+
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId('processando_aprovar')
-      .setLabel(aprovado ? 'Aprovando...' : 'Aprovar')
-      .setStyle(ButtonStyle.Success)
+      .setLabel(labelAprovar)
+      .setStyle(ehLider ? ButtonStyle.Primary : ButtonStyle.Success)
       .setDisabled(true),
     new ButtonBuilder()
       .setCustomId('processando_rejeitar')
@@ -69,8 +90,13 @@ async function handleAprovacaoInteraction(interaction) {
 
   await interaction.deferUpdate();
 
+  const ehLiderAprovado = interaction.customId.startsWith('aprovar_lider_');
   const aprovado = interaction.customId.startsWith('aprovar_');
-  const discordId = interaction.customId.split('_')[1];
+  const discordId = ehLiderAprovado
+    ? interaction.customId.replace('aprovar_lider_', '')
+    : interaction.customId.startsWith('aprovar_')
+    ? interaction.customId.replace('aprovar_', '')
+    : interaction.customId.replace('rejeitar_', '');
 
   const membro = await db.getMembro(discordId);
   if (!membro) {
@@ -86,7 +112,7 @@ async function handleAprovacaoInteraction(interaction) {
     return;
   }
 
-  await interaction.editReply({ components: botoesProcessando(aprovado) });
+  await interaction.editReply({ components: botoesProcessando(aprovado, ehLiderAprovado) });
 
   const usuarioDiscord = await interaction.client.users.fetch(discordId);
 
@@ -156,10 +182,14 @@ async function handleAprovacaoInteraction(interaction) {
   await db.atualizarStatus(discordId, 'aguardando_assinatura', {
     data_aprovacao: new Date(),
     data_limite_assinatura: dataLimite,
+    papel: ehLiderAprovado ? 'lider' : 'membro',
   });
 
   const membroAtualizado = await db.getMembro(discordId);
-  const caminhoTermo = await gerarTermo(membroAtualizado, { client: interaction.client });
+  const caminhoTermo = await gerarTermo(membroAtualizado, {
+    client: interaction.client,
+    ehLider: ehLiderAprovado,
+  });
 
   await adicionarLinhaPlanilha(membroAtualizado, usuarioDiscord.tag);
 
@@ -177,12 +207,16 @@ async function handleAprovacaoInteraction(interaction) {
     avatarUrl: usuarioDiscord.displayAvatarURL({ extension: 'png', size: 256 }),
   });
 
-  if (config.roleAprovadoNome || membroAtualizado.area_interesse) {
+  if (config.roleAprovadoNome || membroAtualizado.area_interesse || ehLiderAprovado) {
     try {
       const guildMember = await interaction.guild.members.fetch(discordId);
       const nomesParaAtribuir = [config.roleAprovadoNome, membroAtualizado.area_interesse].filter(
         Boolean
       );
+
+      if (ehLiderAprovado && config.roleLiderNome) {
+        nomesParaAtribuir.push(config.roleLiderNome);
+      }
 
       for (const nomeCargo of nomesParaAtribuir) {
         let role = null;
@@ -195,6 +229,15 @@ async function handleAprovacaoInteraction(interaction) {
         if (!role) {
           role = interaction.guild.roles.cache.find(
             (r) => r.name.toLowerCase() === nomeCargo.toLowerCase()
+          );
+        }
+        if (!role && ehLiderAprovado && (nomeCargo === config.roleLiderNome || nomeCargo === 'Líderes')) {
+          role = interaction.guild.roles.cache.find(
+            (r) =>
+              r.name.toLowerCase() === (config.roleLiderNome || '').toLowerCase() ||
+              r.name.toLowerCase() === 'líderes' ||
+              r.name.toLowerCase() === 'lideres' ||
+              r.name.toLowerCase() === 'líder'
           );
         }
         if (!role && (nomeCargo === 'Hacking Ético' || nomeCargo === 'Hacking Etico') && config.roleHackingEticoId) {
@@ -289,9 +332,13 @@ async function handleAprovacaoInteraction(interaction) {
 
   await usuarioDiscord.send(TEXTO_MANUAL_CONDUTA);
 
+  const msgSucesso = ehLiderAprovado
+    ? `👑 Aprovado como Líder de ${membroAtualizado.area_interesse || 'Setor'} por ${interaction.user.username}`
+    : `✅ Aprovado por ${interaction.user.username}`;
+
   await interaction.editReply({
-    content: `✅ Aprovado por ${interaction.user.username}`,
-    embeds: [construirEmbedResumidoRH(membroAtualizado, true, interaction.user.username)],
+    content: msgSucesso,
+    embeds: [construirEmbedResumidoRH(membroAtualizado, true, interaction.user.username, ehLiderAprovado)],
     components: [],
   });
 }

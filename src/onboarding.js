@@ -979,12 +979,19 @@ async function enviarParaAprovacaoRH(guild, discordId, dados) {
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`aprovar_${discordId}`)
-      .setLabel('Aprovar')
-      .setStyle(ButtonStyle.Success),
+      .setLabel('Aprovar (Membro)')
+      .setStyle(ButtonStyle.Success)
+      .setEmoji('✅'),
+    new ButtonBuilder()
+      .setCustomId(`aprovar_lider_${discordId}`)
+      .setLabel('Aprovar como Líder')
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji('👑'),
     new ButtonBuilder()
       .setCustomId(`rejeitar_${discordId}`)
       .setLabel('Rejeitar')
       .setStyle(ButtonStyle.Danger)
+      .setEmoji('❌')
   );
 
   await canalRh.send({ embeds: [embed], components: [row] });
