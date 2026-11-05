@@ -48,6 +48,7 @@ async function initSchema() {
 
   const colunas = [
     'nome TEXT',
+    'pronomes TEXT',
     'ra TEXT',
     'curso TEXT',
     'periodo TEXT',
@@ -341,6 +342,7 @@ function atualizarDados(discordId, dados) {
   const dadosSeguros = criptografarObjetoMembro(dados);
   const {
     nome,
+    pronomes = 'Prefiro não responder',
     ra,
     curso,
     periodo,
@@ -362,7 +364,8 @@ function atualizarDados(discordId, dados) {
     `UPDATE membros SET
        nome=$2, ra=$3, curso=$4, periodo=$5, cpf=$6, data_nascimento=$7,
        nacionalidade=$8, endereco=$9, cidade=$10, estado=$11, telefone=$12, email=$13,
-       email_notion=$14, area_interesse=$15, estudante_utfpr=$16, instituicao=$17, status='pendente_aprovacao'
+       email_notion=$14, area_interesse=$15, estudante_utfpr=$16, instituicao=$17,
+       pronomes=$18, status='pendente_aprovacao'
      WHERE discord_id=$1`,
     [
       discordId,
@@ -382,6 +385,7 @@ function atualizarDados(discordId, dados) {
       area_interesse,
       estudante_utfpr,
       instituicao,
+      pronomes,
     ]
   );
 }
@@ -391,7 +395,7 @@ function atualizarDados(discordId, dados) {
  * aplicando criptografia automática nos campos sensíveis.
  */
 function atualizarDadosParciaisMembro(discordId, camposObj = {}) {
-  const permitidos = ['email', 'email_notion', 'telefone', 'endereco', 'cidade', 'estado', 'curso', 'periodo'];
+  const permitidos = ['email', 'email_notion', 'pronomes', 'telefone', 'endereco', 'cidade', 'estado', 'curso', 'periodo'];
   const filtrados = {};
   for (const chave of permitidos) {
     if (Object.prototype.hasOwnProperty.call(camposObj, chave) && camposObj[chave] !== undefined) {
@@ -417,6 +421,7 @@ function atualizarDadosParciaisMembro(discordId, camposObj = {}) {
 function salvarProgressoOnboarding(discordId, camposObj = {}) {
   const permitidos = [
     'nome',
+    'pronomes',
     'ra',
     'curso',
     'periodo',
