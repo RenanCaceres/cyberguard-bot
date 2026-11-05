@@ -408,6 +408,50 @@ function atualizarDadosParciaisMembro(discordId, camposObj = {}) {
   );
 }
 
+/**
+ * Salva incrementalmente respostas do onboarding no banco com criptografia AES-256-GCM.
+ */
+function salvarProgressoOnboarding(discordId, camposObj = {}) {
+  const permitidos = [
+    'nome',
+    'ra',
+    'curso',
+    'periodo',
+    'cpf',
+    'data_nascimento',
+    'nacionalidade',
+    'endereco',
+    'cidade',
+    'estado',
+    'telefone',
+    'email',
+    'area_interesse',
+    'estudante_utfpr',
+    'instituicao',
+  ];
+  const filtrados = {};
+  for (const chave of permitidos) {
+    if (
+      Object.prototype.hasOwnProperty.call(camposObj, chave) &&
+      camposObj[chave] !== undefined &&
+      camposObj[chave] !== null
+    ) {
+      filtrados[chave] = camposObj[chave];
+    }
+  }
+  const seguros = criptografarObjetoMembro(filtrados);
+  const chaves = Object.keys(seguros);
+  if (chaves.length === 0) return Promise.resolve();
+
+  const sets = chaves.map((campo, idx) => `${campo} = $${idx + 2}`).join(', ');
+  const valores = chaves.map((campo) => seguros[campo]);
+
+  return pool.query(
+    `UPDATE membros SET ${sets} WHERE discord_id = $1`,
+    [discordId, ...valores]
+  );
+}
+
 function atualizarStatus(discordId, status, extraFields = {}) {
   const extraSeguros = criptografarObjetoMembro(extraFields);
   const campos = Object.keys(extraSeguros);
@@ -916,6 +960,7 @@ module.exports = {
   registrarAceiteTermoCiencia,
   atualizarDados,
   atualizarDadosParciaisMembro,
+  salvarProgressoOnboarding,
   atualizarStatus,
   listarAguardandoAssinatura,
   removerMembro,

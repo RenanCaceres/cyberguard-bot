@@ -164,28 +164,27 @@ async function coletarEstudanteUtfpr(dm, userId, respostas) {
   });
 
   coletoresAtivos.add(userId);
-  let interacao;
   try {
-    interacao = await dm.awaitMessageComponent({
+    const interacao = await dm.awaitMessageComponent({
       filter: (i) => i.user.id === userId && (i.customId === 'utfpr_sim' || i.customId === 'utfpr_nao'),
       time: 30 * 60 * 1000,
     });
+
+    const ehUtfpr = interacao.customId === 'utfpr_sim';
+    respostas.estudante_utfpr = ehUtfpr ? 'Sim' : 'Não';
+
+    await interacao.update({
+      content: `Você é **estudante da UTFPR**? **${respostas.estudante_utfpr}**`,
+      components: [],
+    });
+
+    if (ehUtfpr) {
+      respostas.instituicao = 'UTFPR';
+    } else {
+      respostas.instituicao = await coletarInstituicao(dm, userId);
+    }
   } finally {
     coletoresAtivos.delete(userId);
-  }
-
-  const ehUtfpr = interacao.customId === 'utfpr_sim';
-  respostas.estudante_utfpr = ehUtfpr ? 'Sim' : 'Não';
-
-  await interacao.update({
-    content: `Você é **estudante da UTFPR**? **${respostas.estudante_utfpr}**`,
-    components: [],
-  });
-
-  if (ehUtfpr) {
-    respostas.instituicao = 'UTFPR';
-  } else {
-    respostas.instituicao = await coletarInstituicao(dm, userId);
   }
 }
 
@@ -222,19 +221,18 @@ async function coletarAreaInteresse(dm, userId) {
   await dm.send({ content: 'Por último: pra qual **área de interesse** você quer solicitar entrada?', components: [row] });
 
   coletoresAtivos.add(userId);
-  let interacao;
   try {
-    interacao = await dm.awaitMessageComponent({
+    const interacao = await dm.awaitMessageComponent({
       filter: (i) => i.user.id === userId && i.customId === 'area_interesse',
       time: 30 * 60 * 1000,
     });
+
+    const area = interacao.values[0];
+    await interacao.update({ content: `Área escolhida: **${area}**`, components: [] });
+    return area;
   } finally {
     coletoresAtivos.delete(userId);
   }
-
-  const area = interacao.values[0];
-  await interacao.update({ content: `Área escolhida: **${area}**`, components: [] });
-  return area;
 }
 
 function montarResumo(respostas) {
@@ -263,18 +261,17 @@ async function pedirConfirmacao(dm, userId, respostas) {
   });
 
   coletoresAtivos.add(userId);
-  let interacao;
   try {
-    interacao = await dm.awaitMessageComponent({
+    const interacao = await dm.awaitMessageComponent({
       filter: (i) => i.user.id === userId && (i.customId === 'confirmar_dados' || i.customId === 'corrigir_dados'),
       time: 30 * 60 * 1000,
     });
+
+    await interacao.update({ components: [] });
+    return interacao.customId;
   } finally {
     coletoresAtivos.delete(userId);
   }
-
-  await interacao.update({ components: [] });
-  return interacao.customId;
 }
 
 async function escolherCampoParaCorrigir(dm, userId, respostas) {
@@ -291,19 +288,18 @@ async function escolherCampoParaCorrigir(dm, userId, respostas) {
   await dm.send({ content: 'Qual dado você quer corrigir?', components: [row] });
 
   coletoresAtivos.add(userId);
-  let interacao;
   try {
-    interacao = await dm.awaitMessageComponent({
+    const interacao = await dm.awaitMessageComponent({
       filter: (i) => i.user.id === userId && i.customId === 'campo_corrigir',
       time: 30 * 60 * 1000,
     });
+
+    const campo = interacao.values[0];
+    await interacao.update({ content: `Beleza, vamos corrigir: **${LABELS[campo]}**`, components: [] });
+    return campo;
   } finally {
     coletoresAtivos.delete(userId);
   }
-
-  const campo = interacao.values[0];
-  await interacao.update({ content: `Beleza, vamos corrigir: **${LABELS[campo]}**`, components: [] });
-  return campo;
 }
 
 async function apresentarDocumentacaoVoluntariado(dm, userId) {
@@ -460,17 +456,53 @@ async function solicitarTermoCiencia(dm, userId) {
 
 async function executarColetaDados(member, dm, respostasIniciais = {}) {
   const { user } = member;
-  const respostas = { ...respostasIniciais };
+
+  // Carrega respostas já salvas anteriormente no banco para não perder o progresso se houver retomada
+  const salvo = await db.getMembro(user.id);
+  const respostas = {
+    nome: salvo?.nome || null,
+    data_nascimento: salvo?.data_nascimento || null,
+    nacionalidade: salvo?.nacionalidade || null,
+    cpf: salvo?.cpf || null,
+    estudante_utfpr: salvo?.estudante_utfpr || null,
+    instituicao: salvo?.instituicao || null,
+    curso: salvo?.curso || null,
+    periodo: salvo?.periodo || null,
+    ra: salvo?.ra || null,
+    endereco: salvo?.endereco || null,
+    cidade: salvo?.cidade || null,
+    estado: salvo?.estado || null,
+    telefone: salvo?.telefone || null,
+    email: salvo?.email || null,
+    area_interesse: salvo?.area_interesse || null,
+    ...respostasIniciais,
+  };
 
   for (const pergunta of PERGUNTAS) {
+    if (respostas[pergunta.campo]) {
+      continue;
+    }
+
     if (pergunta.tipo === 'botoes_utfpr') {
       await coletarEstudanteUtfpr(dm, user.id, respostas);
+      await db.salvarProgressoOnboarding(user.id, {
+        estudante_utfpr: respostas.estudante_utfpr,
+        instituicao: respostas.instituicao,
+      });
     } else {
       await coletarPerguntaTexto(dm, user.id, pergunta, respostas);
+      await db.salvarProgressoOnboarding(user.id, {
+        [pergunta.campo]: respostas[pergunta.campo],
+      });
     }
   }
 
-  respostas.area_interesse = await coletarAreaInteresse(dm, user.id);
+  if (!respostas.area_interesse) {
+    respostas.area_interesse = await coletarAreaInteresse(dm, user.id);
+    await db.salvarProgressoOnboarding(user.id, {
+      area_interesse: respostas.area_interesse,
+    });
+  }
 
   let confirmado = false;
   while (!confirmado) {
@@ -485,6 +517,7 @@ async function executarColetaDados(member, dm, respostasIniciais = {}) {
 
     if (campoEscolhido === 'area_interesse') {
       respostas.area_interesse = await coletarAreaInteresse(dm, user.id);
+      await db.salvarProgressoOnboarding(user.id, { area_interesse: respostas.area_interesse });
       continue;
     }
 
@@ -494,16 +527,23 @@ async function executarColetaDados(member, dm, respostasIniciais = {}) {
         const perguntaRa = PERGUNTAS.find((p) => p.campo === 'ra');
         await coletarPerguntaTexto(dm, user.id, perguntaRa, respostas);
       }
+      await db.salvarProgressoOnboarding(user.id, {
+        estudante_utfpr: respostas.estudante_utfpr,
+        instituicao: respostas.instituicao,
+        ra: respostas.ra,
+      });
       continue;
     }
 
     if (campoEscolhido === 'instituicao') {
       respostas.instituicao = await coletarInstituicao(dm, user.id);
+      await db.salvarProgressoOnboarding(user.id, { instituicao: respostas.instituicao });
       continue;
     }
 
     const pergunta = PERGUNTAS.find((p) => p.campo === campoEscolhido);
     await coletarPerguntaTexto(dm, user.id, pergunta, respostas);
+    await db.salvarProgressoOnboarding(user.id, { [campoEscolhido]: respostas[campoEscolhido] });
   }
 
   await db.atualizarDados(user.id, respostas);
@@ -539,14 +579,14 @@ async function tratarErroOnboarding(member, user, err) {
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId('onboarding_reiniciar')
-          .setLabel('🔄 Reiniciar / Continuar Cadastro')
+          .setLabel('🔄 Continuar Cadastro')
           .setStyle(ButtonStyle.Primary)
       );
       const dm = await user.createDM();
       await dm.send({
         content:
-          '⏳ **Tempo limite atingido por inatividade.** Seus dados ainda não foram enviados.\n' +
-          'Quando estiver pronto(a) para continuar, clique no botão abaixo para reiniciar o preenchimento:',
+          '⏳ **Tempo limite atingido por inatividade.** Seus dados preenchidos estão seguros e salvos.\n' +
+          'Quando estiver pronto(a) para continuar de onde parou, clique no botão abaixo:',
         components: [row],
       });
     } catch (errDm) {
@@ -568,18 +608,21 @@ async function iniciarOnboarding(member) {
     const dm = await user.createDM();
     await db.criarMembro(user.id);
 
-    // 1. Apresenta a documentação e justificativas de voluntariado e transparência
-    const querProsseguir = await apresentarDocumentacaoVoluntariado(dm, user.id);
-    if (!querProsseguir) {
-      await encerrarOnboardingCancelado(user.id);
-      return;
-    }
+    const regExistente = await db.getMembro(user.id);
+    if (!regExistente?.termo_ciencia_aceito_em) {
+      // 1. Apresenta a documentação e justificativas de voluntariado e transparência
+      const querProsseguir = await apresentarDocumentacaoVoluntariado(dm, user.id);
+      if (!querProsseguir) {
+        await encerrarOnboardingCancelado(user.id);
+        return;
+      }
 
-    // 2. Apresenta o Termo formal de Ciência da LGPD
-    const aceitouTermo = await solicitarTermoCiencia(dm, user.id);
-    if (!aceitouTermo) {
-      await encerrarOnboardingCancelado(user.id);
-      return;
+      // 2. Apresenta o Termo formal de Ciência da LGPD
+      const aceitouTermo = await solicitarTermoCiencia(dm, user.id);
+      if (!aceitouTermo) {
+        await encerrarOnboardingCancelado(user.id);
+        return;
+      }
     }
 
     await executarColetaDados(member, dm);
@@ -598,10 +641,13 @@ async function prosseguirAposVoluntariado(member) {
     const dm = await user.createDM();
     await db.criarMembro(user.id);
 
-    const aceitouTermo = await solicitarTermoCiencia(dm, user.id);
-    if (!aceitouTermo) {
-      await encerrarOnboardingCancelado(user.id);
-      return;
+    const regExistente = await db.getMembro(user.id);
+    if (!regExistente?.termo_ciencia_aceito_em) {
+      const aceitouTermo = await solicitarTermoCiencia(dm, user.id);
+      if (!aceitouTermo) {
+        await encerrarOnboardingCancelado(user.id);
+        return;
+      }
     }
 
     await executarColetaDados(member, dm);
@@ -630,23 +676,18 @@ async function prosseguirAposTermoCiencia(member) {
 
 async function handleOnboardingInteraction(interaction) {
   if (!interaction.isButton() && !interaction.isStringSelectMenu()) return false;
+  if (interaction.replied || interaction.deferred) return false;
 
   const { customId, user } = interaction;
-  const onboardingIds = [
+  const orphanOnboardingIds = [
     'voluntariado_prosseguir',
     'voluntariado_cancelar',
     'lgpd_aceitar',
     'lgpd_recusar',
     'onboarding_reiniciar',
-    'utfpr_sim',
-    'utfpr_nao',
-    'area_interesse',
-    'confirmar_dados',
-    'corrigir_dados',
-    'campo_corrigir',
   ];
 
-  if (!onboardingIds.includes(customId)) return false;
+  if (!orphanOnboardingIds.includes(customId)) return false;
 
   // Se já há um coletor ativo ouvindo este usuário, deixa o awaitMessageComponent tratar
   if (coletoresAtivos.has(user.id)) {
@@ -718,7 +759,7 @@ async function handleOnboardingInteraction(interaction) {
 
     if (customId === 'onboarding_reiniciar') {
       await interaction.update({
-        content: '🔄 **Reiniciando seu cadastro...**',
+        content: '🔄 **Continuando seu cadastro de onde você parou...**',
         components: [],
       });
       const member = await buscarMembroGuild(interaction.client, user.id);
@@ -730,19 +771,7 @@ async function handleOnboardingInteraction(interaction) {
       return true;
     }
 
-    // Botões de perguntas anteriores clicados fora de hora
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('onboarding_reiniciar')
-        .setLabel('🔄 Reiniciar / Continuar Cadastro')
-        .setStyle(ButtonStyle.Primary)
-    );
-    await interaction.reply({
-      content: '⏳ Essa pergunta expirou ou o bot foi reiniciado. Clique no botão abaixo para reiniciar o preenchimento dos seus dados:',
-      components: [row],
-      ephemeral: true,
-    });
-    return true;
+    return false;
   } catch (errInteracao) {
     console.error('[onboarding] Erro ao tratar interação órfã:', errInteracao);
     return true;
