@@ -9,19 +9,26 @@ const { TEXTO_MANUAL_CONDUTA } = require('./manualConduta');
 const { adicionarMembroWorkspace } = require('./notionWorkspace');
 
 function construirEmbedResumidoRH(membro, aprovado, responsavelUsername) {
+  const campos = [
+    { name: 'Discord', value: `<@${membro.discord_id}>`, inline: true },
+    { name: 'Nome', value: membro.nome || '—', inline: true },
+  ];
+  if (membro.pronomes && membro.pronomes !== 'Prefiro não responder') {
+    campos.push({ name: 'Pronomes', value: membro.pronomes, inline: true });
+  }
+  campos.push(
+    { name: 'RA', value: membro.ra || '—', inline: true },
+    { name: 'Curso / Período', value: `${membro.curso || '—'} (${membro.periodo || '—'})`, inline: true },
+    { name: 'Área solicitada', value: membro.area_interesse || '—', inline: true },
+    { name: 'Processado por', value: responsavelUsername || 'RH', inline: true }
+  );
+
   return new EmbedBuilder()
     .setTitle(aprovado ? '✅ Solicitação de entrada — Aprovada' : '❌ Solicitação de entrada — Rejeitada')
     .setDescription(
       '🔒 *Os dados pessoais sensíveis (CPF, endereço, telefone e data de nascimento) foram ocultados deste histórico do canal em conformidade com a LGPD (Art. 6º, III e Art. 46) e encontram-se arquivados com criptografia no banco de dados.*'
     )
-    .addFields(
-      { name: 'Discord', value: `<@${membro.discord_id}>`, inline: true },
-      { name: 'Nome', value: membro.nome || '—', inline: true },
-      { name: 'RA', value: membro.ra || '—', inline: true },
-      { name: 'Curso / Período', value: `${membro.curso || '—'} (${membro.periodo || '—'})`, inline: true },
-      { name: 'Área solicitada', value: membro.area_interesse || '—', inline: true },
-      { name: 'Processado por', value: responsavelUsername || 'RH', inline: true }
-    )
+    .addFields(campos)
     .setColor(aprovado ? 0x57f287 : 0xed4245)
     .setTimestamp();
 }

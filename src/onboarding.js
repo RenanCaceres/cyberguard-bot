@@ -60,6 +60,7 @@ const TERMO_CIENCIA_TEXTO =
 
 const PERGUNTAS = [
   { campo: 'nome', texto: 'Qual seu **nome completo**?', validator: validators.naoVazio },
+  { campo: 'pronomes', tipo: 'select_pronomes' },
   {
     campo: 'data_nascimento',
     texto: 'Qual sua **data de nascimento**? (formato dd/mm/aaaa, ex: 10/08/2004)',
@@ -119,6 +120,7 @@ const PERGUNTAS = [
 
 const LABELS = {
   nome: 'Nome completo',
+  pronomes: 'Pronomes de tratamento',
   data_nascimento: 'Data de nascimento',
   nacionalidade: 'Nacionalidade',
   cpf: 'CPF',
@@ -144,6 +146,62 @@ async function coletarResposta(dmChannel, userId) {
     errors: ['time'],
   });
   return collected.first().content.trim();
+}
+
+async function coletarPronomes(dm, userId) {
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId('selecionar_pronomes')
+    .setPlaceholder('Escolha seus pronomes de tratamento')
+    .addOptions([
+      {
+        label: 'Ele / Dele',
+        value: 'Ele/Dele',
+        description: 'Pronomes masculinos',
+        emoji: '🙋‍♂️',
+      },
+      {
+        label: 'Ela / Dela',
+        value: 'Ela/Dela',
+        description: 'Pronomes femininos',
+        emoji: '🙋‍♀️',
+      },
+      {
+        label: 'Elu / Delu',
+        value: 'Elu/Delu',
+        description: 'Pronomes neutros',
+        emoji: '🧑',
+      },
+      {
+        label: 'Prefiro não responder',
+        value: 'Prefiro não responder',
+        description: 'Não especificar pronomes',
+        emoji: '🤐',
+      },
+    ]);
+
+  const row = new ActionRowBuilder().addComponents(menu);
+
+  await dm.send({
+    content: 'Quais **pronomes de tratamento** você prefere que a equipe utilize para se dirigir a você?',
+    components: [row],
+  });
+
+  coletoresAtivos.add(userId);
+  try {
+    const interacao = await dm.awaitMessageComponent({
+      filter: (i) => i.user.id === userId && i.customId === 'selecionar_pronomes',
+      time: 30 * 60 * 1000,
+    });
+
+    const pronome = interacao.values[0];
+    await interacao.update({
+      content: `Pronomes definidos: **${pronome}**`,
+      components: [],
+    });
+    return pronome;
+  } finally {
+    coletoresAtivos.delete(userId);
+  }
 }
 
 async function coletarInstituicao(dm, userId) {
@@ -531,6 +589,7 @@ async function executarColetaDados(member, dm, respostasIniciais = {}) {
   const salvo = await db.getMembro(user.id);
   const respostas = {
     nome: salvo?.nome || null,
+    pronomes: salvo?.pronomes || null,
     data_nascimento: salvo?.data_nascimento || null,
     nacionalidade: salvo?.nacionalidade || null,
     cpf: salvo?.cpf || null,
@@ -554,7 +613,12 @@ async function executarColetaDados(member, dm, respostasIniciais = {}) {
       continue;
     }
 
-    if (pergunta.tipo === 'botoes_utfpr') {
+    if (pergunta.tipo === 'select_pronomes') {
+      respostas.pronomes = await coletarPronomes(dm, user.id);
+      await db.salvarProgressoOnboarding(user.id, {
+        pronomes: respostas.pronomes,
+      });
+    } else if (pergunta.tipo === 'botoes_utfpr') {
       await coletarEstudanteUtfpr(dm, user.id, respostas);
       await db.salvarProgressoOnboarding(user.id, {
         estudante_utfpr: respostas.estudante_utfpr,
@@ -594,6 +658,12 @@ async function executarColetaDados(member, dm, respostasIniciais = {}) {
     if (campoEscolhido === 'area_interesse') {
       respostas.area_interesse = await coletarAreaInteresse(dm, user.id);
       await db.salvarProgressoOnboarding(user.id, { area_interesse: respostas.area_interesse });
+      continue;
+    }
+
+    if (campoEscolhido === 'pronomes') {
+      respostas.pronomes = await coletarPronomes(dm, user.id);
+      await db.salvarProgressoOnboarding(user.id, { pronomes: respostas.pronomes });
       continue;
     }
 
@@ -874,6 +944,7 @@ async function enviarParaAprovacaoRH(guild, discordId, dados) {
     .addFields(
       { name: 'Discord', value: `<@${discordId}>` },
       { name: 'Nome', value: dados.nome || '—' },
+      { name: 'Pronomes', value: dados.pronomes || '—', inline: true },
       { name: 'Data de nascimento', value: dados.data_nascimento || '—', inline: true },
       { name: 'Nacionalidade', value: dados.nacionalidade || '—', inline: true },
       { name: 'CPF (Mascarado LGPD)', value: mascararCPF(dados.cpf) },
