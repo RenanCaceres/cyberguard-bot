@@ -10,6 +10,35 @@ const config = require('./config');
 const validators = require('./validators');
 const { mascararCPF } = require('./cryptoUtils');
 
+const sessoesAtivas = new Set();
+const coletoresAtivos = new Set();
+
+async function buscarMembroGuild(client, userId) {
+  try {
+    const guildId = config.guildId || process.env.GUILD_ID;
+    if (!guildId) return null;
+    const guild = client.guilds.cache.get(guildId) || (await client.guilds.fetch(guildId).catch(() => null));
+    if (!guild) return null;
+    return await guild.members.fetch(userId).catch(() => null);
+  } catch (err) {
+    console.error('[onboarding] Erro ao buscar guild/membro:', err);
+    return null;
+  }
+}
+
+async function encerrarOnboardingCancelado(userId) {
+  try {
+    const regExistente = await db.getMembro(userId);
+    if (regExistente && (regExistente.nome || regExistente.cpf)) {
+      await db.atualizarStatus(userId, 'abandonado', { saida_processada: true });
+    } else {
+      await db.removerMembro(userId);
+    }
+  } catch (err) {
+    console.error('[onboarding] Erro ao encerrar onboarding cancelado:', err);
+  }
+}
+
 const TERMO_CIENCIA_TEXTO =
   'Em conformidade com a **Lei Geral de Proteção de Dados Pessoais (LGPD — Lei nº 13.709/2018)**, ' +
   'informamos como seus dados pessoais serão tratados pelo **Projeto CyberGuard (UTFPR)**:\n\n' +
@@ -100,7 +129,7 @@ async function coletarResposta(dmChannel, userId) {
   const collected = await dmChannel.awaitMessages({
     filter: (m) => m.author.id === userId,
     max: 1,
-    time: 10 * 60 * 1000,
+    time: 30 * 60 * 1000,
     errors: ['time'],
   });
   return collected.first().content.trim();
@@ -134,10 +163,16 @@ async function coletarEstudanteUtfpr(dm, userId, respostas) {
     components: [row],
   });
 
-  const interacao = await dm.awaitMessageComponent({
-    filter: (i) => i.user.id === userId && (i.customId === 'utfpr_sim' || i.customId === 'utfpr_nao'),
-    time: 10 * 60 * 1000,
-  });
+  coletoresAtivos.add(userId);
+  let interacao;
+  try {
+    interacao = await dm.awaitMessageComponent({
+      filter: (i) => i.user.id === userId && (i.customId === 'utfpr_sim' || i.customId === 'utfpr_nao'),
+      time: 30 * 60 * 1000,
+    });
+  } finally {
+    coletoresAtivos.delete(userId);
+  }
 
   const ehUtfpr = interacao.customId === 'utfpr_sim';
   respostas.estudante_utfpr = ehUtfpr ? 'Sim' : 'Não';
@@ -186,10 +221,16 @@ async function coletarAreaInteresse(dm, userId) {
   const row = new ActionRowBuilder().addComponents(menu);
   await dm.send({ content: 'Por último: pra qual **área de interesse** você quer solicitar entrada?', components: [row] });
 
-  const interacao = await dm.awaitMessageComponent({
-    filter: (i) => i.user.id === userId && i.customId === 'area_interesse',
-    time: 10 * 60 * 1000,
-  });
+  coletoresAtivos.add(userId);
+  let interacao;
+  try {
+    interacao = await dm.awaitMessageComponent({
+      filter: (i) => i.user.id === userId && i.customId === 'area_interesse',
+      time: 30 * 60 * 1000,
+    });
+  } finally {
+    coletoresAtivos.delete(userId);
+  }
 
   const area = interacao.values[0];
   await interacao.update({ content: `Área escolhida: **${area}**`, components: [] });
@@ -221,10 +262,16 @@ async function pedirConfirmacao(dm, userId, respostas) {
     components: [row],
   });
 
-  const interacao = await dm.awaitMessageComponent({
-    filter: (i) => i.user.id === userId && (i.customId === 'confirmar_dados' || i.customId === 'corrigir_dados'),
-    time: 10 * 60 * 1000,
-  });
+  coletoresAtivos.add(userId);
+  let interacao;
+  try {
+    interacao = await dm.awaitMessageComponent({
+      filter: (i) => i.user.id === userId && (i.customId === 'confirmar_dados' || i.customId === 'corrigir_dados'),
+      time: 30 * 60 * 1000,
+    });
+  } finally {
+    coletoresAtivos.delete(userId);
+  }
 
   await interacao.update({ components: [] });
   return interacao.customId;
@@ -243,10 +290,16 @@ async function escolherCampoParaCorrigir(dm, userId, respostas) {
   const row = new ActionRowBuilder().addComponents(menu);
   await dm.send({ content: 'Qual dado você quer corrigir?', components: [row] });
 
-  const interacao = await dm.awaitMessageComponent({
-    filter: (i) => i.user.id === userId && i.customId === 'campo_corrigir',
-    time: 10 * 60 * 1000,
-  });
+  coletoresAtivos.add(userId);
+  let interacao;
+  try {
+    interacao = await dm.awaitMessageComponent({
+      filter: (i) => i.user.id === userId && i.customId === 'campo_corrigir',
+      time: 30 * 60 * 1000,
+    });
+  } finally {
+    coletoresAtivos.delete(userId);
+  }
 
   const campo = interacao.values[0];
   await interacao.update({ content: `Beleza, vamos corrigir: **${LABELS[campo]}**`, components: [] });
@@ -307,12 +360,18 @@ async function apresentarDocumentacaoVoluntariado(dm, userId) {
     components: [row],
   });
 
-  const interacao = await dm.awaitMessageComponent({
-    filter: (i) =>
-      i.user.id === userId &&
-      (i.customId === 'voluntariado_prosseguir' || i.customId === 'voluntariado_cancelar'),
-    time: 10 * 60 * 1000,
-  });
+  coletoresAtivos.add(userId);
+  let interacao;
+  try {
+    interacao = await dm.awaitMessageComponent({
+      filter: (i) =>
+        i.user.id === userId &&
+        (i.customId === 'voluntariado_prosseguir' || i.customId === 'voluntariado_cancelar'),
+      time: 24 * 60 * 60 * 1000,
+    });
+  } finally {
+    coletoresAtivos.delete(userId);
+  }
 
   if (interacao.customId === 'voluntariado_cancelar') {
     await interacao.update({
@@ -369,10 +428,16 @@ async function solicitarTermoCiencia(dm, userId) {
     components: [row],
   });
 
-  const interacao = await dm.awaitMessageComponent({
-    filter: (i) => i.user.id === userId && (i.customId === 'lgpd_aceitar' || i.customId === 'lgpd_recusar'),
-    time: 10 * 60 * 1000,
-  });
+  coletoresAtivos.add(userId);
+  let interacao;
+  try {
+    interacao = await dm.awaitMessageComponent({
+      filter: (i) => i.user.id === userId && (i.customId === 'lgpd_aceitar' || i.customId === 'lgpd_recusar'),
+      time: 24 * 60 * 60 * 1000,
+    });
+  } finally {
+    coletoresAtivos.delete(userId);
+  }
 
   if (interacao.customId === 'lgpd_recusar') {
     await interacao.update({
@@ -393,10 +458,112 @@ async function solicitarTermoCiencia(dm, userId) {
   return true;
 }
 
+async function executarColetaDados(member, dm, respostasIniciais = {}) {
+  const { user } = member;
+  const respostas = { ...respostasIniciais };
+
+  for (const pergunta of PERGUNTAS) {
+    if (pergunta.tipo === 'botoes_utfpr') {
+      await coletarEstudanteUtfpr(dm, user.id, respostas);
+    } else {
+      await coletarPerguntaTexto(dm, user.id, pergunta, respostas);
+    }
+  }
+
+  respostas.area_interesse = await coletarAreaInteresse(dm, user.id);
+
+  let confirmado = false;
+  while (!confirmado) {
+    const escolha = await pedirConfirmacao(dm, user.id, respostas);
+
+    if (escolha === 'confirmar_dados') {
+      confirmado = true;
+      break;
+    }
+
+    const campoEscolhido = await escolherCampoParaCorrigir(dm, user.id, respostas);
+
+    if (campoEscolhido === 'area_interesse') {
+      respostas.area_interesse = await coletarAreaInteresse(dm, user.id);
+      continue;
+    }
+
+    if (campoEscolhido === 'estudante_utfpr') {
+      await coletarEstudanteUtfpr(dm, user.id, respostas);
+      if (respostas.estudante_utfpr === 'Sim' && respostas.ra && !validators.validarRA(respostas.ra)) {
+        const perguntaRa = PERGUNTAS.find((p) => p.campo === 'ra');
+        await coletarPerguntaTexto(dm, user.id, perguntaRa, respostas);
+      }
+      continue;
+    }
+
+    if (campoEscolhido === 'instituicao') {
+      respostas.instituicao = await coletarInstituicao(dm, user.id);
+      continue;
+    }
+
+    const pergunta = PERGUNTAS.find((p) => p.campo === campoEscolhido);
+    await coletarPerguntaTexto(dm, user.id, pergunta, respostas);
+  }
+
+  await db.atualizarDados(user.id, respostas);
+  await dm.send(
+    'Obrigado! Seus dados foram criptografados e enviados para análise do RH. ' +
+      'Assim que forem aprovados, você receberá o link da comunidade e o termo para assinar.'
+  );
+
+  await enviarParaAprovacaoRH(member.guild, user.id, respostas);
+}
+
+async function tratarErroOnboarding(member, user, err) {
+  const isTimeout =
+    err?.code === 'InteractionCollectorError' ||
+    err?.message === 'time' ||
+    err?.message?.includes('reason: time') ||
+    (err && typeof err.size === 'number' && err.size === 0);
+
+  if (isTimeout) {
+    console.log(`[onboarding] Inatividade/timeout no onboarding de ${user.tag || user.username} (${user.id}).`);
+    try {
+      const reg = await db.getMembro(user.id);
+      if (reg && reg.nome) {
+        await db.registrarRecusa({
+          discordId: user.id,
+          nome: reg.nome || user.username,
+          ra: reg.ra || null,
+          tipo: 'abandonado',
+          motivo: 'Não respondeu dentro do prazo durante o preenchimento dos dados',
+        });
+      }
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('onboarding_reiniciar')
+          .setLabel('🔄 Reiniciar / Continuar Cadastro')
+          .setStyle(ButtonStyle.Primary)
+      );
+      const dm = await user.createDM();
+      await dm.send({
+        content:
+          '⏳ **Tempo limite atingido por inatividade.** Seus dados ainda não foram enviados.\n' +
+          'Quando estiver pronto(a) para continuar, clique no botão abaixo para reiniciar o preenchimento:',
+        components: [row],
+      });
+    } catch (errDm) {
+      console.error('Não consegui avisar por DM sobre o timeout de', user.id, errDm);
+    }
+  } else {
+    console.error('Erro no onboarding de', user.id, err);
+  }
+}
+
 async function iniciarOnboarding(member) {
   const { user } = member;
-  let respostas = {};
-
+  if (sessoesAtivas.has(user.id)) {
+    console.log(`[onboarding] Sessão de onboarding já em andamento para ${user.id}`);
+    return;
+  }
+  sessoesAtivas.add(user.id);
   try {
     const dm = await user.createDM();
     await db.criarMembro(user.id);
@@ -404,110 +571,181 @@ async function iniciarOnboarding(member) {
     // 1. Apresenta a documentação e justificativas de voluntariado e transparência
     const querProsseguir = await apresentarDocumentacaoVoluntariado(dm, user.id);
     if (!querProsseguir) {
-      const regExistente = await db.getMembro(user.id);
-      if (regExistente && (regExistente.nome || regExistente.cpf)) {
-        await db.atualizarStatus(user.id, 'abandonado', { saida_processada: true });
-      } else {
-        await db.removerMembro(user.id);
-      }
+      await encerrarOnboardingCancelado(user.id);
       return;
     }
 
     // 2. Apresenta o Termo formal de Ciência da LGPD
     const aceitouTermo = await solicitarTermoCiencia(dm, user.id);
     if (!aceitouTermo) {
-      const regExistente = await db.getMembro(user.id);
-      if (regExistente && (regExistente.nome || regExistente.cpf)) {
-        await db.atualizarStatus(user.id, 'abandonado', { saida_processada: true });
-      } else {
-        await db.removerMembro(user.id);
-      }
+      await encerrarOnboardingCancelado(user.id);
       return;
     }
 
-    for (const pergunta of PERGUNTAS) {
-      if (pergunta.tipo === 'botoes_utfpr') {
-        await coletarEstudanteUtfpr(dm, user.id, respostas);
-      } else {
-        await coletarPerguntaTexto(dm, user.id, pergunta, respostas);
-      }
-    }
-
-    respostas.area_interesse = await coletarAreaInteresse(dm, user.id);
-
-    let confirmado = false;
-    while (!confirmado) {
-      const escolha = await pedirConfirmacao(dm, user.id, respostas);
-
-      if (escolha === 'confirmar_dados') {
-        confirmado = true;
-        break;
-      }
-
-      const campoEscolhido = await escolherCampoParaCorrigir(dm, user.id, respostas);
-
-      if (campoEscolhido === 'area_interesse') {
-        respostas.area_interesse = await coletarAreaInteresse(dm, user.id);
-        continue;
-      }
-
-      if (campoEscolhido === 'estudante_utfpr') {
-        await coletarEstudanteUtfpr(dm, user.id, respostas);
-        if (respostas.estudante_utfpr === 'Sim' && respostas.ra && !validators.validarRA(respostas.ra)) {
-          const perguntaRa = PERGUNTAS.find((p) => p.campo === 'ra');
-          await coletarPerguntaTexto(dm, user.id, perguntaRa, respostas);
-        }
-        continue;
-      }
-
-      if (campoEscolhido === 'instituicao') {
-        respostas.instituicao = await coletarInstituicao(dm, user.id);
-        continue;
-      }
-
-      const pergunta = PERGUNTAS.find((p) => p.campo === campoEscolhido);
-      await coletarPerguntaTexto(dm, user.id, pergunta, respostas);
-    }
-
-    await db.atualizarDados(user.id, respostas);
-    await dm.send(
-      'Obrigado! Seus dados foram criptografados e enviados para análise do RH. ' +
-        'Assim que forem aprovados, você receberá o link da comunidade e o termo para assinar.'
-    );
-
-    await enviarParaAprovacaoRH(member.guild, user.id, respostas);
+    await executarColetaDados(member, dm);
   } catch (err) {
-    if (err.message === 'time') {
-      try {
-        await db.registrarRecusa({
-          discordId: user.id,
-          nome: respostas.nome || user.username,
-          ra: respostas.ra || null,
-          tipo: 'abandonado',
-          motivo: 'Não respondeu dentro do prazo durante o preenchimento dos dados',
+    await tratarErroOnboarding(member, user, err);
+  } finally {
+    sessoesAtivas.delete(user.id);
+  }
+}
+
+async function prosseguirAposVoluntariado(member) {
+  const { user } = member;
+  if (sessoesAtivas.has(user.id)) return;
+  sessoesAtivas.add(user.id);
+  try {
+    const dm = await user.createDM();
+    await db.criarMembro(user.id);
+
+    const aceitouTermo = await solicitarTermoCiencia(dm, user.id);
+    if (!aceitouTermo) {
+      await encerrarOnboardingCancelado(user.id);
+      return;
+    }
+
+    await executarColetaDados(member, dm);
+  } catch (err) {
+    await tratarErroOnboarding(member, user, err);
+  } finally {
+    sessoesAtivas.delete(user.id);
+  }
+}
+
+async function prosseguirAposTermoCiencia(member) {
+  const { user } = member;
+  if (sessoesAtivas.has(user.id)) return;
+  sessoesAtivas.add(user.id);
+  try {
+    const dm = await user.createDM();
+    await db.criarMembro(user.id);
+
+    await executarColetaDados(member, dm);
+  } catch (err) {
+    await tratarErroOnboarding(member, user, err);
+  } finally {
+    sessoesAtivas.delete(user.id);
+  }
+}
+
+async function handleOnboardingInteraction(interaction) {
+  if (!interaction.isButton() && !interaction.isStringSelectMenu()) return false;
+
+  const { customId, user } = interaction;
+  const onboardingIds = [
+    'voluntariado_prosseguir',
+    'voluntariado_cancelar',
+    'lgpd_aceitar',
+    'lgpd_recusar',
+    'onboarding_reiniciar',
+    'utfpr_sim',
+    'utfpr_nao',
+    'area_interesse',
+    'confirmar_dados',
+    'corrigir_dados',
+    'campo_corrigir',
+  ];
+
+  if (!onboardingIds.includes(customId)) return false;
+
+  // Se já há um coletor ativo ouvindo este usuário, deixa o awaitMessageComponent tratar
+  if (coletoresAtivos.has(user.id)) {
+    return false;
+  }
+
+  // Não há coletor ativo (tempo expirou ou bot reiniciou)
+  try {
+    if (customId === 'voluntariado_prosseguir') {
+      await interaction.update({
+        content: '👍 **Informações compreendidas!** A seguir, leia o Termo de Ciência da LGPD para confirmar seu aceite e iniciar o cadastro:',
+        embeds: [],
+        components: [],
+      });
+
+      const member = await buscarMembroGuild(interaction.client, user.id);
+      if (!member) {
+        await interaction.followUp({
+          content: '⚠️ Não foi possível localizar seu usuário no servidor da CyberGuard. Por favor, entre em contato com o RH.',
+          ephemeral: true,
         });
-        const regExistente = await db.getMembro(user.id);
-        if (regExistente && (regExistente.nome || regExistente.cpf)) {
-          await db.atualizarStatus(user.id, 'abandonado', { saida_processada: true });
-        } else {
-          await db.removerMembro(user.id);
-        }
-      } catch (errArquivo) {
-        console.error('Erro ao arquivar abandono por timeout de', user.id, errArquivo);
+        return true;
       }
 
-      try {
-        const dm = await user.createDM();
-        await dm.send(
-          'Tempo esgotado para responder. Se quiser tentar novamente, saia e entre no servidor novamente, ' +
-            'ou fale com o RH diretamente.'
-        );
-      } catch (errDm) {
-        console.error('Não consegui avisar por DM sobre o timeout de', user.id, errDm);
-      }
-    } else {
-      console.error('Erro no onboarding de', user.id, err);
+      prosseguirAposVoluntariado(member).catch((err) =>
+        console.error('[onboarding] Erro ao prosseguir após voluntariado:', err)
+      );
+      return true;
     }
+
+    if (customId === 'voluntariado_cancelar') {
+      await interaction.update({
+        content:
+          '❌ **Onboarding cancelado.** Se tiver qualquer dúvida sobre o projeto ou a privacidade dos seus dados, entre em contato com a equipe de RH (Renan ou Conrado) no servidor!',
+        embeds: [],
+        components: [],
+      });
+      await encerrarOnboardingCancelado(user.id);
+      return true;
+    }
+
+    if (customId === 'lgpd_aceitar') {
+      await interaction.update({
+        content: '✅ **Termo de Ciência e Privacidade aceito!** Vamos iniciar o preenchimento dos seus dados cadastrais para o Termo de Adesão.',
+        embeds: [],
+        components: [],
+      });
+      await db.registrarAceiteTermoCiencia(user.id);
+
+      const member = await buscarMembroGuild(interaction.client, user.id);
+      if (!member) return true;
+
+      prosseguirAposTermoCiencia(member).catch((err) =>
+        console.error('[onboarding] Erro ao prosseguir após aceite de LGPD:', err)
+      );
+      return true;
+    }
+
+    if (customId === 'lgpd_recusar') {
+      await interaction.update({
+        content:
+          '❌ **Termo de Ciência recusado.** Como os dados solicitados são estritamente necessários para a emissão do Termo de Adesão ao Serviço Voluntário e registros acadêmicos na UTFPR, o cadastro não pôde ser prosseguido. Caso mude de ideia, entre em contato com o RH (Renan ou Conrado).',
+        embeds: [],
+        components: [],
+      });
+      await encerrarOnboardingCancelado(user.id);
+      return true;
+    }
+
+    if (customId === 'onboarding_reiniciar') {
+      await interaction.update({
+        content: '🔄 **Reiniciando seu cadastro...**',
+        components: [],
+      });
+      const member = await buscarMembroGuild(interaction.client, user.id);
+      if (!member) return true;
+      sessoesAtivas.delete(user.id);
+      iniciarOnboarding(member).catch((err) =>
+        console.error('[onboarding] Erro ao reiniciar onboarding:', err)
+      );
+      return true;
+    }
+
+    // Botões de perguntas anteriores clicados fora de hora
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('onboarding_reiniciar')
+        .setLabel('🔄 Reiniciar / Continuar Cadastro')
+        .setStyle(ButtonStyle.Primary)
+    );
+    await interaction.reply({
+      content: '⏳ Essa pergunta expirou ou o bot foi reiniciado. Clique no botão abaixo para reiniciar o preenchimento dos seus dados:',
+      components: [row],
+      ephemeral: true,
+    });
+    return true;
+  } catch (errInteracao) {
+    console.error('[onboarding] Erro ao tratar interação órfã:', errInteracao);
+    return true;
   }
 }
 
@@ -569,4 +807,8 @@ async function enviarParaAprovacaoRH(guild, discordId, dados) {
   await canalRh.send({ embeds: [embed], components: [row] });
 }
 
-module.exports = { iniciarOnboarding, TERMO_CIENCIA_TEXTO };
+module.exports = {
+  iniciarOnboarding,
+  handleOnboardingInteraction,
+  TERMO_CIENCIA_TEXTO,
+};

@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
 const config = require('./config');
 const db = require('./db');
-const { iniciarOnboarding } = require('./onboarding');
+const { iniciarOnboarding, handleOnboardingInteraction } = require('./onboarding');
 const { handleAprovacaoInteraction } = require('./approval');
 const { handleMensagemDM, handleRevisaoTermoInteraction } = require('./recepcaoTermo');
 const { iniciarLembretes, handleResolverLembrete } = require('./reminders');
@@ -162,6 +162,7 @@ client.on('interactionCreate', async (interaction) => {
     if (await handleAdvertenciaInteraction(interaction)) return;
     if (await handleResolverLembrete(interaction)) return;
     if (await handleRevisaoTermoInteraction(interaction)) return;
+    if (await handleOnboardingInteraction(interaction)) return;
     await handleAprovacaoInteraction(interaction);
   } catch (err) {
     console.error('Erro na interação do bot:', err);
