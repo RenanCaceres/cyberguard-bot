@@ -44,6 +44,8 @@ async function init() {
     ALTER TABLE pontos ADD COLUMN IF NOT EXISTS ajustado_por        TEXT;
     ALTER TABLE pontos ADD COLUMN IF NOT EXISTS ajustado_em         TIMESTAMPTZ;
     ALTER TABLE pontos ADD COLUMN IF NOT EXISTS fechado_em_original TIMESTAMPTZ;
+    ALTER TABLE pontos ADD COLUMN IF NOT EXISTS aberto_em_original  TIMESTAMPTZ;
+    ALTER TABLE pontos ADD COLUMN IF NOT EXISTS tarefa_titulo_original TEXT;
     ALTER TABLE pontos ADD COLUMN IF NOT EXISTS ajuste_motivo       TEXT;
     ALTER TABLE pontos ADD COLUMN IF NOT EXISTS sheet_ok            BOOLEAN;
     ALTER TABLE pontos ADD COLUMN IF NOT EXISTS kov_msg_id          TEXT; -- origem 'kov': id da mensagem do log
@@ -324,12 +326,48 @@ async function ultimosPontos(discordId, limite = 25) {
   return rows;
 }
 
-// Ajuste de fechamento feito pelo RH. `local` = 'YYYY-MM-DD HH:MM' no fuso de São Paulo.
+// Ajuste completo de ponto feito pelo RH (abertura, fechamento e tarefa).
+// `localAbertura` e `localFechamento` = 'YYYY-MM-DD HH:MM' no fuso de São Paulo.
+// Regras: fechamento depois da abertura, ambos no passado (com tolerância de 1min) e até 24h de duração.
+async function ajustarPonto(id, { localAbertura, localFechamento, tarefaTitulo }, porDiscordId, motivo) {
+  const { rows } = await q(
+    `WITH antigo AS (
+       SELECT id, aberto_em, fechado_em, tarefa_titulo FROM pontos
+        WHERE id = $1 AND fechado_em IS NOT NULL AND origem <> 'importado' FOR UPDATE
+     )
+     UPDATE pontos p
+        SET aberto_em_original     = COALESCE(p.aberto_em_original, a.aberto_em),
+            fechado_em_original    = COALESCE(p.fechado_em_original, a.fechado_em),
+            tarefa_titulo_original = COALESCE(p.tarefa_titulo_original, a.tarefa_titulo),
+            aberto_em     = ($2::timestamp AT TIME ZONE $6::text),
+            fechado_em    = ($3::timestamp AT TIME ZONE $6::text),
+            tarefa_titulo = $4::text,
+            tarefa_id     = CASE WHEN p.tarefa_id = $7 THEN 'ajustado' ELSE p.tarefa_id END,
+            ajustado_por  = $5,
+            ajustado_em   = now(),
+            ajuste_motivo = $8::text,
+            auto_fechado  = false
+       FROM antigo a
+      WHERE p.id = a.id
+        AND ($3::timestamp AT TIME ZONE $6::text) > ($2::timestamp AT TIME ZONE $6::text)
+        AND ($3::timestamp AT TIME ZONE $6::text) <= now() + interval '1 minute'
+        AND ($2::timestamp AT TIME ZONE $6::text) <= now() + interval '1 minute'
+        AND ($3::timestamp AT TIME ZONE $6::text) <= ($2::timestamp AT TIME ZONE $6::text) + interval '24 hours'
+    RETURNING p.*,
+              a.aberto_em AS aberto_em_antes,
+              a.fechado_em AS fechado_em_antes,
+              a.tarefa_titulo AS tarefa_titulo_antes`,
+    [id, localAbertura, localFechamento, tarefaTitulo, porDiscordId, TZ, PENDENTE, motivo || null],
+  );
+  return rows[0] ?? null;
+}
+
+// Ajuste apenas de fechamento feito pelo RH (compatibilidade).
 // Regras: depois da abertura, no passado e até 24h depois de aberto. Retorna null se violar.
 async function ajustarFechamento(id, local, porDiscordId, motivo) {
   const { rows } = await q(
     `WITH antigo AS (
-       SELECT id, fechado_em FROM pontos
+       SELECT id, aberto_em, fechado_em, tarefa_titulo FROM pontos
         WHERE id = $1 AND fechado_em IS NOT NULL AND origem <> 'importado' FOR UPDATE
      )
      UPDATE pontos p
@@ -340,9 +378,12 @@ async function ajustarFechamento(id, local, porDiscordId, motivo) {
        FROM antigo a
       WHERE p.id = a.id
         AND ($2::timestamp AT TIME ZONE $4::text) >  p.aberto_em
-        AND ($2::timestamp AT TIME ZONE $4::text) <= now()
+        AND ($2::timestamp AT TIME ZONE $4::text) <= now() + interval '1 minute'
         AND ($2::timestamp AT TIME ZONE $4::text) <= p.aberto_em + interval '24 hours'
-    RETURNING p.*, a.fechado_em AS fechado_em_antes`,
+    RETURNING p.*,
+              a.aberto_em AS aberto_em_antes,
+              a.fechado_em AS fechado_em_antes,
+              a.tarefa_titulo AS tarefa_titulo_antes`,
     [id, local, porDiscordId, TZ, motivo || null],
   );
   return rows[0] ?? null;
@@ -524,7 +565,7 @@ module.exports = {
   PENDENTE, init, getAberto, getPorId, abrir, definirTarefa, fechar, fecharPorSaida,
   getPendenteReporte, registrarReporte, reportesPendentesAntigos, marcarLembrete,
   marcarNotion, marcarPlanilha, salvarAnexos, listarAbertos, resumoPorAluno, resumoPorAlunoSomenteBot, totalAluno, historicoAluno,
-  ultimosPontos, ajustarFechamento, importarSaldo, ranking, autoFecharExpirados,
+  ultimosPontos, ajustarPonto, ajustarFechamento, importarSaldo, ranking, autoFecharExpirados,
   semanaAtual, periodoSemana, getMeta, setMeta,
   importarKov, kovJaImportado, kovPendentesPlanilha,
   pontosParaVerificarInatividade, incrementarAvisoInatividade, confirmarAtividade, encerrarPorInatividade, fecharPorCheckNao,

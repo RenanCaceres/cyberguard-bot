@@ -1348,7 +1348,7 @@ async function ajustarUsuarioSelecionado(interaction) {
       })),
     );
   await interaction.update({
-    content: `Pontos de <@${alvoId}> (últimos ${pontos.length}). Selecione a data/ponto para ajustar o horário:\n*⚠️auto = fechado automaticamente · ✏️ = já ajustado.*`,
+    content: `Pontos de <@${alvoId}> (últimos ${pontos.length}). Selecione a data/ponto para ajustar:\n*⚠️auto = fechado automaticamente · ✏️ = já ajustado.*`,
     components: [new ActionRowBuilder().addComponents(select)],
   });
 }
@@ -1378,57 +1378,154 @@ async function ajustarComando(interaction) {
       })),
     );
   await interaction.reply({
-    content: `Pontos de <@${alvo.id}> (últimos ${pontos.length}). ⚠️auto = fechado automaticamente · ✏️ = já ajustado.`,
+    content: `Pontos de <@${alvo.id}> (últimos ${pontos.length}). Selecione a data/ponto para ajustar:\n*⚠️auto = fechado automaticamente · ✏️ = já ajustado.*`,
     components: [new ActionRowBuilder().addComponents(select)],
     flags: EPH,
   });
   return expirar(interaction, 300_000);
 }
 
+function parseDataHoraBrasilia(str) {
+  if (!str) return null;
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{1,2})$/.exec(str.trim());
+  if (!m) return null;
+  const d = parseInt(m[1], 10);
+  const mo = parseInt(m[2], 10);
+  const y = parseInt(m[3], 10);
+  const h = parseInt(m[4], 10);
+  const mi = parseInt(m[5], 10);
+
+  if (mo < 1 || mo > 12) return null;
+  if (d < 1 || d > 31) return null;
+  if (h < 0 || h > 23) return null;
+  if (mi < 0 || mi > 59) return null;
+
+  const check = new Date(y, mo - 1, d);
+  if (check.getFullYear() !== y || check.getMonth() !== mo - 1 || check.getDate() !== d) {
+    return null;
+  }
+
+  const localIso = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')} ${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`;
+  const isoBrasilia = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}T${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}:00-03:00`;
+  const dt = new Date(isoBrasilia);
+  return { localIso, dt };
+}
+
 async function ajustarSelecionar(interaction) {
   const p = await pdb.getPorId(Number(interaction.values[0]));
   if (!p || !p.fechado_em) {
-    return interaction.update({ content: 'Ponto não encontrado.', components: [] });
+    return interaction.update({ content: 'Ponto não encontrado ou ainda está aberto.', components: [] });
   }
   const campo = (id, label, estilo, obrigatorio, placeholder, max, valor) => {
-    const t = new TextInputBuilder().setCustomId(id).setLabel(label).setStyle(estilo).setRequired(obrigatorio).setPlaceholder(placeholder).setMaxLength(max);
+    const t = new TextInputBuilder()
+      .setCustomId(id)
+      .setLabel(label)
+      .setStyle(estilo)
+      .setRequired(obrigatorio)
+      .setMaxLength(max);
+    if (placeholder) t.setPlaceholder(placeholder);
     if (valor) t.setValue(valor);
     return new ActionRowBuilder().addComponents(t);
   };
   return interaction.showModal(
     new ModalBuilder()
       .setCustomId(`ponto:adj_modal:${p.id}`)
-      .setTitle('Ajustar fechamento')
+      .setTitle('Ajustar ponto')
       .addComponents(
-        campo('novo', 'Novo fechamento (dd/mm/aaaa hh:mm)', TextInputStyle.Short, true, '06/10/2026 18:30', 16, fmtDataHora(p.fechado_em)),
-        campo('motivo', 'Motivo do ajuste', TextInputStyle.Paragraph, false, 'Ex.: esqueceu de fechar o ponto', 300),
+        campo('abertura', 'Abertura (dd/mm/aaaa hh:mm)', TextInputStyle.Short, true, '04/11/2026 14:00', 19, fmtDataHora(p.aberto_em)),
+        campo('fechamento', 'Fechamento (dd/mm/aaaa hh:mm)', TextInputStyle.Short, true, '04/11/2026 18:30', 19, fmtDataHora(p.fechado_em)),
+        campo('tarefa', 'Tarefa', TextInputStyle.Short, true, 'Ex.: Desenvolvimento do Bot', 250, (p.tarefa_titulo || '').slice(0, 250)),
+        campo('motivo', 'Motivo do ajuste', TextInputStyle.Paragraph, false, 'Ex.: esqueceu de bater o ponto', 300),
       ),
   );
 }
 
 async function ajustarModal(interaction, pontoId) {
-  const bruto = interaction.fields.getTextInputValue('novo').trim();
-  const motivo = interaction.fields.getTextInputValue('motivo').trim();
-  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})$/.exec(bruto);
   const recusar = async (msg) => {
     await interaction.reply({ content: `⚠️ ${msg}`, flags: EPH });
     return expirar(interaction, 15_000);
   };
-  if (!m) return recusar('Formato inválido. Use dd/mm/aaaa hh:mm (horário de Brasília).');
-  const local = `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')} ${m[4].padStart(2, '0')}:${m[5]}`;
+
+  const pAtual = await pdb.getPorId(pontoId);
+  if (!pAtual) return recusar('Ponto não encontrado.');
+
+  const aberturaBruto = (
+    interaction.fields.fields.has('abertura')
+      ? interaction.fields.getTextInputValue('abertura')
+      : fmtDataHora(pAtual.aberto_em)
+  ).trim();
+  const fechamentoBruto = (
+    interaction.fields.fields.has('fechamento')
+      ? interaction.fields.getTextInputValue('fechamento')
+      : (interaction.fields.fields.has('novo') ? interaction.fields.getTextInputValue('novo') : fmtDataHora(pAtual.fechado_em))
+  ).trim();
+  const tarefaBruto = (
+    interaction.fields.fields.has('tarefa')
+      ? interaction.fields.getTextInputValue('tarefa')
+      : pAtual.tarefa_titulo
+  ).trim();
+  const motivo = (interaction.fields.fields.has('motivo') ? interaction.fields.getTextInputValue('motivo') : '').trim();
+
+  if (!tarefaBruto) {
+    return recusar('A tarefa não pode ficar vazia.');
+  }
+
+  const parsedAbertura = parseDataHoraBrasilia(aberturaBruto);
+  if (!parsedAbertura) {
+    return recusar('Formato de abertura inválido ou data inexistente. Use dd/mm/aaaa hh:mm (horário de Brasília).');
+  }
+
+  const parsedFechamento = parseDataHoraBrasilia(fechamentoBruto);
+  if (!parsedFechamento) {
+    return recusar('Formato de fechamento inválido ou data inexistente. Use dd/mm/aaaa hh:mm (horário de Brasília).');
+  }
+
+  const agoraTimestamp = Date.now() + 60_000;
+  if (parsedAbertura.dt.getTime() > agoraTimestamp) {
+    return recusar('O horário de abertura não pode ser no futuro.');
+  }
+  if (parsedFechamento.dt.getTime() > agoraTimestamp) {
+    return recusar('O horário de fechamento não pode ser no futuro.');
+  }
+  if (parsedFechamento.dt.getTime() <= parsedAbertura.dt.getTime()) {
+    return recusar('O novo fechamento precisa ser estritamente posterior ao horário de abertura.');
+  }
+  const duracaoSeg = (parsedFechamento.dt.getTime() - parsedAbertura.dt.getTime()) / 1000;
+  if (duracaoSeg > 24 * 3600) {
+    return recusar('A duração do ponto não pode exceder 24 horas.');
+  }
 
   let row;
   try {
-    row = await pdb.ajustarFechamento(pontoId, local, interaction.user.id, motivo);
+    row = await pdb.ajustarPonto(
+      pontoId,
+      {
+        localAbertura: parsedAbertura.localIso,
+        localFechamento: parsedFechamento.localIso,
+        tarefaTitulo: tarefaBruto,
+      },
+      interaction.user.id,
+      motivo,
+    );
   } catch (e) {
     if (['22007', '22008', '22P02'].includes(e.code)) return recusar('Data ou hora inexistente.');
     throw e;
   }
   if (!row) {
-    return recusar('Não foi possível: o novo fechamento precisa ser **depois da abertura**, **no passado** e **até 24h** depois de aberto.');
+    return recusar('Não foi possível ajustar: verifique se o fechamento é posterior à abertura, se ambos estão no passado e se a duração é de até 24h.');
   }
+
   await interaction.deferUpdate();
   await sincronizarPlanilha(row);
+
+  const mudouAbertura = row.aberto_em_antes && new Date(row.aberto_em_antes).getTime() !== new Date(row.aberto_em).getTime();
+  const mudouFechamento = row.fechado_em_antes && new Date(row.fechado_em_antes).getTime() !== new Date(row.fechado_em).getTime();
+  const mudouTarefa = row.tarefa_titulo_antes && row.tarefa_titulo_antes !== row.tarefa_titulo;
+
+  const durAnterior = row.fechado_em_antes && row.aberto_em_antes
+    ? (new Date(row.fechado_em_antes) - new Date(row.aberto_em_antes)) / 1000
+    : segDe(row);
+
   await logar(
     interaction.client,
     new EmbedBuilder()
@@ -1436,30 +1533,63 @@ async function ajustarModal(interaction, pontoId) {
       .setTitle('✏️ Ponto ajustado pelo RH')
       .addFields(
         { name: 'Membro', value: `<@${row.discord_id}> (${row.nome})`, inline: true },
-        { name: 'Tarefa', value: trunc(row.tarefa_titulo, 256), inline: true },
         { name: 'Ajustado por', value: `<@${interaction.user.id}>`, inline: true },
-        { name: 'Fechamento', value: `${fmtDataHora(row.fechado_em_antes)} → **${fmtDataHora(row.fechado_em)}**`, inline: true },
-        { name: 'Duração', value: `${fmtDur((new Date(row.fechado_em_antes) - new Date(row.aberto_em)) / 1000)} → **${fmtDur(segDe(row))}**`, inline: true },
+        {
+          name: 'Tarefa',
+          value: mudouTarefa
+            ? `${trunc(row.tarefa_titulo_antes, 120)} → **${trunc(row.tarefa_titulo, 120)}**`
+            : trunc(row.tarefa_titulo, 256),
+          inline: false,
+        },
+        {
+          name: 'Abertura',
+          value: mudouAbertura
+            ? `${fmtDataHora(row.aberto_em_antes)} → **${fmtDataHora(row.aberto_em)}**`
+            : fmtDataHora(row.aberto_em),
+          inline: true,
+        },
+        {
+          name: 'Fechamento',
+          value: mudouFechamento
+            ? `${fmtDataHora(row.fechado_em_antes)} → **${fmtDataHora(row.fechado_em)}**`
+            : fmtDataHora(row.fechado_em),
+          inline: true,
+        },
+        {
+          name: 'Duração',
+          value: `${fmtDur(durAnterior)} → **${fmtDur(segDe(row))}**`,
+          inline: true,
+        },
         { name: 'Motivo', value: trunc(motivo || '—', 1024) },
       ),
   );
 
   // Notifica o membro por DM sobre o ajuste efetuado pelo RH
-  await enviarDM(
-    interaction.client,
-    row.discord_id,
+  let msgDM =
     `✏️ **Seu ponto foi ajustado pelo RH.**\n` +
-    `• **Data de abertura:** ${fmtDataHora(row.aberto_em)}\n` +
-    `• **Horário anterior:** ${fmtDataHora(row.fechado_em_antes)}\n` +
-    `• **Novo fechamento:** ${fmtDataHora(row.fechado_em)}\n` +
+    (mudouAbertura
+      ? `• **Abertura:** ${fmtDataHora(row.aberto_em_antes)} → **${fmtDataHora(row.aberto_em)}**\n`
+      : `• **Data de abertura:** ${fmtDataHora(row.aberto_em)}\n`) +
+    (mudouFechamento
+      ? `• **Fechamento:** ${fmtDataHora(row.fechado_em_antes)} → **${fmtDataHora(row.fechado_em)}**\n`
+      : `• **Fechamento:** ${fmtDataHora(row.fechado_em)}\n`) +
+    (mudouTarefa
+      ? `• **Tarefa:** ${row.tarefa_titulo_antes} → **${row.tarefa_titulo}**\n`
+      : `• **Tarefa:** ${row.tarefa_titulo}\n`) +
     `• **Nova duração:** **${fmtDur(segDe(row))}**\n` +
-    `• **Tarefa:** ${row.tarefa_titulo}\n` +
     (motivo ? `• **Motivo do ajuste:** ${motivo}\n` : '') +
-    `*Esse ajuste foi registrado no histórico do seu ponto e atualizado na planilha.*`
-  );
+    `*Esse ajuste foi registrado no histórico do seu ponto e atualizado na planilha.*`;
+
+  await enviarDM(interaction.client, row.discord_id, msgDM);
 
   return interaction.editReply({
-    content: `✅ Ponto ajustado: fechamento em **${fmtDataHora(row.fechado_em)}** (duração ${fmtDur(segDe(row))}). Notificação enviada por DM ao membro.`,
+    content:
+      `✅ **Ponto ajustado com sucesso!**\n` +
+      `• **Abertura:** ${fmtDataHora(row.aberto_em)}\n` +
+      `• **Fechamento:** ${fmtDataHora(row.fechado_em)}\n` +
+      `• **Tarefa:** ${row.tarefa_titulo}\n` +
+      `• **Duração:** ${fmtDur(segDe(row))}\n` +
+      `Notificação enviada por DM ao membro.`,
     components: [],
   });
 }

@@ -5,7 +5,7 @@ const { SlashCommandBuilder } = require('discord.js');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('ajustar-ponto')
-    .setDescription('RH: ajusta o horário de fechamento de um ponto de um membro')
+    .setDescription('RH: ajusta abertura, fechamento e tarefa de um ponto de um membro')
     .addUserOption((o) => o.setName('membro').setDescription('Membro cujo ponto será ajustado').setRequired(true)),
   async execute(interaction) {
     await require('../../src/ponto').handlePontoInteraction(interaction);
