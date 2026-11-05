@@ -25,7 +25,8 @@ async function encaminharTermoAssinado(membro, caminhoArquivo, nomeArquivoOrigin
     subject: `Termo de voluntariado assinado - ${membro.nome}`,
     text:
       `Segue em anexo o termo de voluntariado assinado por ${membro.nome} (RA: ${membro.ra}).\n\n` +
-      `Discord: ${membro.discord_id}\nCurso: ${membro.curso}\nE-mail: ${membro.email}`,
+      `Discord: ${membro.discord_id}\nCurso: ${membro.curso}\nE-mail: ${membro.email}` +
+      (membro.email_notion && membro.email_notion !== membro.email ? `\nE-mail Notion: ${membro.email_notion}` : ''),
     attachments: [
       {
         filename: nomeArquivoOriginal || 'termo_assinado.pdf',
