@@ -334,10 +334,225 @@ function calcularPeriodo6Meses(dataReferencia = new Date()) {
   };
 }
 
+/**
+ * Injeta dinamicamente as 5 atividades do setor e o cronograma semestral no XML do DOCX (word/document.xml).
+ */
+function aplicarAtividadesECronogramaNoXml(xmlOriginal, setorRaw, ehLider = false, dataReferencia = new Date(), atividadesCustom = null) {
+  const { DOMParser, XMLSerializer } = require('@xmldom/xmldom');
+  const { setorNome, papelLabel, atividades: ativPadrao, cronograma } = obterAtividadesECronograma(setorRaw, ehLider);
+  const atividades = (Array.isArray(atividadesCustom) && atividadesCustom.length === 5)
+    ? atividadesCustom
+    : ativPadrao;
+  const { inicioStr, fimStr } = calcularPeriodo6Meses(dataReferencia);
+
+  const doc = new DOMParser().parseFromString(xmlOriginal, 'text/xml');
+  const wNs = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+
+  // 1. Heading da seção de síntese
+  const paragraphs = Array.from(doc.getElementsByTagName('w:p'));
+  for (const p of paragraphs) {
+    if (p.textContent.includes('Síntese das atividades a serem desenvolvidas')) {
+      const texts = Array.from(p.getElementsByTagName('w:t'));
+      if (texts.length > 0) {
+        texts[0].textContent = `Síntese das atividades a serem desenvolvidas pelo(a) voluntário(a) — ${setorNome} (${papelLabel})`;
+        for (let i = 1; i < texts.length; i++) texts[i].textContent = '';
+      }
+      break;
+    }
+  }
+
+  // 2. Localização das tabelas de atividades e cronograma
+  const tables = Array.from(doc.getElementsByTagName('w:tbl'));
+  let tbl5 = null;
+  let tbl6 = null;
+  let tbl7 = null;
+
+  for (const tbl of tables) {
+    const txt = tbl.textContent;
+    if (txt.includes('Planejamento Estratégico') || txt.includes('1 - ')) tbl5 = tbl;
+    if (txt.includes('Consolidação de Relatórios') || txt.includes('social; além') || txt.includes('4 - ') || txt.includes('5 - ')) tbl6 = tbl;
+    if (txt.includes('PERÍODO') && txt.includes('ATIVIDADES')) tbl7 = tbl;
+  }
+
+  function formatarCelulaAtividade(tr, texto) {
+    const tc = tr.getElementsByTagName('w:tc')[0];
+    if (!tc) return;
+    const tcPr = tc.getElementsByTagName('w:tcPr')[0];
+    while (tc.firstChild) tc.removeChild(tc.firstChild);
+    if (tcPr) tc.appendChild(tcPr);
+
+    const p = doc.createElementNS(wNs, 'w:p');
+    const pPr = doc.createElementNS(wNs, 'w:pPr');
+    const pStyle = doc.createElementNS(wNs, 'w:pStyle');
+    pStyle.setAttribute('w:val', 'TableParagraph');
+    pPr.appendChild(pStyle);
+
+    const spacing = doc.createElementNS(wNs, 'w:spacing');
+    spacing.setAttribute('w:lineRule', 'exact');
+    spacing.setAttribute('w:line', '230');
+    spacing.setAttribute('w:before', '2');
+    spacing.setAttribute('w:after', '2');
+    pPr.appendChild(spacing);
+
+    const ind = doc.createElementNS(wNs, 'w:ind');
+    ind.setAttribute('w:left', '105');
+    ind.setAttribute('w:right', '150');
+    pPr.appendChild(ind);
+    p.appendChild(pPr);
+
+    if (texto.includes(':')) {
+      const idx = texto.indexOf(':');
+      const titulo = texto.slice(0, idx + 1);
+      const desc = texto.slice(idx + 1);
+
+      // Título numerado em negrito
+      const r1 = doc.createElementNS(wNs, 'w:r');
+      const rPr1 = doc.createElementNS(wNs, 'w:rPr');
+      rPr1.appendChild(doc.createElementNS(wNs, 'w:b'));
+      const sz1 = doc.createElementNS(wNs, 'w:sz');
+      sz1.setAttribute('w:val', '20');
+      rPr1.appendChild(sz1);
+      r1.appendChild(rPr1);
+      const t1 = doc.createElementNS(wNs, 'w:t');
+      t1.textContent = titulo;
+      r1.appendChild(t1);
+      p.appendChild(r1);
+
+      // Descrição em fonte regular
+      const r2 = doc.createElementNS(wNs, 'w:r');
+      const rPr2 = doc.createElementNS(wNs, 'w:rPr');
+      const sz2 = doc.createElementNS(wNs, 'w:sz');
+      sz2.setAttribute('w:val', '20');
+      rPr2.appendChild(sz2);
+      r2.appendChild(rPr2);
+      const t2 = doc.createElementNS(wNs, 'w:t');
+      t2.setAttribute('xml:space', 'preserve');
+      t2.textContent = desc;
+      r2.appendChild(t2);
+      p.appendChild(r2);
+    } else {
+      const r = doc.createElementNS(wNs, 'w:r');
+      const rPr = doc.createElementNS(wNs, 'w:rPr');
+      const sz = doc.createElementNS(wNs, 'w:sz');
+      sz.setAttribute('w:val', '20');
+      rPr.appendChild(sz);
+      r.appendChild(rPr);
+      const t = doc.createElementNS(wNs, 'w:t');
+      t.textContent = texto;
+      r.appendChild(t);
+      p.appendChild(r);
+    }
+
+    tc.appendChild(p);
+  }
+
+  // 3. Popula atividades 1, 2 e 3 na tabela da página 1 (tbl5)
+  if (tbl5) {
+    const trs = Array.from(tbl5.getElementsByTagName('w:tr'));
+    if (trs.length > 3) {
+      for (let i = 3; i < trs.length; i++) tbl5.removeChild(trs[i]);
+    }
+    if (trs[0]) formatarCelulaAtividade(trs[0], atividades[0]);
+    if (trs[1]) formatarCelulaAtividade(trs[1], atividades[1]);
+    if (trs[2]) formatarCelulaAtividade(trs[2], atividades[2]);
+  }
+
+  // 4. Popula atividades 4 e 5 na tabela da página 2 (tbl6)
+  if (tbl6) {
+    const trs = Array.from(tbl6.getElementsByTagName('w:tr'));
+    if (trs[0]) formatarCelulaAtividade(trs[0], atividades[3]);
+    if (trs[1]) formatarCelulaAtividade(trs[1], atividades[4]);
+  }
+
+  // 5. Atualiza o cronograma semestral (tbl7)
+  if (tbl7) {
+    const trs = Array.from(tbl7.getElementsByTagName('w:tr'));
+    // Linha 0: INÍCIO (MM/AAAA) e FIM (MM/AAAA)
+    if (trs[0]) {
+      const cells = Array.from(trs[0].getElementsByTagName('w:tc'));
+      if (cells[2]) {
+        const t = cells[2].getElementsByTagName('w:t')[0];
+        if (t) t.textContent = inicioStr;
+      }
+      if (cells[4]) {
+        const t = cells[4].getElementsByTagName('w:t')[0];
+        if (t) t.textContent = fimStr;
+      }
+    }
+
+    // Linha 2: Números dos meses 1 a 12
+    if (trs[2]) {
+      const cells = Array.from(trs[2].getElementsByTagName('w:tc'));
+      for (let m = 1; m <= 12; m++) {
+        const tc = cells[m];
+        if (!tc) continue;
+        let p = tc.getElementsByTagName('w:p')[0];
+        if (!p) {
+          p = doc.createElementNS(wNs, 'w:p');
+          tc.appendChild(p);
+        }
+        let r = p.getElementsByTagName('w:r')[0];
+        if (!r) {
+          r = doc.createElementNS(wNs, 'w:r');
+          const rPr = doc.createElementNS(wNs, 'w:rPr');
+          const sz = doc.createElementNS(wNs, 'w:sz');
+          sz.setAttribute('w:val', '16');
+          rPr.appendChild(sz);
+          r.appendChild(rPr);
+          p.appendChild(r);
+        }
+        let t = r.getElementsByTagName('w:t')[0];
+        if (!t) {
+          t = doc.createElementNS(wNs, 'w:t');
+          r.appendChild(t);
+        }
+        t.textContent = String(m);
+      }
+    }
+
+    // Linhas 3 a 7: Atividades 1 a 5 com 'x' nos meses vigentes (1 a 6)
+    for (let ativIdx = 0; ativIdx < 5; ativIdx++) {
+      const tr = trs[3 + ativIdx];
+      if (!tr) continue;
+      const cells = Array.from(tr.getElementsByTagName('w:tc'));
+      const mesesAtivos = cronograma[ativIdx] || [];
+
+      for (let m = 1; m <= 12; m++) {
+        const tc = cells[m];
+        if (!tc) continue;
+        let p = tc.getElementsByTagName('w:p')[0];
+        if (!p) {
+          p = doc.createElementNS(wNs, 'w:p');
+          tc.appendChild(p);
+        }
+        // Limpa runs existentes
+        const runs = Array.from(p.getElementsByTagName('w:r'));
+        for (const r of runs) p.removeChild(r);
+
+        if (mesesAtivos.includes(m)) {
+          const r = doc.createElementNS(wNs, 'w:r');
+          const rPr = doc.createElementNS(wNs, 'w:rPr');
+          const sz = doc.createElementNS(wNs, 'w:sz');
+          sz.setAttribute('w:val', '18');
+          rPr.appendChild(sz);
+          r.appendChild(rPr);
+          const t = doc.createElementNS(wNs, 'w:t');
+          t.textContent = 'x';
+          r.appendChild(t);
+          p.appendChild(r);
+        }
+      }
+    }
+  }
+
+  return new XMLSerializer().serializeToString(doc);
+}
+
 module.exports = {
   SETORES_PADRAO,
   ATIVIDADES_POR_SETOR,
   normalizarNomeSetor,
   obterAtividadesECronograma,
   calcularPeriodo6Meses,
+  aplicarAtividadesECronogramaNoXml,
 };

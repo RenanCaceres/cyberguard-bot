@@ -70,6 +70,10 @@ async function initSchema() {
     'termo_arquivo_path TEXT',
     'data_inicio TEXT',
     'termo_ciencia_aceito_em TIMESTAMPTZ',
+    'data_assinatura_termo TIMESTAMPTZ',
+    'data_fim_termo TIMESTAMPTZ',
+    'alerta_renovacao_enviado_em TIMESTAMPTZ',
+    'atividades_customizadas JSONB',
   ];
 
   for (const coluna of colunas) {
@@ -961,6 +965,64 @@ async function listarAvisosEventosParaMembro(discordId, setoresDoMembro = [], li
   return rows;
 }
 
+// --- Funções de Renovação Semestral de Termo (6 Meses) ---
+
+async function registrarAssinaturaTermo(discordId, dataAssinatura = new Date(), caminhoArquivo = null) {
+  const dAssinatura = dataAssinatura instanceof Date && !isNaN(dataAssinatura.getTime())
+    ? new Date(dataAssinatura)
+    : new Date();
+
+  const dFim = new Date(dAssinatura);
+  dFim.setMonth(dFim.getMonth() + 6);
+
+  const dia = String(dAssinatura.getDate()).padStart(2, '0');
+  const mes = String(dAssinatura.getMonth() + 1).padStart(2, '0');
+  const ano = dAssinatura.getFullYear();
+  const dataInicioStr = `${dia}/${mes}/${ano}`;
+
+  await pool.query(
+    `UPDATE membros
+     SET data_assinatura_termo = $1,
+         data_fim_termo = $2,
+         data_inicio = COALESCE(data_inicio, $3),
+         termo_arquivo_path = COALESCE($4, termo_arquivo_path),
+         alerta_renovacao_enviado_em = NULL,
+         status = 'concluido'
+     WHERE discord_id = $5`,
+    [dAssinatura, dFim, dataInicioStr, caminhoArquivo, String(discordId)]
+  );
+}
+
+async function listarMembrosParaRenovacaoTermo() {
+  const { rows } = await pool.query(
+    `SELECT * FROM membros
+     WHERE status = 'concluido'
+       AND saida_processada = false
+       AND (
+         (data_fim_termo IS NOT NULL AND data_fim_termo <= NOW())
+         OR (data_fim_termo IS NULL AND data_assinatura_termo IS NOT NULL AND data_assinatura_termo <= NOW() - INTERVAL '6 months')
+         OR (data_fim_termo IS NULL AND data_aprovacao IS NOT NULL AND data_aprovacao <= NOW() - INTERVAL '6 months')
+       )
+       AND (alerta_renovacao_enviado_em IS NULL OR alerta_renovacao_enviado_em <= NOW() - INTERVAL '30 days')
+     ORDER BY data_fim_termo ASC NULLS FIRST`
+  );
+  return rows.map((r) => descriptografarMembro(r));
+}
+
+async function marcarAlertaRenovacaoEnviado(discordId) {
+  await pool.query(
+    `UPDATE membros SET alerta_renovacao_enviado_em = NOW() WHERE discord_id = $1`,
+    [String(discordId)]
+  );
+}
+
+async function salvarAtividadesCustomizadas(discordId, atividades) {
+  await pool.query(
+    `UPDATE membros SET atividades_customizadas = $2::jsonb WHERE discord_id = $1`,
+    [String(discordId), JSON.stringify(atividades)]
+  );
+}
+
 module.exports = {
   pool,
   initSchema,
@@ -1019,4 +1081,9 @@ module.exports = {
   listarMembrosCadastrados,
   criarAvisoOuEvento,
   listarAvisosEventosParaMembro,
+  // renovação de termo (6 meses)
+  registrarAssinaturaTermo,
+  listarMembrosParaRenovacaoTermo,
+  marcarAlertaRenovacaoEnviado,
+  salvarAtividadesCustomizadas,
 };

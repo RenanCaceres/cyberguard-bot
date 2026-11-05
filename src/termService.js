@@ -90,7 +90,7 @@ async function adicionarCampoDataPreenchivel(caminhoPdf) {
   fs.writeFileSync(caminhoPdf, bytesFinal);
 }
 
-async function gerarTermo(membro) {
+async function gerarTermo(membro, opcoes = {}) {
   const conteudo = fs.readFileSync(path.resolve(config.templateTermoPath), 'binary');
   const zip = new PizZip(conteudo);
 
@@ -98,18 +98,63 @@ async function gerarTermo(membro) {
   const ehUtfpr =
     valorUtfpr !== 'não' && valorUtfpr !== 'nao' && valorUtfpr !== 'false' && valorUtfpr !== 'no';
 
-  if (ehUtfpr) {
-    // Quando o(a) aluno(a) é da UTFPR, removemos a linha extra "Instituição: {instituicao}"
-    // para manter a tabela no layout original; quando não é da UTFPR, a linha é exibida logo abaixo.
-    const docXmlFile = zip.file('word/document.xml');
-    if (docXmlFile) {
-      const xml = docXmlFile.asText();
-      const xmlSemLinhaInstituicao = xml.replace(
+  // 1. Detectar se o membro é líder
+  let ehLider = false;
+  if (typeof opcoes.ehLider === 'boolean') {
+    ehLider = opcoes.ehLider;
+  } else if (membro.papel === 'lider' || membro.eh_lider || membro.cargo === 'Líder') {
+    ehLider = true;
+  } else if (config.lideresTime && Object.values(config.lideresTime).includes(membro.discord_id)) {
+    ehLider = true;
+  } else if (opcoes.client) {
+    try {
+      for (const guild of opcoes.client.guilds.cache.values()) {
+        const gm = guild.members.cache.get(membro.discord_id);
+        if (gm && gm.roles?.cache) {
+          const temRoleLider = gm.roles.cache.some((r) =>
+            /l[ií]der/i.test(r.name) || r.name === 'Diretoria' || r.name === 'Presidente' || r.name === 'Vice-Presidente'
+          );
+          if (temRoleLider) {
+            ehLider = true;
+            break;
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // 2. Data de referência para os 6 meses de vigência do termo
+  let dataReferencia = opcoes.dataReferencia || new Date();
+  if (!opcoes.dataReferencia && membro.data_inicio) {
+    const partes = String(membro.data_inicio).split('/');
+    if (partes.length === 3) {
+      dataReferencia = new Date(parseInt(partes[2], 10), parseInt(partes[1], 10) - 1, parseInt(partes[0], 10));
+    }
+  }
+
+  // 3. Atualizar XML com as atividades do setor e cronograma semestral
+  const docXmlFile = zip.file('word/document.xml');
+  if (docXmlFile) {
+    let xml = docXmlFile.asText();
+
+    if (ehUtfpr) {
+      // Quando o(a) aluno(a) é da UTFPR, removemos a linha extra "Instituição: {instituicao}"
+      xml = xml.replace(
         /<w:tr\b[^>]*>(?:(?!<\/w:tr>)[\s\S])*?\{instituicao\}[\s\S]*?<\/w:tr>/,
         ''
       );
-      zip.file('word/document.xml', xmlSemLinhaInstituicao);
     }
+
+    const { aplicarAtividadesECronogramaNoXml } = require('./atividadesVoluntariado');
+    xml = aplicarAtividadesECronogramaNoXml(
+      xml,
+      membro.area_interesse,
+      ehLider,
+      dataReferencia,
+      opcoes.atividadesCustomizadas || membro.atividades_customizadas
+    );
+
+    zip.file('word/document.xml', xml);
   }
 
   const doc = new Docxtemplater(zip, {

@@ -5,6 +5,7 @@ const { iniciarOnboarding, handleOnboardingInteraction } = require('./onboarding
 const { handleAprovacaoInteraction } = require('./approval');
 const { handleMensagemDM, handleRevisaoTermoInteraction } = require('./recepcaoTermo');
 const { iniciarLembretes, handleResolverLembrete } = require('./reminders');
+const { iniciarMonitoramentoRenovacao, handleRenovacaoTermoInteraction } = require('./renovacaoTermo');
 const { processarMembrosPendentes, processarSaidasPerdidas } = require('./catchUp');
 const { postarCartao } = require('./cartaoServidor');
 const reuniaoCommand = require('../commands/reuniao/reuniaoCommand');
@@ -49,6 +50,7 @@ const client = new Client({
 client.once('ready', async () => {
   await db.initSchema();
   iniciarLembretes(client);
+  iniciarMonitoramentoRenovacao(client);
   iniciarCronAdvertencias(client);
   iniciarCronDeclaracoes(client);
   iniciarLimpezaBackups();
@@ -161,6 +163,7 @@ client.on('interactionCreate', async (interaction) => {
     if (await reuniaoCommand.handleReuniaoInteraction(interaction)) return;
     if (await handleAdvertenciaInteraction(interaction)) return;
     if (await handleResolverLembrete(interaction)) return;
+    if (await handleRenovacaoTermoInteraction(interaction)) return;
     if (await handleRevisaoTermoInteraction(interaction)) return;
     if (await handleOnboardingInteraction(interaction)) return;
     await handleAprovacaoInteraction(interaction);

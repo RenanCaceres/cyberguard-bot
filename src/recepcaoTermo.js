@@ -104,12 +104,15 @@ async function concluirTermoAssinado({ membro, caminhoArquivo, nomeOriginal }) {
   const updatesBanco = {
     termo_arquivo_path: caminhoPermanente || caminhoArquivo,
   };
+  let dataAssinaturaDate = new Date();
   if (dataCarimboIso) {
     const [y, m, d] = dataCarimboIso.split('-');
     updatesBanco.data_inicio = `${d}/${m}/${y}`;
+    dataAssinaturaDate = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
   }
 
   await db.atualizarStatus(membro.discord_id, 'concluido', updatesBanco);
+  await db.registrarAssinaturaTermo(membro.discord_id, dataAssinaturaDate, caminhoPermanente || caminhoArquivo);
 
   // 5. Atualizar Notion: Membro agora passa para 'Ativo' e 'Data de Entrada' é baseada
   // única e exclusivamente na data do carimbo da assinatura.
