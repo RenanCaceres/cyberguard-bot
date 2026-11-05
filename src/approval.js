@@ -159,7 +159,7 @@ async function handleAprovacaoInteraction(interaction) {
   });
 
   const membroAtualizado = await db.getMembro(discordId);
-  const caminhoTermo = await gerarTermo(membroAtualizado);
+  const caminhoTermo = await gerarTermo(membroAtualizado, { client: interaction.client });
 
   await adicionarLinhaPlanilha(membroAtualizado, usuarioDiscord.tag);
 

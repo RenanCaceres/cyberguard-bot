@@ -111,9 +111,18 @@ async function gerarTermo(membro, opcoes = {}) {
       for (const guild of opcoes.client.guilds.cache.values()) {
         const gm = guild.members.cache.get(membro.discord_id);
         if (gm && gm.roles?.cache) {
-          const temRoleLider = gm.roles.cache.some((r) =>
-            /l[ií]der/i.test(r.name) || r.name === 'Diretoria' || r.name === 'Presidente' || r.name === 'Vice-Presidente'
-          );
+          const temRoleLider = gm.roles.cache.some((r) => {
+            const nome = (r.name || '').toLowerCase();
+            return (
+              r.name === config.roleLiderNome ||
+              r.id === config.roleViceLiderId ||
+              r.name === config.roleViceLiderNome ||
+              nome.includes('líder') ||
+              nome.includes('lider') ||
+              nome.includes('diretoria') ||
+              nome.includes('presidente')
+            );
+          });
           if (temRoleLider) {
             ehLider = true;
             break;
