@@ -547,6 +547,30 @@ module.exports = {
         return true;
       }
 
+      if (interaction.customId === 'lgpd_modal_notion') {
+        const membro = await db.getMembro(interaction.user.id);
+        if (!membro) {
+          await interaction.reply({ content: 'Registro não encontrado.', ephemeral: true });
+          return true;
+        }
+
+        const modal = new ModalBuilder()
+          .setCustomId('lgpd_submit_notion')
+          .setTitle('Atualizar E-mail do Notion');
+
+        const inputNotion = new TextInputBuilder()
+          .setCustomId('email_notion')
+          .setLabel('E-mail vinculado à conta do Notion')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setValue(membro.email_notion || membro.email || '');
+
+        modal.addComponents(new ActionRowBuilder().addComponents(inputNotion));
+
+        await interaction.showModal(modal);
+        return true;
+      }
+
       if (interaction.customId === 'lgpd_modal_academico') {
         const membro = await db.getMembro(interaction.user.id);
         if (!membro) {
@@ -647,6 +671,39 @@ module.exports = {
         await interaction.editReply({
           content:
             '✅ **Seus dados de contato e endereço foram atualizados e criptografados com sucesso!** Use `/meus-dados visualizar` para conferir.',
+        });
+        return true;
+      }
+
+      if (interaction.customId === 'lgpd_submit_notion') {
+        await interaction.deferReply({ ephemeral: true });
+
+        const emailNotion = interaction.fields.getTextInputValue('email_notion').trim();
+
+        if (!validators.validarEmail(emailNotion)) {
+          await interaction.editReply({
+            content: '❌ **Formato de e-mail inválido.** Por favor, informe um endereço de e-mail válido.',
+          });
+          return true;
+        }
+
+        await db.atualizarDadosParciaisMembro(interaction.user.id, {
+          email_notion: emailNotion,
+        });
+
+        const membroAtualizado = await db.getMembro(interaction.user.id);
+        try {
+          const { registrarMembroAtivo } = require('../../src/notionMembros');
+          if (membroAtualizado && membroAtualizado.status === 'concluido') {
+            await registrarMembroAtivo(membroAtualizado);
+          }
+        } catch (errNotion) {
+          console.error('[meus-dados] Erro ao sincronizar e-mail Notion:', errNotion.message);
+        }
+
+        await interaction.editReply({
+          content:
+            `✅ **E-mail do Notion atualizado com sucesso para \`${emailNotion}\`!** Use \`/meus-dados visualizar\` para conferir.`,
         });
         return true;
       }
