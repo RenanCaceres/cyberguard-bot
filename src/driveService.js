@@ -273,6 +273,56 @@ async function fazerUploadDeclaracao({ caminhoArquivo, buffer, nomeArquivo }) {
 }
 
 /**
+ * Torna um arquivo legível para qualquer pessoa com o link no Google Drive.
+ */
+async function tornarArquivoPublico(fileId) {
+  try {
+    const token = await obterToken();
+    await fetch(`${DRIVE_API}/files/${fileId}/permissions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ role: 'reader', type: 'anyone' }),
+      signal: AbortSignal.timeout(10000),
+    });
+  } catch (err) {
+    console.warn('[driveService] falha ao ajustar permissões públicas do arquivo:', err.message);
+  }
+}
+
+/**
+ * Envia um Comprovante de Entrega para a pasta de comprovantes no Google Drive.
+ */
+async function fazerUploadComprovante({ caminhoArquivo, buffer, nomeArquivo, mimeType }) {
+  const pastaComprovantes = process.env.GOOGLE_DRIVE_COMPROVANTES_FOLDER_ID || '1_3Z5vtZ6VKxIRkKs6cJY7AghgGoA4y7W';
+  if (!pastaComprovantes) {
+    console.warn('[driveService] GOOGLE_DRIVE_COMPROVANTES_FOLDER_ID não configurado. Upload ignorado.');
+    return null;
+  }
+
+  if (!obterAuth()) {
+    console.warn('[driveService] Credenciais do Google não configuradas. Upload ignorado.');
+    return null;
+  }
+
+  const res = await uploadArquivo({
+    caminhoArquivo,
+    buffer,
+    nomeArquivo,
+    pastaDestinoId: pastaComprovantes,
+    mimeType: mimeType || 'application/octet-stream',
+  });
+
+  if (res?.id) {
+    await tornarArquivoPublico(res.id);
+  }
+
+  return res;
+}
+
+/**
  * Testa e valida o acesso às pastas do Google Drive.
  */
 async function verificarAcessoDrive() {
@@ -320,6 +370,7 @@ async function verificarAcessoDrive() {
 module.exports = {
   fazerUploadTermo,
   fazerUploadDeclaracao,
+  fazerUploadComprovante,
   uploadArquivo,
   obterOuCriarSubpasta,
   verificarAcessoDrive,
