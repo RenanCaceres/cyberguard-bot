@@ -148,7 +148,8 @@ module.exports = {
             inline: true,
           },
           { name: 'Telefone', value: membro?.telefone || '—', inline: true },
-          { name: 'E-mail', value: membro?.email || '—', inline: true },
+          { name: 'E-mail Oficial', value: membro?.email || '—', inline: true },
+          { name: 'E-mail Notion', value: membro?.email_notion || membro?.email || '—', inline: true },
           {
             name: 'Horas Acumuladas (Ponto)',
             value: formatarMinutos(totalMinutos),
@@ -189,11 +190,15 @@ module.exports = {
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId('lgpd_modal_contato')
-          .setLabel('📍 Atualizar Contato e Endereço')
+          .setLabel('📍 Contato e Endereço')
           .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
+          .setCustomId('lgpd_modal_notion')
+          .setLabel('📧 E-mail do Notion')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
           .setCustomId('lgpd_modal_academico')
-          .setLabel('🎓 Atualizar Curso e Período')
+          .setLabel('🎓 Curso e Período')
           .setStyle(ButtonStyle.Secondary)
       );
 
