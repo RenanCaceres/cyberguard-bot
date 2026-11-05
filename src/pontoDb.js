@@ -329,10 +329,10 @@ async function ultimosPontos(discordId, limite = 25) {
 // Ajuste completo de ponto feito pelo RH (abertura, fechamento e tarefa).
 // `localAbertura` e `localFechamento` = 'YYYY-MM-DD HH:MM' no fuso de São Paulo.
 // Regras: fechamento depois da abertura, ambos no passado (com tolerância de 1min) e até 24h de duração.
-async function ajustarPonto(id, { localAbertura, localFechamento, tarefaTitulo }, porDiscordId, motivo) {
+async function ajustarPonto(id, { localAbertura, localFechamento, tarefaTitulo, tarefaId }, porDiscordId, motivo) {
   const { rows } = await q(
     `WITH antigo AS (
-       SELECT id, aberto_em, fechado_em, tarefa_titulo FROM pontos
+       SELECT id, aberto_em, fechado_em, tarefa_titulo, tarefa_id FROM pontos
         WHERE id = $1 AND fechado_em IS NOT NULL AND origem <> 'importado' FOR UPDATE
      )
      UPDATE pontos p
@@ -341,11 +341,11 @@ async function ajustarPonto(id, { localAbertura, localFechamento, tarefaTitulo }
             tarefa_titulo_original = COALESCE(p.tarefa_titulo_original, a.tarefa_titulo),
             aberto_em     = ($2::timestamp AT TIME ZONE $6::text),
             fechado_em    = ($3::timestamp AT TIME ZONE $6::text),
-            tarefa_titulo = $4::text,
-            tarefa_id     = CASE WHEN p.tarefa_id = $7 THEN 'ajustado' ELSE p.tarefa_id END,
+            tarefa_titulo = COALESCE($4::text, p.tarefa_titulo),
+            tarefa_id     = COALESCE($7::text, CASE WHEN p.tarefa_id = $8 THEN 'ajustado' ELSE p.tarefa_id END),
             ajustado_por  = $5,
             ajustado_em   = now(),
-            ajuste_motivo = $8::text,
+            ajuste_motivo = $9::text,
             auto_fechado  = false
        FROM antigo a
       WHERE p.id = a.id
@@ -357,7 +357,7 @@ async function ajustarPonto(id, { localAbertura, localFechamento, tarefaTitulo }
               a.aberto_em AS aberto_em_antes,
               a.fechado_em AS fechado_em_antes,
               a.tarefa_titulo AS tarefa_titulo_antes`,
-    [id, localAbertura, localFechamento, tarefaTitulo, porDiscordId, TZ, PENDENTE, motivo || null],
+    [id, localAbertura, localFechamento, tarefaTitulo || null, porDiscordId, TZ, tarefaId || null, PENDENTE, motivo || null],
   );
   return rows[0] ?? null;
 }

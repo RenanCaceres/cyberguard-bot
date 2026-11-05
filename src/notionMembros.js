@@ -134,8 +134,9 @@ async function registrarMembroAguardandoAssinatura(membro) {
       },
     };
 
-    if (membro.email) {
-      propriedades['E-mail'] = { email: String(membro.email).trim() };
+    const emailNotion = membro.email_notion || membro.email;
+    if (emailNotion) {
+      propriedades['E-mail'] = { email: String(emailNotion).trim() };
     }
 
     const setorNormalizado = normalizarSetor(membro.area_interesse);
@@ -185,8 +186,9 @@ async function registrarMembroAtivo(membro, dataAssinaturaIso = null) {
       },
     };
 
-    if (membro.email) {
-      propriedades['E-mail'] = { email: String(membro.email).trim() };
+    const emailNotion = membro.email_notion || membro.email;
+    if (emailNotion) {
+      propriedades['E-mail'] = { email: String(emailNotion).trim() };
     }
 
     const setorNormalizado = normalizarSetor(membro.area_interesse);

@@ -39,5 +39,17 @@ function naoVazio(valor) {
   return valor.trim().length > 0;
 }
 
-module.exports = { validarCPF, validarData, validarEndereco, validarRA, validarRAOuMatricula, naoVazio };
+function validarEmail(valor) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valor.trim());
+}
+
+module.exports = {
+  validarCPF,
+  validarData,
+  validarEndereco,
+  validarRA,
+  validarRAOuMatricula,
+  validarEmail,
+  naoVazio,
+};
 

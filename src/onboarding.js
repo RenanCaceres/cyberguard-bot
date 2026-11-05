@@ -107,9 +107,13 @@ const PERGUNTAS = [
   {
     campo: 'email',
     texto:
-      'Qual seu **e-mail**?\n' +
-      '*(⚠️ **Importante:** deve ser o mesmo e-mail vinculado à sua conta do **Notion**, se já tiver uma. Caso não tenha, informe o e-mail que for mais fácil para você criar uma conta no Notion posteriormente).*',
-    validator: validators.naoVazio,
+      'Qual seu **e-mail institucional/oficial**? (ex: seu e-mail `@alunos.utfpr.edu.br` ou e-mail pessoal principal para comunicação e emissão de documentos oficiais e certificados da UTFPR)',
+    validator: validators.validarEmail,
+    erro: 'Por favor, informe um endereço de e-mail válido (ex: exemplo@alunos.utfpr.edu.br).',
+  },
+  {
+    campo: 'email_notion',
+    tipo: 'botoes_notion_email',
   },
 ];
 
@@ -127,7 +131,8 @@ const LABELS = {
   cidade: 'Cidade',
   estado: 'Estado (UF)',
   telefone: 'Telefone',
-  email: 'E-mail',
+  email: 'E-mail oficial/institucional',
+  email_notion: 'E-mail vinculado ao Notion',
   area_interesse: 'Área de interesse',
 };
 
@@ -191,6 +196,65 @@ async function coletarEstudanteUtfpr(dm, userId, respostas) {
     }
   } finally {
     coletoresAtivos.delete(userId);
+  }
+}
+
+async function coletarEmailNotion(dm, userId, respostas) {
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('notion_email_mesmo')
+      .setLabel('✅ É o mesmo e-mail')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId('notion_email_outro')
+      .setLabel('📧 Uso outro e-mail no Notion')
+      .setStyle(ButtonStyle.Primary)
+  );
+
+  await dm.send({
+    content:
+      'Sobre seu acesso ao **Notion** (onde gerenciamos os projetos, tarefas e a equipe):\n' +
+      `Você utiliza o **mesmo e-mail** (\`${respostas.email}\`) na sua conta do Notion ou prefere vincular outro?`,
+    components: [row],
+  });
+
+  coletoresAtivos.add(userId);
+  let interacao;
+  try {
+    interacao = await dm.awaitMessageComponent({
+      filter: (i) =>
+        i.user.id === userId &&
+        (i.customId === 'notion_email_mesmo' || i.customId === 'notion_email_outro'),
+      time: 30 * 60 * 1000,
+    });
+  } finally {
+    coletoresAtivos.delete(userId);
+  }
+
+  if (interacao.customId === 'notion_email_mesmo') {
+    respostas.email_notion = respostas.email;
+    await interacao.update({
+      content: `Acesso ao Notion configurado para o mesmo e-mail: **${respostas.email_notion}**`,
+      components: [],
+    });
+    return respostas.email_notion;
+  }
+
+  await interacao.update({
+    content:
+      'Qual o **e-mail vinculado à sua conta do Notion**?\n' +
+      '*(Se ainda não tem conta no Notion, informe o e-mail que você prefere utilizar para criá-la):*',
+    components: [],
+  });
+
+  while (true) {
+    const resposta = await coletarResposta(dm, userId);
+    if (validators.validarEmail(resposta)) {
+      respostas.email_notion = resposta;
+      await dm.send(`Acesso ao Notion configurado para o e-mail: **${respostas.email_notion}**`);
+      return respostas.email_notion;
+    }
+    await dm.send('Por favor, informe um endereço de e-mail válido para a sua conta do Notion.');
   }
 }
 
@@ -480,6 +544,7 @@ async function executarColetaDados(member, dm, respostasIniciais = {}) {
     estado: salvo?.estado || null,
     telefone: salvo?.telefone || null,
     email: salvo?.email || null,
+    email_notion: salvo?.email_notion || null,
     area_interesse: salvo?.area_interesse || null,
     ...respostasIniciais,
   };
@@ -494,6 +559,11 @@ async function executarColetaDados(member, dm, respostasIniciais = {}) {
       await db.salvarProgressoOnboarding(user.id, {
         estudante_utfpr: respostas.estudante_utfpr,
         instituicao: respostas.instituicao,
+      });
+    } else if (pergunta.tipo === 'botoes_notion_email') {
+      await coletarEmailNotion(dm, user.id, respostas);
+      await db.salvarProgressoOnboarding(user.id, {
+        email_notion: respostas.email_notion,
       });
     } else {
       await coletarPerguntaTexto(dm, user.id, pergunta, respostas);
@@ -524,6 +594,12 @@ async function executarColetaDados(member, dm, respostasIniciais = {}) {
     if (campoEscolhido === 'area_interesse') {
       respostas.area_interesse = await coletarAreaInteresse(dm, user.id);
       await db.salvarProgressoOnboarding(user.id, { area_interesse: respostas.area_interesse });
+      continue;
+    }
+
+    if (campoEscolhido === 'email_notion') {
+      await coletarEmailNotion(dm, user.id, respostas);
+      await db.salvarProgressoOnboarding(user.id, { email_notion: respostas.email_notion });
       continue;
     }
 
@@ -809,7 +885,8 @@ async function enviarParaAprovacaoRH(guild, discordId, dados) {
       { name: 'Endereço', value: dados.endereco || '—' },
       { name: 'Cidade/UF', value: `${dados.cidade || '—'} / ${dados.estado || '—'}` },
       { name: 'Telefone', value: dados.telefone || '—', inline: true },
-      { name: 'E-mail', value: dados.email || '—', inline: true },
+      { name: 'E-mail Oficial', value: dados.email || '—', inline: true },
+      { name: 'E-mail Notion', value: dados.email_notion || dados.email || '—', inline: true },
       { name: 'Área solicitada', value: dados.area_interesse || '—' }
     )
     .setColor(0x5865f2)

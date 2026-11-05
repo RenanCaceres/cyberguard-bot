@@ -209,10 +209,11 @@ async function handleAprovacaoInteraction(interaction) {
     }
   }
 
-  if (config.channelRhId && membroAtualizado.email) {
+  const emailNotion = membroAtualizado.email_notion || membroAtualizado.email;
+  if (config.channelRhId && emailNotion) {
     let statusNotionWorkspace = '';
     try {
-      const resWorkspace = await adicionarMembroWorkspace(membroAtualizado.email);
+      const resWorkspace = await adicionarMembroWorkspace(emailNotion);
       if (resWorkspace.sucesso) {
         statusNotionWorkspace = '\n✅ *Acesso ao Workspace do Notion liberado automaticamente!*';
       } else {
@@ -224,8 +225,13 @@ async function handleAprovacaoInteraction(interaction) {
 
     try {
       const canalRh = await interaction.guild.channels.fetch(config.channelRhId);
+      const emailTexto =
+        membroAtualizado.email_notion && membroAtualizado.email_notion !== membroAtualizado.email
+          ? `\n📧 **E-mail Oficial:** \`${membroAtualizado.email}\`\n📧 **E-mail Notion:** \`${membroAtualizado.email_notion}\``
+          : `\n📧 **E-mail:** \`${membroAtualizado.email}\``;
+
       await canalRh.send({
-        content: `🔑 **Liberação de Acesso ao Notion:**\nO integrante **${membroAtualizado.nome}** (<@${discordId}> - RA: \`${membroAtualizado.ra || 'N/A'}\`) foi aprovado no onboarding!\n📧 **E-mail:** \`${membroAtualizado.email}\`\n📌 *O cadastro foi registrado como Ativo no Notion.*${statusNotionWorkspace}`,
+        content: `🔑 **Liberação de Acesso ao Notion:**\nO integrante **${membroAtualizado.nome}** (<@${discordId}> - RA: \`${membroAtualizado.ra || 'N/A'}\`) foi aprovado no onboarding!${emailTexto}\n📌 *O cadastro foi registrado como Ativo no Notion.*${statusNotionWorkspace}`,
       });
     } catch (errRhNotif) {
       console.error('Erro ao notificar canal do RH sobre e-mail Notion:', errRhNotif.message);

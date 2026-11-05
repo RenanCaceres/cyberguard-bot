@@ -172,14 +172,18 @@ const lerValor = (v) => {
   return { id, progresso: p === undefined || p === '' ? null : Number(p) };
 };
 
-// modo 'm' = fluxo manual (cria o ponto); modo 'v' = ponto vindo da call (só define a tarefa).
+// modo 'm' = fluxo manual (cria o ponto); modo 'v' = ponto vindo da call (só define a tarefa); modo 'adj:<id>' = ajuste pelo RH.
 function montarSelecaoTarefas(tarefas, pagina, modo = 'm', conteudo) {
   const totalPag = Math.max(1, Math.ceil(tarefas.length / POR_PAGINA_SELECT));
   pagina = Math.min(Math.max(pagina, 0), totalPag - 1);
   const fatia = tarefas.slice(pagina * POR_PAGINA_SELECT, (pagina + 1) * POR_PAGINA_SELECT);
 
+  const selectCustomId = modo === 'v'
+    ? 'ponto:tarefa_voz'
+    : (modo.startsWith('adj:') ? `ponto:adj_tarefa:${modo.split(':')[1]}` : 'ponto:tarefa');
+
   const select = new StringSelectMenuBuilder()
-    .setCustomId(modo === 'v' ? 'ponto:tarefa_voz' : 'ponto:tarefa')
+    .setCustomId(selectCustomId)
     .setPlaceholder('Escolha a tarefa')
     .addOptions(
       fatia.map((t) => ({
@@ -205,6 +209,16 @@ function montarSelecaoTarefas(tarefas, pagina, modo = 'm', conteudo) {
     btn(`ponto:nova_tarefa:${modo}`, 'Criar tarefa no Notion', ButtonStyle.Success, '➕'),
   );
   linhas.push(linhaBotoes);
+
+  if (modo.startsWith('adj:')) {
+    const pontoId = modo.split(':')[1];
+    linhas.push(
+      new ActionRowBuilder().addComponents(
+        btn(`ponto:adj_manter:${pontoId}`, 'Manter tarefa atual e ajustar horários', ButtonStyle.Primary, '⏱️'),
+      ),
+    );
+  }
+
   return { content: conteudo ?? `Selecione a tarefa (${tarefas.length} em aberto) ou crie uma nova:`, components: linhas };
 }
 
@@ -280,7 +294,20 @@ async function paginaTarefas(interaction, modo, pagina) {
     console.error('[ponto] notion (listar):', e.message);
     return interaction.editReply({ content: '❌ Falha ao consultar o Notion. Tente de novo.', components: [] });
   }
-  return interaction.editReply(montarSelecaoTarefas(tarefas, pagina, modo));
+
+  let conteudo;
+  if (modo.startsWith('adj:')) {
+    const pontoId = Number(modo.split(':')[1]);
+    const p = await pdb.getPorId(pontoId);
+    if (p) {
+      conteudo =
+        `✏️ **Ajustando ponto de <@${p.discord_id}>** (${fmtDataHora(p.aberto_em)} → ${fmtHora(p.fechado_em)} · ${fmtDur(segDe(p))})\n` +
+        `📌 **Tarefa atual:** *${trunc(p.tarefa_titulo, 100)}*\n\n` +
+        `Escolha a nova tarefa no Notion abaixo ou clique em **Manter tarefa atual** para ajustar apenas os horários:`;
+    }
+  }
+
+  return interaction.editReply(montarSelecaoTarefas(tarefas, pagina, modo, conteudo));
 }
 
 async function escolherTarefa(interaction) {
@@ -593,6 +620,31 @@ async function tratarNovaTarefaModal(interaction, modo = 'm') {
     }
     await interaction.editReply(`✅ Tarefa **${tarefa.titulo}** criada no Notion.\n${infoAdicional}`);
     return expirar(interaction, 10_000);
+  }
+
+  if (modo.startsWith('adj:')) {
+    const pontoId = Number(modo.split(':')[1]);
+    const p = await pdb.getPorId(pontoId);
+    if (!p) {
+      await interaction.editReply('❌ Ponto original não encontrado.');
+      return expirar(interaction, 10_000);
+    }
+    ajustesEmAndamento.set(`${interaction.user.id}:${pontoId}`, {
+      tarefaId: tarefa.id,
+      tarefaTitulo: tarefa.titulo,
+      expira: Date.now() + 10 * 60 * 1000,
+    });
+    return interaction.editReply({
+      content:
+        `✅ Nova tarefa **${tarefa.titulo}** criada no Notion e vinculada ao ajuste!\n` +
+        `${infoAdicional}\n\n` +
+        `Clique no botão abaixo para definir os horários de abertura e fechamento:`,
+      components: [
+        new ActionRowBuilder().addComponents(
+          btn(`ponto:adj_manter:${pontoId}`, 'Definir horários do ponto', ButtonStyle.Success, '⏱️'),
+        ),
+      ],
+    });
   }
 
   // modo manual 'm'
@@ -1411,11 +1463,15 @@ function parseDataHoraBrasilia(str) {
   return { localIso, dt };
 }
 
-async function ajustarSelecionar(interaction) {
-  const p = await pdb.getPorId(Number(interaction.values[0]));
-  if (!p || !p.fechado_em) {
-    return interaction.update({ content: 'Ponto não encontrado ou ainda está aberto.', components: [] });
+const ajustesEmAndamento = new Map(); // `${discordId}:${pontoId}` -> { tarefaId, tarefaTitulo, expira }
+setInterval(() => {
+  const agora = Date.now();
+  for (const [k, v] of ajustesEmAndamento) {
+    if (v.expira < agora) ajustesEmAndamento.delete(k);
   }
+}, 60_000).unref();
+
+function modalAjustarHorarios(pontoId, ponto) {
   const campo = (id, label, estilo, obrigatorio, placeholder, max, valor) => {
     const t = new TextInputBuilder()
       .setCustomId(id)
@@ -1427,17 +1483,96 @@ async function ajustarSelecionar(interaction) {
     if (valor) t.setValue(valor);
     return new ActionRowBuilder().addComponents(t);
   };
-  return interaction.showModal(
-    new ModalBuilder()
-      .setCustomId(`ponto:adj_modal:${p.id}`)
-      .setTitle('Ajustar ponto')
-      .addComponents(
-        campo('abertura', 'Abertura (dd/mm/aaaa hh:mm)', TextInputStyle.Short, true, '04/11/2026 14:00', 19, fmtDataHora(p.aberto_em)),
-        campo('fechamento', 'Fechamento (dd/mm/aaaa hh:mm)', TextInputStyle.Short, true, '04/11/2026 18:30', 19, fmtDataHora(p.fechado_em)),
-        campo('tarefa', 'Tarefa', TextInputStyle.Short, true, 'Ex.: Desenvolvimento do Bot', 250, (p.tarefa_titulo || '').slice(0, 250)),
-        campo('motivo', 'Motivo do ajuste', TextInputStyle.Paragraph, false, 'Ex.: esqueceu de bater o ponto', 300),
-      ),
-  );
+  return new ModalBuilder()
+    .setCustomId(`ponto:adj_modal:${pontoId}`)
+    .setTitle('Ajustar horários do ponto')
+    .addComponents(
+      campo('abertura', 'Abertura (dd/mm/aaaa hh:mm)', TextInputStyle.Short, true, '04/11/2026 14:00', 19, fmtDataHora(ponto.aberto_em)),
+      campo('fechamento', 'Fechamento (dd/mm/aaaa hh:mm)', TextInputStyle.Short, true, '04/11/2026 18:30', 19, fmtDataHora(ponto.fechado_em)),
+      campo('motivo', 'Motivo do ajuste', TextInputStyle.Paragraph, false, 'Ex.: esqueceu de bater o ponto', 300),
+    );
+}
+
+async function ajustarSelecionar(interaction) {
+  if (!isRH(interaction)) {
+    await interaction.reply({ content: '🔒 Apenas o RH pode ajustar pontos.', flags: EPH });
+    return expirar(interaction, 10_000);
+  }
+  const pontoId = Number(interaction.values[0]);
+  const p = await pdb.getPorId(pontoId);
+  if (!p || !p.fechado_em) {
+    return interaction.update({ content: 'Ponto não encontrado ou ainda está aberto.', components: [] });
+  }
+
+  await interaction.deferUpdate();
+
+  let tarefas = [];
+  try {
+    tarefas = await notion.listarTarefasAbertas();
+  } catch (e) {
+    console.error('[ponto] notion (listar):', e.message);
+  }
+
+  const modo = `adj:${p.id}`;
+  const intro =
+    `✏️ **Ajustando ponto de <@${p.discord_id}>** (${fmtDataHora(p.aberto_em)} → ${fmtHora(p.fechado_em)} · ${fmtDur(segDe(p))})\n` +
+    `📌 **Tarefa atual:** *${trunc(p.tarefa_titulo, 100)}*\n\n` +
+    `Escolha a nova tarefa no Notion abaixo ou clique em **Manter tarefa atual** para ajustar apenas os horários:`;
+
+  if (!tarefas || !tarefas.length) {
+    const linha = new ActionRowBuilder().addComponents(
+      btn(`ponto:adj_manter:${p.id}`, 'Manter tarefa atual e ajustar horários', ButtonStyle.Primary, '⏱️'),
+      btn(`ponto:nova_tarefa:${modo}`, 'Criar tarefa no Notion', ButtonStyle.Success, '➕'),
+    );
+    return interaction.editReply({
+      content: `${intro}\n⚠️ *(Não foi possível carregar as tarefas do Notion no momento)*`,
+      components: [linha],
+    });
+  }
+
+  return interaction.editReply(montarSelecaoTarefas(tarefas, 0, modo, intro));
+}
+
+async function ajustarTarefaSelecionada(interaction, pontoId) {
+  if (!isRH(interaction)) {
+    await interaction.reply({ content: '🔒 Apenas o RH pode ajustar pontos.', flags: EPH });
+    return expirar(interaction, 10_000);
+  }
+  const p = await pdb.getPorId(pontoId);
+  if (!p || !p.fechado_em) {
+    return interaction.update({ content: 'Ponto não encontrado ou ainda está aberto.', components: [] });
+  }
+  const { id: tarefaId } = lerValor(interaction.values[0]);
+  const tarefaTitulo = tituloEscolhido(interaction);
+
+  ajustesEmAndamento.set(`${interaction.user.id}:${p.id}`, {
+    tarefaId,
+    tarefaTitulo,
+    expira: Date.now() + 10 * 60 * 1000,
+  });
+
+  return interaction.showModal(modalAjustarHorarios(p.id, p));
+}
+
+async function ajustarManterTarefa(interaction, pontoId) {
+  if (!isRH(interaction)) {
+    await interaction.reply({ content: '🔒 Apenas o RH pode ajustar pontos.', flags: EPH });
+    return expirar(interaction, 10_000);
+  }
+  const p = await pdb.getPorId(pontoId);
+  if (!p || !p.fechado_em) {
+    return interaction.update({ content: 'Ponto não encontrado ou ainda está aberto.', components: [] });
+  }
+
+  if (!ajustesEmAndamento.has(`${interaction.user.id}:${p.id}`)) {
+    ajustesEmAndamento.set(`${interaction.user.id}:${p.id}`, {
+      tarefaId: p.tarefa_id,
+      tarefaTitulo: p.tarefa_titulo,
+      expira: Date.now() + 10 * 60 * 1000,
+    });
+  }
+
+  return interaction.showModal(modalAjustarHorarios(p.id, p));
 }
 
 async function ajustarModal(interaction, pontoId) {
@@ -1459,16 +1594,14 @@ async function ajustarModal(interaction, pontoId) {
       ? interaction.fields.getTextInputValue('fechamento')
       : (interaction.fields.fields.has('novo') ? interaction.fields.getTextInputValue('novo') : fmtDataHora(pAtual.fechado_em))
   ).trim();
-  const tarefaBruto = (
-    interaction.fields.fields.has('tarefa')
-      ? interaction.fields.getTextInputValue('tarefa')
-      : pAtual.tarefa_titulo
-  ).trim();
   const motivo = (interaction.fields.fields.has('motivo') ? interaction.fields.getTextInputValue('motivo') : '').trim();
 
-  if (!tarefaBruto) {
-    return recusar('A tarefa não pode ficar vazia.');
-  }
+  // Resgata a tarefa selecionada do Notion ou mantém a atual
+  const escolha = ajustesEmAndamento.get(`${interaction.user.id}:${pontoId}`);
+  ajustesEmAndamento.delete(`${interaction.user.id}:${pontoId}`);
+
+  const tarefaId = escolha?.tarefaId || pAtual.tarefa_id;
+  const tarefaTitulo = escolha?.tarefaTitulo || pAtual.tarefa_titulo;
 
   const parsedAbertura = parseDataHoraBrasilia(aberturaBruto);
   if (!parsedAbertura) {
@@ -1502,7 +1635,8 @@ async function ajustarModal(interaction, pontoId) {
       {
         localAbertura: parsedAbertura.localIso,
         localFechamento: parsedFechamento.localIso,
-        tarefaTitulo: tarefaBruto,
+        tarefaTitulo,
+        tarefaId,
       },
       interaction.user.id,
       motivo,
@@ -1739,9 +1873,13 @@ async function handlePontoInteraction(interaction) {
         const [, , alvo, pag] = id.split(':');
         await pontoMetas.renderizarOuAtualizarRelatorioSemanas(interaction, alvo, Number(pag), true, { origemResumo: true });
       }
+      else if (id.startsWith('ponto:adj_manter:')) {
+        await ajustarManterTarefa(interaction, Number(id.split(':')[2]));
+      }
       else if (id.startsWith('ponto:pag:')) {
         const p = id.split(':'); // ponto:pag:<modo>:<n>  (ou o formato antigo ponto:pag:<n>)
-        await paginaTarefas(interaction, p.length === 3 ? 'm' : p[2], Number(p[p.length - 1]));
+        const modo = p.length === 3 ? 'm' : p.slice(2, -1).join(':');
+        await paginaTarefas(interaction, modo, Number(p[p.length - 1]));
       } else if (id === 'ponto:fechar') await fecharFluxo(interaction);
       else if (id === 'ponto:lista') await lista(interaction);
       else if (id === 'ponto:ranking') await rankingBotao(interaction);
@@ -1760,7 +1898,7 @@ async function handlePontoInteraction(interaction) {
         return true;
       }
       else if (id.startsWith('ponto:nova_tarefa:')) {
-        const modo = id.split(':')[2] || 'm';
+        const modo = id.slice('ponto:nova_tarefa:'.length) || 'm';
         if (modo === 'm') {
           const aberto = await pdb.getAberto(interaction.user.id);
           if (aberto) {
@@ -1779,11 +1917,12 @@ async function handlePontoInteraction(interaction) {
       else if (id === 'ponto:tarefa_voz') await escolherTarefaVoz(interaction);
       else if (id === 'ponto:aluno') await detalhe(interaction, interaction.values[0], 0);
       else if (id === 'ponto:adj_sel') await ajustarSelecionar(interaction);
+      else if (id.startsWith('ponto:adj_tarefa:')) await ajustarTarefaSelecionada(interaction, Number(id.split(':')[2]));
     } else if (interaction.isModalSubmit()) {
       if (id === 'ponto:fechar_modal') await fecharModal(interaction);
       else if (id.startsWith('ponto:rep_modal:')) await reporteModal(interaction, Number(id.split(':')[2]));
       else if (id.startsWith('ponto:adj_modal:')) await ajustarModal(interaction, Number(id.split(':')[2]));
-      else if (id.startsWith('ponto:modal_nova_tarefa:')) await tratarNovaTarefaModal(interaction, id.split(':')[2] || 'm');
+      else if (id.startsWith('ponto:modal_nova_tarefa:')) await tratarNovaTarefaModal(interaction, id.slice('ponto:modal_nova_tarefa:'.length) || 'm');
     }
     return true;
   } catch (e) {
