@@ -113,6 +113,29 @@ function main() {
     return responder({ decision: 'stop' });
   }
 
+  // 1.1. Auditoria de documentação de novos módulos e comandos (Doc & Flow Guardian)
+  const docGuardian = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'doc-flow-guardian.js'), '--check', '--quiet'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+    timeout: 10000,
+  });
+
+  if (docGuardian.status !== 0) {
+    const erroDoc = ((docGuardian.stderr || '') + '\n' + (docGuardian.stdout || '')).trim();
+    const stateKey = `doc-guardian-fail:${erroDoc.slice(0, 160)}`;
+    const count = prevState.key === stateKey ? prevState.count + 1 : 1;
+    fs.writeFileSync(stateFile, JSON.stringify({ key: stateKey, count }), 'utf8');
+
+    if (count <= 2) {
+      return responder({
+        decision: 'continue',
+        reason:
+          `[HOOK DOC-GUARDIAN] Verificação de documentação e tutoriais falhou!\n` +
+          `Sempre que um novo módulo for gerado ou fluxos forem modificados, crie o tutorial correspondente com \`node scripts/doc-flow-guardian.js --tutorial <modulo>\` e atualize o catálogo /documentacao:\n\n${erroDoc}`,
+      });
+    }
+  }
+
   // 2. Verifica se há mudanças não commitadas, não enviadas ou não atualizadas no PM2 do servidor
   const { status, head, origin } = obterEstadoGit();
   const temMudancaLocal = status.length > 0;

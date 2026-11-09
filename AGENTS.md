@@ -1,6 +1,6 @@
 # Regras Obrigatórias do Repositório — CyberGuard Bot (LGPD & Auto-Deploy PM2)
 
-Toda tarefa, comando ou alteração executada neste repositório **DEVE** cumprir obrigatoriamente os dois requisitos abaixo antes de encerrar a resposta ao usuário:
+Toda tarefa, comando ou alteração executada neste repositório **DEVE** cumprir obrigatoriamente os três requisitos abaixo antes de encerrar a resposta ao usuário:
 
 ## 1. Conformidade Estrita com a LGPD (Lei nº 13.709/2018)
 - **Jamais** exponha em código-fonte, comentários, `README.md`, `.env.example` ou scripts geradores de PDF (`scripts/gerar*.js` e `docs/**/*.pdf`):
@@ -30,3 +30,20 @@ Toda tarefa, comando ou alteração executada neste repositório **DEVE** cumpri
   2. `git add -A && git commit` + `git push origin main`;
   3. `node deploy-commands.js` (automaticamente sempre que `deploy-commands.js` ou `commands/**` forem alterados);
   4. Sincronização segura de novas chaves do `.env`, atualização do Git (`origin/main`) no servidor de produção (`~/cyberguard-bot`) e `pm2 restart cyberguard-bot --update-env`.
+
+## 3. Sincronização de Fluxos, Documentação & Tutoriais de Novos Módulos (Doc & Flow Guardian)
+- **Alteração de Fluxo da Aplicação**:
+  - Sempre que qualquer fluxo de interação (comandos slash, botões, modais, seletores, coletores) ou regras de negócio em `commands/` ou `src/` forem alterados, mantenha a documentação estritamente sincronizada:
+    - Atualize a tabela de comandos, permissões e passos operacionais no `README.md`;
+    - Atualize o objeto `MODULOS` em `commands/documentacao/documentacaoCommand.js` (regras, subtítulo e lista de comandos);
+    - Atualize manuais correspondentes em `docs/manuais/`.
+- **Criação de Novo Módulo**:
+  - Sempre que um novo módulo funcional for criado (ex: novo diretório em `commands/` ou novo serviço em `src/`):
+    - Crie o tutorial completo em `docs/manuais/Tutorial_<Modulo>.md` (utilize o assistente `node scripts/doc-flow-guardian.js --tutorial <modulo>`);
+    - Registre o módulo no catálogo interativo do `/documentacao` (`commands/documentacao/documentacaoCommand.js`);
+    - Adicione a seção correspondente com comandos, matriz de permissões e fluxos no `README.md`.
+- **Validação de Documentação**:
+  - Valide a cobertura com:
+    ```bash
+    node scripts/doc-flow-guardian.js --check
+    ```

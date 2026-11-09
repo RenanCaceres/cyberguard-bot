@@ -8,7 +8,10 @@
     "dev": "node --watch src/index.js",
     "test": "node scripts/lgpd-guard.js",
     "lgpd": "node scripts/lgpd-guard.js",
-    "deploy": "bash scripts/auto-deploy.sh"
+    "deploy": "bash scripts/auto-deploy.sh",
+    "docs:guard": "node scripts/doc-flow-guardian.js --check",
+    "docs:status": "node scripts/doc-flow-guardian.js --status",
+    "docs:tutorial": "node scripts/doc-flow-guardian.js --tutorial"
   },
   "dependencies": {
     "@discordjs/voice": "^0.19.2",

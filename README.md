@@ -167,6 +167,17 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
 
 ---
 
+### 🤖 10. Agente Guardião de Fluxos, Documentação & Novos Módulos (Doc & Flow Guardian)
+- **Sincronização Contínua de Fluxos**: Agente inteligente integrado (`doc-flow-guardian`) e hook automatizado que monitora alterações em comandos slash, botões, modais, coletores e regras de negócio, assegurando que o `README.md`, o catálogo interativo do `/documentacao` e os manuais técnicos nunca fiquem desatualizados.
+- **Geração Automática de Tutoriais para Novos Módulos**: Sempre que um novo módulo funcional é adicionado ao projeto (`commands/<novo-modulo>/` ou `src/<novo-modulo>.js`), o agente gera um tutorial completo e ilustrado em `docs/manuais/Tutorial_<Modulo>.md`, cadastra o módulo no seletor do `/documentacao` e documenta as permissões de acesso.
+- **Auditoria de Cobertura via CLI (`npm run docs:guard`)**: Verificação determinística que valida se 100% dos comandos possuem documentação, regras e manuais associados antes de cada commit/deploy.
+- **Comandos Utilitários do Guardian**:
+  - `npm run docs:status`: Exibe a matriz de cobertura de documentação de todos os módulos.
+  - `npm run docs:guard`: Audita alterações de fluxos e mapeamentos de novos comandos.
+  - `npm run docs:tutorial`: Cria scaffolds e tutoriais padronizados para novos módulos.
+
+---
+
 # 🏗️ Arquitetura do Sistema
 
 ```mermaid
@@ -357,6 +368,7 @@ A pasta `docs/manuais/` (e `docs/`) conta com a documentação técnica completa
 - 📢 **`Manual_Lider_Avisos_Google_Calendar.pdf`**: Guia operacional para líderes emitirem comunicados restritos por setor em tópicos privados e agendarem reuniões sincronizadas com o Google Calendar (API v3 & RFC 5545).
 - 📬 **`Manual_Membro_Avisos_Google_Calendar.pdf`**: Manual do integrante sobre tópicos privados de avisos, notificações na DM/e-mail, convites de reuniões no Google Calendar e consulta em `Meus Avisos`.
 - 🛡️ **`Manual_Membro_Central_Suporte_Duvidas.pdf`**: Guia da central de apoio e dúvidas `#dúvidas`, consulta a manuais em PDF, tira-dúvidas com IA Gemini e chamados à liderança com protocolo `#DUVIDA-XXXX`.
+- 🤖 **`Tutorial_<Modulo>.md`** *(em `docs/manuais/`)*: Padrão automatizado de tutoriais para novos módulos e fluxos do bot, gerado sob demanda via `npm run docs:tutorial` com conformidade estrita à LGPD e diagramas operacionais.
 
 ---
 
