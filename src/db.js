@@ -77,6 +77,8 @@ async function initSchema() {
     'alerta_renovacao_enviado_em TIMESTAMPTZ',
     'atividades_customizadas JSONB',
     'papel TEXT',
+    'status_notion_workspace TEXT',
+    'ultimo_lembrete_notion TIMESTAMPTZ',
   ];
 
   for (const coluna of colunas) {
@@ -272,6 +274,8 @@ async function initSchema() {
   await pool.query('CREATE INDEX IF NOT EXISTS idx_duvidas_codigo ON duvidas_suporte (codigo)');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_duvidas_discord_id ON duvidas_suporte (discord_id)');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_duvidas_status ON duvidas_suporte (status)');
+  await pool.query('ALTER TABLE duvidas_suporte ADD COLUMN IF NOT EXISTS anexos TEXT');
+  await pool.query('ALTER TABLE duvidas_suporte ADD COLUMN IF NOT EXISTS origem TEXT DEFAULT \'canal\'');
 
   // --- Central de Avisos & Agenda de Eventos ---
   await pool.query(`
@@ -418,6 +422,8 @@ function atualizarDadosParciaisMembro(discordId, camposObj = {}) {
     'estado',
     'curso',
     'periodo',
+    'status_notion_workspace',
+    'ultimo_lembrete_notion',
   ];
   const filtrados = {};
   for (const chave of permitidos) {
@@ -504,6 +510,32 @@ function listarAguardandoAssinatura() {
       `SELECT * FROM membros WHERE status = 'aguardando_assinatura' AND lembrete_resolvido_manualmente = false`
     )
     .then((r) => r.rows.map((row) => descriptografarMembro(row)));
+}
+
+function listarMembrosNotionPendente() {
+  return pool
+    .query(
+      `SELECT * FROM membros
+       WHERE status IN ('aguardando_assinatura', 'concluido')
+         AND (status_notion_workspace = 'pendente_conta' OR status_notion_workspace = 'pendente')
+         AND (ultimo_lembrete_notion IS NULL OR ultimo_lembrete_notion <= now() - INTERVAL '24 hours')`
+    )
+    .then((r) => r.rows.map((row) => descriptografarMembro(row)));
+}
+
+function atualizarStatusNotionWorkspace(discordId, statusWorkspace, extra = {}) {
+  const sets = ['status_notion_workspace = $2'];
+  const valores = [discordId, statusWorkspace];
+  let idx = 3;
+  if (extra.ultimo_lembrete_notion !== undefined) {
+    sets.push(`ultimo_lembrete_notion = $${idx++}`);
+    valores.push(extra.ultimo_lembrete_notion);
+  }
+  if (extra.email_notion !== undefined) {
+    sets.push(`email_notion = $${idx++}`);
+    valores.push(extra.email_notion);
+  }
+  return pool.query(`UPDATE membros SET ${sets.join(', ')} WHERE discord_id = $1`, valores);
 }
 
 /** RH marca que já verificou manualmente e não quer mais receber lembrete desse membro. */
@@ -909,14 +941,24 @@ function atualizarDataInicioPorRa(ra, dataInicio) {
   return pool.query('UPDATE membros SET data_inicio = $2 WHERE ra = $1', [ra, dataInicio]);
 }
 
-function criarDuvidaSuporte({ codigo, discordId, nomeUsuario, canalOrigemId, assunto, pergunta, messageIdEmail }) {
+function criarDuvidaSuporte({
+  codigo,
+  discordId,
+  nomeUsuario,
+  canalOrigemId,
+  assunto,
+  pergunta,
+  messageIdEmail,
+  anexos = null,
+  origem = 'canal',
+}) {
   return pool
     .query(
       `INSERT INTO duvidas_suporte
-        (codigo, discord_id, nome_usuario, canal_origem_id, assunto, pergunta, message_id_email, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'aguardando_resposta')
+        (codigo, discord_id, nome_usuario, canal_origem_id, assunto, pergunta, message_id_email, status, anexos, origem)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'aguardando_resposta', $8, $9)
        RETURNING *`,
-      [codigo, discordId, nomeUsuario, canalOrigemId, assunto, pergunta, messageIdEmail]
+      [codigo, discordId, nomeUsuario, canalOrigemId, assunto, pergunta, messageIdEmail, anexos, origem]
     )
     .then((r) => r.rows[0]);
 }
@@ -1130,4 +1172,7 @@ module.exports = {
   listarMembrosParaRenovacaoTermo,
   marcarAlertaRenovacaoEnviado,
   salvarAtividadesCustomizadas,
+  // notion workspace e lembretes
+  listarMembrosNotionPendente,
+  atualizarStatusNotionWorkspace,
 };

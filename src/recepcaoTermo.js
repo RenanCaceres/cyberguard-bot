@@ -43,7 +43,7 @@ function obterSubpastaArea(area) {
   return 'Geral';
 }
 
-async function concluirTermoAssinado({ membro, caminhoArquivo, nomeOriginal }) {
+async function concluirTermoAssinado({ membro, caminhoArquivo, nomeOriginal, client = null }) {
   // 1. Enviar e-mail para a coordenação com cópias
   let emailEnviado = true;
   let erroEmailMsg = null;
@@ -121,6 +121,25 @@ async function concluirTermoAssinado({ membro, caminhoArquivo, nomeOriginal }) {
     const { registrarMembroAtivo } = require('./notionMembros');
     const membroAtualizado = await db.getMembro(membro.discord_id);
     await registrarMembroAtivo(membroAtualizado, dataCarimboIso);
+
+    if (membroAtualizado && membroAtualizado.status_notion_workspace !== 'liberado') {
+      const { adicionarMembroWorkspace } = require('./notionWorkspace');
+      const emailAlvo = (membroAtualizado.email_notion || membroAtualizado.email || '').trim().toLowerCase();
+      if (emailAlvo) {
+        const resWs = await adicionarMembroWorkspace(emailAlvo);
+        if (resWs?.sucesso) {
+          await db.atualizarStatusNotionWorkspace(membro.discord_id, 'liberado');
+          if (config.channelRhId && client) {
+            try {
+              const canalRh = await client.channels.fetch(config.channelRhId);
+              await canalRh.send(
+                `✅ **Notion Liberado com o Termo:** O integrante **${membroAtualizado.nome_social || membroAtualizado.nome}** (<@${membro.discord_id}>) foi adicionado com sucesso ao Workspace do Notion!`
+              );
+            } catch (_) {}
+          }
+        }
+      }
+    }
   } catch (errNotion) {
     console.error('Erro ao atualizar membro ativo no Notion após assinatura:', errNotion.message);
   }
@@ -176,6 +195,9 @@ async function handleMensagemDM(message) {
   if (message.author.bot) return;
   if (message.channel.type !== 1) return; // 1 = DM
   if (message.attachments.size === 0) return;
+
+  const { estaEnviandoPrints } = require('./suporteDuvidas');
+  if (estaEnviandoPrints(message.author.id)) return;
 
   const membro = await db.getMembro(message.author.id);
   if (!membro) return;
@@ -252,6 +274,7 @@ async function handleMensagemDM(message) {
     membro,
     caminhoArquivo: caminhoLocal,
     nomeOriginal: anexo.name,
+    client: message.client,
   });
 
   const textoConclusaoAuto =
@@ -362,6 +385,7 @@ async function handleBotaoAprovarTermo(interaction, discordId) {
     membro,
     caminhoArquivo: caminhoPdf,
     nomeOriginal,
+    client: interaction.client,
   });
 
   // Notificar o aluno por DM

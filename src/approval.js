@@ -271,17 +271,26 @@ async function handleAprovacaoInteraction(interaction) {
   }
 
   const emailNotion = membroAtualizado.email_notion || membroAtualizado.email;
+  let notionWorkspaceLiberado = false;
   if (config.channelRhId && emailNotion) {
     let statusNotionWorkspace = '';
     try {
       const resWorkspace = await adicionarMembroWorkspace(emailNotion);
       if (resWorkspace.sucesso) {
         statusNotionWorkspace = '\n✅ *Acesso ao Workspace do Notion liberado automaticamente!*';
+        notionWorkspaceLiberado = true;
+        await db.atualizarStatusNotionWorkspace(discordId, 'liberado');
       } else {
         statusNotionWorkspace = `\n⚠️ *Aviso Workspace Notion:* ${resWorkspace.mensagem}`;
+        await db.atualizarStatusNotionWorkspace(discordId, 'pendente_conta', {
+          ultimo_lembrete_notion: new Date(),
+        });
       }
     } catch (errWs) {
       statusNotionWorkspace = `\n⚠️ *Não foi possível adicionar automaticamente ao Workspace:* ${errWs.message}`;
+      await db.atualizarStatusNotionWorkspace(discordId, 'pendente_conta', {
+        ultimo_lembrete_notion: new Date(),
+      });
     }
 
     try {
@@ -313,8 +322,8 @@ async function handleAprovacaoInteraction(interaction) {
     ? `Aqui está também o link do grupo da sua área (${areaMembro}) no WhatsApp: ${linkArea}\n\n`
     : '';
 
-  const linhaNotion = config.notionHomeUrl
-    ? `Você também recebeu um convite por e-mail para o nosso Notion! Acesse a página oficial do CyberGuard por aqui: ${config.notionHomeUrl}\n\n`
+  const linhaNotion = notionWorkspaceLiberado && config.notionHomeUrl
+    ? `Você já tem acesso liberado ao nosso Notion! Acesse a página oficial do CyberGuard por aqui: ${config.notionHomeUrl}\n\n`
     : '';
 
   const saudacaoNome = membroAtualizado.nome_social ? `Olá, **${membroAtualizado.nome_social}**! ` : '';
@@ -341,6 +350,15 @@ async function handleAprovacaoInteraction(interaction) {
     });
   } catch (err) {
     console.error('Erro ao enviar o tutorial de assinatura gov.br:', err);
+  }
+
+  if (!notionWorkspaceLiberado && emailNotion) {
+    try {
+      const { enviarAvisoPendenteNotion } = require('./notionPendencias');
+      await enviarAvisoPendenteNotion(usuarioDiscord, emailNotion);
+    } catch (errAvisoNotion) {
+      console.warn('Erro ao enviar aviso de Notion pendente na DM:', errAvisoNotion.message);
+    }
   }
 
   await usuarioDiscord.send(TEXTO_MANUAL_CONDUTA);

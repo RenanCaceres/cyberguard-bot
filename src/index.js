@@ -1,11 +1,12 @@
-const { Client, GatewayIntentBits, Partials } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const config = require('./config');
 const db = require('./db');
-const { iniciarOnboarding, handleOnboardingInteraction } = require('./onboarding');
+const { iniciarOnboarding, handleOnboardingInteraction, ehComandoAjuda } = require('./onboarding');
 const { handleAprovacaoInteraction } = require('./approval');
 const { handleMensagemDM, handleRevisaoTermoInteraction } = require('./recepcaoTermo');
 const { iniciarLembretes, handleResolverLembrete } = require('./reminders');
 const { iniciarMonitoramentoRenovacao, handleRenovacaoTermoInteraction } = require('./renovacaoTermo');
+const { iniciarLembretesNotion, handleNotionPendenciasInteraction } = require('./notionPendencias');
 const { processarMembrosPendentes, processarSaidasPerdidas } = require('./catchUp');
 const { postarCartao } = require('./cartaoServidor');
 const reuniaoCommand = require('../commands/reuniao/reuniaoCommand');
@@ -19,6 +20,8 @@ const relatorioSemanalCommand = require('../commands/relatorio-semanal/relatorio
 const documentacaoCommand = require('../commands/documentacao/documentacaoCommand');
 const painelDuvidasCommand = require('../commands/painel-duvidas/painelDuvidasCommand');
 const painelAvisosCommand = require('../commands/painel-avisos/painelAvisosCommand');
+const helpCommand = require('../commands/help/helpCommand');
+const ajudaCommand = require('../commands/ajuda/ajudaCommand');
 const suporteDuvidas = require('./suporteDuvidas');
 const avisos = require('./avisos');
 const { iniciarLimpezaBackups } = require('../commands/reuniao/limpezaBackup');
@@ -50,6 +53,7 @@ const client = new Client({
 client.once('ready', async () => {
   await db.initSchema();
   iniciarLembretes(client);
+  iniciarLembretesNotion(client);
   iniciarMonitoramentoRenovacao(client);
   iniciarCronAdvertencias(client);
   iniciarCronDeclaracoes(client);
@@ -155,6 +159,12 @@ client.on('interactionCreate', async (interaction) => {
     return;
   }
 
+  if (interaction.isChatInputCommand() && (interaction.commandName === 'help' || interaction.commandName === 'ajuda')) {
+    const cmd = interaction.commandName === 'help' ? helpCommand : ajudaCommand;
+    cmd.execute(interaction).catch((err) => console.error(`Erro no comando /${interaction.commandName}:`, err));
+    return;
+  }
+
   try {
     if (await avisos.handleAvisosInteraction(interaction)) return;
     if (await suporteDuvidas.handleDuvidasInteraction(interaction)) return;
@@ -166,6 +176,7 @@ client.on('interactionCreate', async (interaction) => {
     if (await handleRenovacaoTermoInteraction(interaction)) return;
     if (await handleRevisaoTermoInteraction(interaction)) return;
     if (await handleOnboardingInteraction(interaction)) return;
+    if (await handleNotionPendenciasInteraction(interaction)) return;
     await handleAprovacaoInteraction(interaction);
   } catch (err) {
     console.error('Erro na interação do bot:', err);
@@ -323,8 +334,50 @@ client.on('guildMemberRemove', async (member) => {
   }
 });
 
-client.on('messageCreate', (message) => {
+client.on('messageCreate', async (message) => {
   kovLogs.handleMessage(client, message);
+  if (message.author.bot) return;
+
+  // Atendimento a pedidos de ajuda em Mensagens Diretas (DM)
+  if (message.channel.type === 1) { // 1 = DM
+    if (ehComandoAjuda(message.content)) {
+      const { estaEnviandoPrints } = require('./suporteDuvidas');
+      if (!estaEnviandoPrints(message.author.id)) {
+        try {
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('onboarding_abrir_suporte')
+              .setLabel('🆘 Abrir Chamado de Suporte')
+              .setStyle(ButtonStyle.Danger)
+              .setEmoji('🆘')
+          );
+
+          const membro = await db.getMembro(message.author.id);
+          if (membro && membro.status !== 'concluido') {
+            row.addComponents(
+              new ButtonBuilder()
+                .setCustomId('onboarding_reiniciar')
+                .setLabel('🔄 Continuar Cadastro')
+                .setStyle(ButtonStyle.Primary)
+                .setEmoji('🔄')
+            );
+          }
+
+          await message.reply({
+            content:
+              '👋 **Central de Suporte • CyberGuard**\n' +
+              'Identificamos que você solicitou ajuda! Se você teve algum problema durante o processo ou o bot não respondeu normalmente, clique em **"Abrir Chamado de Suporte"** abaixo para relatar o problema e anexar prints.\n' +
+              (membro && membro.status !== 'concluido' ? 'Ou se desejar retomar o seu cadastro de onde parou, clique em **"Continuar Cadastro"**.' : ''),
+            components: [row],
+          });
+          return;
+        } catch (errAjuda) {
+          console.error('[index] Erro ao enviar resposta de ajuda em DM:', errAjuda);
+        }
+      }
+    }
+  }
+
   handleMensagemDM(message).catch((err) => console.error('Erro ao processar DM:', err));
 });
 

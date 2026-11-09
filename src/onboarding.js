@@ -140,9 +140,45 @@ const LABELS = {
   area_interesse: 'Área de interesse',
 };
 
+function ehComandoAjuda(texto) {
+  if (!texto || typeof texto !== 'string') return false;
+  const t = texto.trim().toLowerCase();
+  return (
+    t === '/help' ||
+    t === 'help' ||
+    t === '/ajuda' ||
+    t === 'ajuda' ||
+    t === '!help' ||
+    t === '!ajuda' ||
+    t === 'suporte' ||
+    t === '/suporte' ||
+    t === '!suporte' ||
+    t === 'socorro'
+  );
+}
+
+async function enviarMensagemAjudaOnboarding(dm, userId) {
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('onboarding_abrir_suporte')
+      .setLabel('🆘 Abrir Chamado de Suporte')
+      .setStyle(ButtonStyle.Danger)
+      .setEmoji('🆘')
+  );
+
+  await dm.send({
+    content:
+      '❓ **Detectamos que você solicitou ajuda no processo de cadastro!**\n\n' +
+      'Se o bot travou, não respondeu adequadamente ou você tem dúvidas sobre os dados solicitados, clique no botão abaixo para abrir uma caixinha de chamado para a liderança (com opção de prints e resposta por e-mail):\n\n' +
+      '*(Caso queira apenas continuar preenchendo o cadastro, basta responder à pergunta anterior digitando seus dados normalmente)*',
+    components: [row],
+  });
+}
+
 async function coletarResposta(dmChannel, userId) {
+  const { estaEnviandoPrints } = require('./suporteDuvidas');
   const collected = await dmChannel.awaitMessages({
-    filter: (m) => m.author.id === userId,
+    filter: (m) => m.author.id === userId && !estaEnviandoPrints(userId) && m.attachments.size === 0,
     max: 1,
     time: 30 * 60 * 1000,
     errors: ['time'],
@@ -204,6 +240,10 @@ async function coletarNomeSocial(dm, userId, respostas) {
 
   while (true) {
     const resposta = await coletarResposta(dm, userId);
+    if (ehComandoAjuda(resposta)) {
+      await enviarMensagemAjudaOnboarding(dm, userId);
+      continue;
+    }
     if (validators.naoVazio(resposta)) {
       respostas.nome_social = resposta;
       await dm.send(`Nome social registrado com sucesso: **${respostas.nome_social}**`);
@@ -273,6 +313,10 @@ async function coletarInstituicao(dm, userId) {
   await dm.send('Qual o nome da sua **instituição de ensino**?');
   while (true) {
     const resposta = await coletarResposta(dm, userId);
+    if (ehComandoAjuda(resposta)) {
+      await enviarMensagemAjudaOnboarding(dm, userId);
+      continue;
+    }
     if (validators.naoVazio(resposta)) {
       return resposta;
     }
@@ -372,6 +416,10 @@ async function coletarEmailNotion(dm, userId, respostas) {
 
   while (true) {
     const resposta = await coletarResposta(dm, userId);
+    if (ehComandoAjuda(resposta)) {
+      await enviarMensagemAjudaOnboarding(dm, userId);
+      continue;
+    }
     if (validators.validarEmail(resposta)) {
       respostas.email_notion = resposta;
       await dm.send(`Acesso ao Notion configurado para o e-mail: **${respostas.email_notion}**`);
@@ -389,6 +437,10 @@ async function coletarPerguntaTexto(dm, userId, pergunta, respostas) {
   let valida = false;
   while (!valida) {
     const resposta = await coletarResposta(dm, userId);
+    if (ehComandoAjuda(resposta)) {
+      await enviarMensagemAjudaOnboarding(dm, userId);
+      continue;
+    }
     if (!pergunta.validator || pergunta.validator(resposta, respostas)) {
       respostas[pergunta.campo] = resposta;
       valida = true;
@@ -655,7 +707,9 @@ async function solicitarTermoCiencia(dm, userId) {
   }
 
   await interacao.update({
-    content: '✅ **Termo de Ciência e Privacidade aceito!** Vamos iniciar o preenchimento dos seus dados cadastrais para o Termo de Adesão.',
+    content:
+      '✅ **Termo de Ciência e Privacidade aceito!** Vamos iniciar o preenchimento dos seus dados cadastrais para o Termo de Adesão.\n' +
+      '💡 *Dica: se tiver qualquer dúvida ou se o bot parar de responder normalmente, digite `/help` a qualquer momento para abrir um chamado para a liderança.*',
     embeds: [],
     components: [],
   });
@@ -1122,4 +1176,6 @@ module.exports = {
   iniciarOnboarding,
   handleOnboardingInteraction,
   TERMO_CIENCIA_TEXTO,
+  ehComandoAjuda,
+  enviarMensagemAjudaOnboarding,
 };

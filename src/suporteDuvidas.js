@@ -1,5 +1,8 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+const axios = require('axios');
 const {
   EmbedBuilder,
   ActionRowBuilder,
@@ -23,6 +26,58 @@ const transporter = nodemailer.createTransport({
     pass: config.smtp.pass,
   },
 });
+
+const usuariosEnviandoPrints = new Set();
+const sessoesSuportePrints = new Map();
+
+function estaEnviandoPrints(userId) {
+  return usuariosEnviandoPrints.has(userId);
+}
+
+function criarModalSuporte(origem = 'geral') {
+  const modal = new ModalBuilder()
+    .setCustomId(`modal_suporte_duvida_lideranca_${origem}`)
+    .setTitle('Ajuda & Suporte • CyberGuard');
+
+  const inputAssunto = new TextInputBuilder()
+    .setCustomId('input_assunto_lideranca')
+    .setLabel('Título / Assunto do problema')
+    .setPlaceholder('Ex.: Bot não respondeu na etapa de CPF / Dúvida cadastral')
+    .setStyle(TextInputStyle.Short)
+    .setMinLength(3)
+    .setMaxLength(100)
+    .setRequired(true);
+
+  const inputPergunta = new TextInputBuilder()
+    .setCustomId('input_pergunta_lideranca')
+    .setLabel('Descrição detalhada da solicitação')
+    .setPlaceholder('Descreva o que ocorreu, onde você travou ou o que precisa...')
+    .setStyle(TextInputStyle.Paragraph)
+    .setMinLength(10)
+    .setMaxLength(1500)
+    .setRequired(true);
+
+  const inputLinksPrints = new TextInputBuilder()
+    .setCustomId('input_links_prints')
+    .setLabel('Link de prints/imagens (opcional)')
+    .setPlaceholder('Cole links de prints aqui (ou envie os arquivos no chat a seguir)')
+    .setStyle(TextInputStyle.Paragraph)
+    .setMaxLength(500)
+    .setRequired(false);
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(inputAssunto),
+    new ActionRowBuilder().addComponents(inputPergunta),
+    new ActionRowBuilder().addComponents(inputLinksPrints)
+  );
+
+  return modal;
+}
+
+async function abrirModalSuporte(interaction, origem = 'geral') {
+  const modal = criarModalSuporte(origem);
+  return interaction.showModal(modal);
+}
 
 function montarPainelDuvidas() {
   const embed = new EmbedBuilder()
@@ -108,6 +163,220 @@ async function garantirPainelDuvidas(client, canalIdCustom = null) {
   }
 }
 
+function iniciarColetorPrints(canal, sessao) {
+  if (!canal || typeof canal.createMessageCollector !== 'function') return;
+
+  const coletor = canal.createMessageCollector({
+    filter: (m) => m.author.id === sessao.userId && m.attachments.size > 0,
+    time: 90_000,
+  });
+
+  sessao.coletor = coletor;
+
+  coletor.on('collect', async (mensagem) => {
+    if (sessao.finalizado) return;
+
+    for (const anexo of mensagem.attachments.values()) {
+      if (sessao.arquivosAnexados.length >= 5) {
+        await mensagem.reply('⚠️ Limite máximo de 5 prints atingido para este chamado. Clique no botão acima para concluir o envio.').catch(() => {});
+        break;
+      }
+
+      const nomeExt = path.extname(anexo.name || '').toLowerCase();
+      const extensoesPermitidas = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.pdf'];
+      if (!extensoesPermitidas.includes(nomeExt) && !anexo.contentType?.startsWith('image/')) {
+        await mensagem.reply(`⚠️ O arquivo \`${anexo.name}\` não é uma imagem ou PDF válido e foi desconsiderado.`).catch(() => {});
+        continue;
+      }
+
+      if (anexo.size > 10 * 1024 * 1024) {
+        await mensagem.reply(`⚠️ O arquivo \`${anexo.name}\` ultrapassa 10MB e não pôde ser anexado.`).catch(() => {});
+        continue;
+      }
+
+      try {
+        const dirTemp = path.resolve('./temp');
+        if (!fs.existsSync(dirTemp)) {
+          fs.mkdirSync(dirTemp, { recursive: true });
+        }
+        const nomeArquivoTemp = `print_${sessao.codigo}_${sessao.arquivosAnexados.length + 1}_${Date.now()}${nomeExt || '.png'}`;
+        const caminhoLocal = path.join(dirTemp, nomeArquivoTemp);
+
+        const resp = await axios.get(anexo.url, { responseType: 'arraybuffer', timeout: 15000 });
+        fs.writeFileSync(caminhoLocal, resp.data);
+
+        sessao.arquivosAnexados.push({
+          filename: anexo.name || nomeArquivoTemp,
+          path: caminhoLocal,
+        });
+
+        await mensagem.reply(
+          `📸 Print recebido com sucesso: **${anexo.name}**!\n` +
+          `Total anexado: **${sessao.arquivosAnexados.length}** print(s). Você pode enviar mais imagens ou clicar em **"✉️ Concluir e Enviar E-mail"** acima para finalizar.`
+        ).catch(() => {});
+      } catch (errDownload) {
+        console.error('[suporte] Erro ao baixar print anexo:', errDownload.message);
+        await mensagem.reply(`❌ Ocorreu uma falha ao baixar o print \`${anexo.name}\`. Tente enviar novamente.`).catch(() => {});
+      }
+    }
+  });
+
+  coletor.on('end', async (_coletados, razao) => {
+    if (sessao.finalizado) return;
+    if (razao === 'time') {
+      console.log(`[suporte] Timeout de 90s atingido para a coleta de prints do chamado #${sessao.codigo}. Enviando automaticamente...`);
+      await finalizarEEnviarChamado(sessao.codigo);
+    }
+  });
+}
+
+async function finalizarEEnviarChamado(codigo, interactionBotao = null) {
+  const sessao = sessoesSuportePrints.get(codigo);
+  if (!sessao || sessao.finalizado) return;
+  sessao.finalizado = true;
+
+  if (sessao.coletor) {
+    try { sessao.coletor.stop(); } catch (_) {}
+  }
+
+  usuariosEnviandoPrints.delete(sessao.userId);
+  sessoesSuportePrints.delete(codigo);
+
+  const destinatarioAdmin =
+    config.emailSuporteAdmin || config.smtp.destinatarios[0] || config.smtp.user;
+
+  let statusMembro = 'Não cadastrado';
+  try {
+    const m = await db.getMembro(sessao.userId);
+    if (m) {
+      statusMembro = m.status ? `Status: ${m.status}` : 'Em andamento';
+      if (m.ra) statusMembro += ` (RA: ${m.ra})`;
+    }
+  } catch (_) {}
+
+  const printsInfoTexto =
+    sessao.arquivosAnexados.length > 0
+      ? `\n* Foram anexados ${sessao.arquivosAnexados.length} print(s)/arquivo(s) a este e-mail.`
+      : '';
+
+  const linksTexto = sessao.linksPrints ? `LINKS DE PRINTS: ${sessao.linksPrints}\n` : '';
+
+  let messageId = null;
+  try {
+    const emailInfo = await transporter.sendMail({
+      from: config.smtp.from || config.smtp.user,
+      to: destinatarioAdmin,
+      subject: `[CyberGuard Suporte] Dúvida #${codigo} - ${sessao.assunto}`,
+      text:
+        `Olá Renan / Liderança do CyberGuard,\n\n` +
+        `O integrante ${sessao.nomeUsuario} (<@${sessao.userId}>) enviou uma solicitação de suporte / ajuda.\n\n` +
+        `----------------------------------------------------------------------\n` +
+        `PROTOCOLO: #${codigo}\n` +
+        `INTEGRANTE: ${sessao.nomeUsuario} (ID: ${sessao.userId})\n` +
+        `ORIGEM: ${sessao.origem === 'onboarding' ? 'Onboarding / Cadastro' : 'Canal / Dúvidas'}\n` +
+        `SITUAÇÃO DO CADASTRO: ${statusMembro}\n` +
+        `ASSUNTO: ${sessao.assunto}\n` +
+        `${linksTexto}` +
+        `PRINTS ANEXADOS: ${sessao.arquivosAnexados.length} imagem(ns)\n` +
+        `----------------------------------------------------------------------\n\n` +
+        `SOLICITAÇÃO / DÚVIDA DO INTEGRANTE:\n` +
+        `"${sessao.pergunta}"\n${printsInfoTexto}\n\n` +
+        `======================================================================\n` +
+        `COMO RESPONDER:\n` +
+        `Basta RESPONDER a este e-mail normalmente pelo seu cliente de e-mail!\n` +
+        `O CyberGuard Bot monitora esta caixa postal, capturará o seu texto e\n` +
+        `enviará a resposta diretamente para ${sessao.nomeUsuario} no Discord.\n` +
+        `IMPORTANTE: Mantenha o código [#${codigo}] no assunto do e-mail.\n` +
+        `======================================================================\n\n` +
+        `Atenciosamente,\n` +
+        `Central de Atendimento Automático • CyberGuard Bot`,
+      attachments: sessao.arquivosAnexados.map((a) => ({
+        filename: a.filename,
+        path: a.path,
+      })),
+    });
+    messageId = emailInfo.messageId;
+  } catch (errEmail) {
+    console.error('[suporte] Erro ao enviar e-mail para a liderança:', errEmail.message);
+    const erroMsg = '❌ Falha na conexão SMTP ao enviar o e-mail para a liderança. Por favor, tente novamente em instantes.';
+    if (interactionBotao) {
+      await interactionBotao.reply({ content: erroMsg, ephemeral: true }).catch(() => {});
+    } else if (sessao.interaction) {
+      await sessao.interaction.followUp({ content: erroMsg, ephemeral: true }).catch(() => {});
+    }
+    return;
+  } finally {
+    for (const arq of sessao.arquivosAnexados) {
+      try {
+        if (fs.existsSync(arq.path)) fs.unlinkSync(arq.path);
+      } catch (_) {}
+    }
+  }
+
+  const nomesAnexos = sessao.arquivosAnexados.map((a) => a.filename).join(', ') || null;
+  const perguntaFinal = sessao.linksPrints
+    ? `${sessao.pergunta}\n\n[Links de prints]: ${sessao.linksPrints}`
+    : sessao.pergunta;
+
+  await db.criarDuvidaSuporte({
+    codigo,
+    discordId: sessao.userId,
+    nomeUsuario: sessao.nomeUsuario,
+    canalOrigemId: sessao.canalOrigemId,
+    assunto: sessao.assunto,
+    pergunta: perguntaFinal,
+    messageIdEmail: messageId,
+    anexos: nomesAnexos,
+    origem: sessao.origem,
+  });
+
+  const embedConfirmacao = new EmbedBuilder()
+    .setColor(0x22c55e)
+    .setTitle('📨 Solicitação Encaminhada para a Liderança!')
+    .setDescription(
+      `Sua solicitação foi registrada com sucesso e um e-mail com todas as informações e prints foi enviado para a coordenação.\n\n` +
+        `• **Protocolo:** \`#${codigo}\`\n` +
+        `• **Título:** ${sessao.assunto}\n` +
+        `• **Prints Anexados:** ${sessao.arquivosAnexados.length} imagem(ns)\n` +
+        `• **Status:** ⏳ Aguardando resposta por e-mail da Liderança\n\n` +
+        `Assim que a liderança responder ao e-mail, **o bot entregará a resposta diretamente para você por Mensagem Direta (DM)!**`
+    )
+    .setFooter({ text: 'Guarde seu código de protocolo para referência futura.' })
+    .setTimestamp();
+
+  if (interactionBotao) {
+    await interactionBotao.update({ embeds: [embedConfirmacao], components: [] }).catch(() => {});
+  } else if (sessao.interaction) {
+    await sessao.interaction.editReply({ embeds: [embedConfirmacao], components: [] }).catch(() => {});
+  }
+}
+
+function cancelarSessaoSuporte(codigo, interactionBotao = null) {
+  const sessao = sessoesSuportePrints.get(codigo);
+  if (!sessao || sessao.finalizado) return;
+  sessao.finalizado = true;
+
+  if (sessao.coletor) {
+    try { sessao.coletor.stop(); } catch (_) {}
+  }
+
+  usuariosEnviandoPrints.delete(sessao.userId);
+  sessoesSuportePrints.delete(codigo);
+
+  for (const arq of sessao.arquivosAnexados) {
+    try {
+      if (fs.existsSync(arq.path)) fs.unlinkSync(arq.path);
+    } catch (_) {}
+  }
+
+  const msgCancelado = '❌ **Chamado de suporte cancelado.** Nenhum e-mail foi enviado.';
+  if (interactionBotao) {
+    interactionBotao.update({ content: msgCancelado, embeds: [], components: [] }).catch(() => {});
+  } else if (sessao.interaction) {
+    sessao.interaction.editReply({ content: msgCancelado, embeds: [], components: [] }).catch(() => {});
+  }
+}
+
 async function handleDuvidasInteraction(interaction) {
   // 1. Botão Acessar Regras e Manuais
   if (interaction.isButton() && interaction.customId === 'painel_duvidas_regras') {
@@ -152,41 +421,41 @@ async function handleDuvidasInteraction(interaction) {
     return interaction.editReply({ embeds: [embed] });
   }
 
-  // 4. Botão Tirar Dúvidas com a Liderança (E-mail)
-  if (interaction.isButton() && interaction.customId === 'painel_duvidas_lideranca') {
-    const modal = new ModalBuilder()
-      .setCustomId('modal_suporte_duvida_lideranca')
-      .setTitle('Enviar Dúvida para a Liderança');
-
-    const inputAssunto = new TextInputBuilder()
-      .setCustomId('input_assunto_lideranca')
-      .setLabel('Assunto / Tópico')
-      .setPlaceholder('Ex.: Dúvida sobre validação de documento ou ajuste específico')
-      .setStyle(TextInputStyle.Short)
-      .setMinLength(3)
-      .setMaxLength(100)
-      .setRequired(true);
-
-    const inputPergunta = new TextInputBuilder()
-      .setCustomId('input_pergunta_lideranca')
-      .setLabel('Descreva sua dúvida com detalhes:')
-      .setPlaceholder('Explique o que ocorreu e o que você precisa que seja esclarecido...')
-      .setStyle(TextInputStyle.Paragraph)
-      .setMinLength(10)
-      .setMaxLength(1500)
-      .setRequired(true);
-
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(inputAssunto),
-      new ActionRowBuilder().addComponents(inputPergunta)
-    );
-    return interaction.showModal(modal);
+  // 4. Botão Tirar Dúvidas com a Liderança (Painel ou Onboarding)
+  if (
+    interaction.isButton() &&
+    (interaction.customId === 'painel_duvidas_lideranca' ||
+      interaction.customId === 'onboarding_abrir_suporte')
+  ) {
+    const origem = interaction.customId === 'onboarding_abrir_suporte' ? 'onboarding' : 'painel';
+    return abrirModalSuporte(interaction, origem);
   }
 
-  // 5. Submissão do Modal de Dúvida para a Liderança
-  if (interaction.isModalSubmit() && interaction.customId === 'modal_suporte_duvida_lideranca') {
+  // 5. Finalizar ou Cancelar envio de chamado com prints via botões
+  if (interaction.isButton() && interaction.customId.startsWith('suporte_enviar_')) {
+    const codigo = interaction.customId.replace('suporte_enviar_', '');
+    await finalizarEEnviarChamado(codigo, interaction);
+    return true;
+  }
+
+  if (interaction.isButton() && interaction.customId.startsWith('suporte_cancelar_')) {
+    const codigo = interaction.customId.replace('suporte_cancelar_', '');
+    cancelarSessaoSuporte(codigo, interaction);
+    return true;
+  }
+
+  // 6. Submissão do Modal de Dúvida / Suporte para a Liderança
+  if (
+    interaction.isModalSubmit() &&
+    interaction.customId.startsWith('modal_suporte_duvida_lideranca')
+  ) {
+    const origem = interaction.customId.replace('modal_suporte_duvida_lideranca_', '') || 'geral';
     const assunto = interaction.fields.getTextInputValue('input_assunto_lideranca');
     const pergunta = interaction.fields.getTextInputValue('input_pergunta_lideranca');
+    let linksPrints = '';
+    try {
+      linksPrints = interaction.fields.getTextInputValue('input_links_prints')?.trim() || '';
+    } catch (_) {}
 
     await interaction.deferReply({ ephemeral: true });
 
@@ -203,67 +472,64 @@ async function handleDuvidasInteraction(interaction) {
     const randomSufixo = Math.floor(1000 + Math.random() * 9000);
     const codigo = `DUVIDA-${randomSufixo}`;
     const nomeUsuario = interaction.user.tag || interaction.user.username;
+    const userId = interaction.user.id;
 
-    let messageId = null;
-    try {
-      const emailInfo = await transporter.sendMail({
-        from: config.smtp.from || config.smtp.user,
-        to: destinatarioAdmin,
-        subject: `[CyberGuard Suporte] Dúvida #${codigo} - ${assunto}`,
-        text:
-          `Olá Renan / Liderança do CyberGuard,\n\n` +
-          `O integrante ${nomeUsuario} (<@${interaction.user.id}>) enviou uma dúvida através do canal de suporte do Discord.\n\n` +
-          `----------------------------------------------------------------------\n` +
-          `PROTOCOLO: #${codigo}\n` +
-          `INTEGRANTE: ${nomeUsuario} (ID: ${interaction.user.id})\n` +
-          `CANAL: #${interaction.channel?.name || 'suporte'}\n` +
-          `ASSUNTO: ${assunto}\n` +
-          `----------------------------------------------------------------------\n\n` +
-          `DÚVIDA DO INTEGRANTE:\n` +
-          `"${pergunta}"\n\n` +
-          `======================================================================\n` +
-          `COMO RESPONDER:\n` +
-          `Basta RESPONDER a este e-mail normalmente pelo seu cliente de e-mail!\n` +
-          `O CyberGuard Bot monitora esta caixa postal, capturará o seu texto e\n` +
-          `enviará a resposta diretamente para ${nomeUsuario} no Discord.\n` +
-          `IMPORTANTE: Mantenha o código [#${codigo}] no assunto do e-mail.\n` +
-          `======================================================================\n\n` +
-          `Atenciosamente,\n` +
-          `Central de Atendimento Automático • CyberGuard Bot`,
-      });
-      messageId = emailInfo.messageId;
-    } catch (errEmail) {
-      console.error('[suporte] Erro ao enviar e-mail para a liderança:', errEmail.message);
-      return interaction.editReply({
-        content:
-          '❌ Ocorreu uma falha na conexão SMTP ao enviar o e-mail para a liderança. Por favor, tente novamente em instantes ou avise a equipe.',
-      });
+    for (const [cod, sess] of sessoesSuportePrints.entries()) {
+      if (sess.userId === userId) {
+        cancelarSessaoSuporte(cod);
+      }
     }
 
-    await db.criarDuvidaSuporte({
+    const sessao = {
       codigo,
-      discordId: interaction.user.id,
+      userId,
       nomeUsuario,
       canalOrigemId: interaction.channelId,
       assunto,
       pergunta,
-      messageIdEmail: messageId,
-    });
+      linksPrints,
+      origem,
+      arquivosAnexados: [],
+      coletor: null,
+      timerTimeout: null,
+      finalizado: false,
+      interaction,
+    };
 
-    const embedConfirmacao = new EmbedBuilder()
-      .setColor(0x22c55e)
-      .setTitle('📨 Dúvida Encaminhada para a Liderança!')
+    sessoesSuportePrints.set(codigo, sessao);
+    usuariosEnviandoPrints.add(userId);
+
+    const embedAguardando = new EmbedBuilder()
+      .setColor(0x2f6fed)
+      .setTitle(`📋 Chamado #${codigo} Iniciado!`)
       .setDescription(
-        `Sua dúvida foi registrada com sucesso e um e-mail com todas as informações foi enviado para a coordenação.\n\n` +
-          `• **Protocolo:** \`#${codigo}\`\n` +
-          `• **Assunto:** ${assunto}\n` +
-          `• **Status:** ⏳ Aguardando resposta por e-mail da Liderança\n\n` +
-          `Assim que a liderança responder ao e-mail, **o bot enviará a resposta diretamente para você por Mensagem Direta (DM)!**`
+        `Seu chamado foi registrado com o protocolo **\`#${codigo}\`**.\n\n` +
+          `• **Título:** ${assunto}\n` +
+          `• **Solicitação:** ${pergunta}\n` +
+          (linksPrints ? `• **Link informado:** ${linksPrints}\n` : '') +
+          `\n📸 **Deseja anexar capturas de tela/prints do problema?**\n` +
+          `Você pode **enviar imagens/prints diretamente aqui nesta conversa (DM)** nos próximos 90 segundos.\n\n` +
+          `Assim que terminar de anexar seus prints (ou se já quiser enviar sem anexar imagens), clique no botão **"✉️ Concluir e Enviar E-mail"** abaixo.`
       )
-      .setFooter({ text: 'Guarde seu código de protocolo para referência futura.' })
+      .setFooter({ text: 'O CyberGuard encaminhará seus dados e prints para o e-mail da liderança.' })
       .setTimestamp();
 
-    return interaction.editReply({ embeds: [embedConfirmacao] });
+    const rowBotoes = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`suporte_enviar_${codigo}`)
+        .setLabel('✉️ Concluir e Enviar E-mail')
+        .setStyle(ButtonStyle.Success)
+        .setEmoji('✉️'),
+      new ButtonBuilder()
+        .setCustomId(`suporte_cancelar_${codigo}`)
+        .setLabel('❌ Cancelar')
+        .setStyle(ButtonStyle.Secondary)
+    );
+
+    await interaction.editReply({ embeds: [embedAguardando], components: [rowBotoes] });
+
+    iniciarColetorPrints(interaction.channel, sessao);
+    return true;
   }
 
   return false;
@@ -295,7 +561,6 @@ function limparRespostaEmail(textoBruto) {
   if (!textoBruto) return '';
   let texto = textoBruto;
 
-  // Sanitiza tags HTML se for mensagem HTML
   if (/<[a-z][\s\S]*>/i.test(texto)) {
     texto = texto
       .replace(/<style[\s\S]*?<\/style>/gi, '')
@@ -313,7 +578,6 @@ function limparRespostaEmail(textoBruto) {
   const linhasLimpas = [];
   for (const linha of linhas) {
     const l = linha.trim();
-    // Interrompe quando começar citação de e-mails antigos ou headers
     if (/^Em\s.+escreveu:?$/i.test(l)) break;
     if (/^On\s.+wrote:?$/i.test(l)) break;
     if (/^-+\s*(Mensagem original|Original message|Forwarded message)\s*-+$/i.test(l)) break;
@@ -385,22 +649,38 @@ async function processarRespostasDuvidasImap(imap, client) {
 
     const embedNotificacao = new EmbedBuilder()
       .setColor(0x2f6fed)
-      .setTitle('📬 Sua Dúvida foi Respondida pela Liderança!')
-      .setDescription(`Olá, <@${duvida.discord_id}>! A liderança do CyberGuard respondeu sua dúvida enviada por e-mail.`)
+      .setTitle('📬 Sua Solicitação foi Respondida pela Liderança!')
+      .setDescription(`Olá, <@${duvida.discord_id}>! A liderança do CyberGuard respondeu sua mensagem enviada por e-mail.`)
       .addFields(
         { name: '🔖 Protocolo', value: `\`#${duvida.codigo}\``, inline: true },
-        { name: '📌 Assunto', value: duvida.assunto || 'Dúvida Geral', inline: true },
-        { name: '❓ Sua Pergunta', value: duvida.pergunta },
+        { name: '📌 Assunto', value: duvida.assunto || 'Solicitação de Apoio', inline: true },
+        { name: '❓ Sua Mensagem', value: duvida.pergunta },
         { name: '💬 Resposta da Liderança', value: textoResposta }
       )
       .setFooter({ text: 'CyberGuard UTFPR • Central de Apoio e Suporte' })
       .setTimestamp();
 
+    const components = [];
+    try {
+      const membro = await db.getMembro(duvida.discord_id);
+      if (membro && membro.status !== 'concluido') {
+        components.push(
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('onboarding_reiniciar')
+              .setLabel('🔄 Continuar Cadastro / Onboarding')
+              .setStyle(ButtonStyle.Primary)
+              .setEmoji('🔄')
+          )
+        );
+      }
+    } catch (_) {}
+
     let enviadoDm = false;
     try {
       const user = await client.users.fetch(duvida.discord_id);
       if (user) {
-        await user.send({ embeds: [embedNotificacao] });
+        await user.send({ embeds: [embedNotificacao], components });
         enviadoDm = true;
         console.log(`[suporte-imap] Resposta de #${codigo} entregue com sucesso na DM de ${duvida.discord_id}.`);
       }
@@ -418,6 +698,7 @@ async function processarRespostasDuvidasImap(imap, client) {
             await canal.send({
               content: `📢 <@${duvida.discord_id}>, a liderança respondeu sua dúvida (#${duvida.codigo}) por e-mail (sua DM está indisponível):`,
               embeds: [embedNotificacao],
+              components,
             });
             console.log(`[suporte-imap] Resposta de #${codigo} postada no canal #${canal.name}.`);
           }
@@ -432,6 +713,9 @@ async function processarRespostasDuvidasImap(imap, client) {
 module.exports = {
   montarPainelDuvidas,
   garantirPainelDuvidas,
+  criarModalSuporte,
+  abrirModalSuporte,
+  estaEnviandoPrints,
   handleDuvidasInteraction,
   processarRespostasDuvidasImap,
 };

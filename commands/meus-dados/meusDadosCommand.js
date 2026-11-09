@@ -157,7 +157,16 @@ module.exports = {
           },
           { name: 'Telefone', value: membro?.telefone || '—', inline: true },
           { name: 'E-mail Oficial', value: membro?.email || '—', inline: true },
-          { name: 'E-mail Notion', value: membro?.email_notion || membro?.email || '—', inline: true },
+          {
+            name: 'E-mail Notion',
+            value: (() => {
+              const base = membro?.email_notion || membro?.email || '—';
+              if (membro?.status_notion_workspace === 'liberado') return `${base} (✅ Ativo)`;
+              if (membro?.status_notion_workspace === 'pendente_conta') return `${base} (⏳ Pendente de conta)`;
+              return base;
+            })(),
+            inline: true,
+          },
           {
             name: 'Horas Acumuladas (Ponto)',
             value: formatarMinutos(totalMinutos),
@@ -790,9 +799,22 @@ module.exports = {
           console.error('[meus-dados] Erro ao sincronizar e-mail Notion:', errNotion.message);
         }
 
+        let avisoWorkspace = '';
+        try {
+          const { adicionarMembroWorkspace } = require('../../src/notionWorkspace');
+          const resWs = await adicionarMembroWorkspace(emailNotion);
+          if (resWs?.sucesso) {
+            await db.atualizarStatusNotionWorkspace(interaction.user.id, 'liberado');
+            avisoWorkspace = '\n🎉 **Seu acesso ao Workspace do Notion também foi liberado com sucesso!**';
+          } else {
+            await db.atualizarStatusNotionWorkspace(interaction.user.id, 'pendente_conta');
+            avisoWorkspace = '\n⚠️ *Lembre-se de criar sua conta em https://www.notion.so com esse e-mail para ativar seu acesso ao Workspace.*';
+          }
+        } catch (_) {}
+
         await interaction.editReply({
           content:
-            `✅ **E-mail do Notion atualizado com sucesso para \`${emailNotion}\`!** Use \`/meus-dados visualizar\` para conferir.`,
+            `✅ **E-mail do Notion atualizado com sucesso para \`${emailNotion}\`!**${avisoWorkspace}\nUse \`/meus-dados visualizar\` para conferir.`,
         });
         return true;
       }
