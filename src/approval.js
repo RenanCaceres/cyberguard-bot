@@ -279,17 +279,21 @@ async function handleAprovacaoInteraction(interaction) {
       if (resWorkspace.sucesso) {
         statusNotionWorkspace = '\n✅ *Acesso ao Workspace do Notion liberado automaticamente!*';
         notionWorkspaceLiberado = true;
-        await db.atualizarStatusNotionWorkspace(discordId, 'liberado');
+        await db.atualizarStatusNotionWorkspace(discordId, 'liberado', {
+          tentativas_notion: 0,
+        });
       } else {
         statusNotionWorkspace = `\n⚠️ *Aviso Workspace Notion:* ${resWorkspace.mensagem}`;
         await db.atualizarStatusNotionWorkspace(discordId, 'pendente_conta', {
           ultimo_lembrete_notion: new Date(),
+          tentativas_notion: 1,
         });
       }
     } catch (errWs) {
       statusNotionWorkspace = `\n⚠️ *Não foi possível adicionar automaticamente ao Workspace:* ${errWs.message}`;
       await db.atualizarStatusNotionWorkspace(discordId, 'pendente_conta', {
         ultimo_lembrete_notion: new Date(),
+        tentativas_notion: 1,
       });
     }
 

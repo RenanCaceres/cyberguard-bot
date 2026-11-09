@@ -79,6 +79,7 @@ async function initSchema() {
     'papel TEXT',
     'status_notion_workspace TEXT',
     'ultimo_lembrete_notion TIMESTAMPTZ',
+    'tentativas_notion INTEGER',
   ];
 
   for (const coluna of colunas) {
@@ -424,6 +425,7 @@ function atualizarDadosParciaisMembro(discordId, camposObj = {}) {
     'periodo',
     'status_notion_workspace',
     'ultimo_lembrete_notion',
+    'tentativas_notion',
   ];
   const filtrados = {};
   for (const chave of permitidos) {
@@ -535,7 +537,23 @@ function atualizarStatusNotionWorkspace(discordId, statusWorkspace, extra = {}) 
     sets.push(`email_notion = $${idx++}`);
     valores.push(extra.email_notion);
   }
+  if (extra.tentativas_notion !== undefined) {
+    sets.push(`tentativas_notion = $${idx++}`);
+    valores.push(extra.tentativas_notion);
+  }
   return pool.query(`UPDATE membros SET ${sets.join(', ')} WHERE discord_id = $1`, valores);
+}
+
+function incrementarTentativasNotion(discordId) {
+  return pool
+    .query(
+      `UPDATE membros
+       SET tentativas_notion = COALESCE(tentativas_notion, 0) + 1
+       WHERE discord_id = $1
+       RETURNING tentativas_notion`,
+      [discordId]
+    )
+    .then((r) => r.rows[0]?.tentativas_notion || 1);
 }
 
 /** RH marca que já verificou manualmente e não quer mais receber lembrete desse membro. */
@@ -1175,4 +1193,5 @@ module.exports = {
   // notion workspace e lembretes
   listarMembrosNotionPendente,
   atualizarStatusNotionWorkspace,
+  incrementarTentativasNotion,
 };

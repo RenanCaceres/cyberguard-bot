@@ -14,8 +14,8 @@ const config = require('./config');
 const validators = require('./validators');
 const { adicionarMembroWorkspace } = require('./notionWorkspace');
 
-function criarBotoesPendenciaNotion() {
-  return new ActionRowBuilder().addComponents(
+function criarBotoesPendenciaNotion(mostrarAjuda = false) {
+  const botoes = [
     new ButtonBuilder()
       .setCustomId('notion_pendente_criar')
       .setLabel('✅ Já criei a conta no Notion')
@@ -23,12 +23,23 @@ function criarBotoesPendenciaNotion() {
     new ButtonBuilder()
       .setCustomId('notion_pendente_mudar')
       .setLabel('✏️ Mudar e-mail do Notion')
-      .setStyle(ButtonStyle.Secondary)
-  );
+      .setStyle(ButtonStyle.Secondary),
+  ];
+
+  if (mostrarAjuda) {
+    botoes.push(
+      new ButtonBuilder()
+        .setCustomId('notion_pendente_ajuda')
+        .setLabel('🆘 Pedir Ajuda (/help)')
+        .setStyle(ButtonStyle.Danger)
+    );
+  }
+
+  return new ActionRowBuilder().addComponents(botoes);
 }
 
 async function enviarAvisoPendenteNotion(usuarioDiscord, emailNotion) {
-  const row = criarBotoesPendenciaNotion();
+  const row = criarBotoesPendenciaNotion(false);
   return usuarioDiscord.send({
     content:
       `⚠️ **Atenção sobre seu acesso ao Workspace do Notion:**\n` +
@@ -44,7 +55,13 @@ async function enviarAvisoPendenteNotion(usuarioDiscord, emailNotion) {
 async function handleNotionPendenciasInteraction(interaction) {
   if (!interaction) return false;
 
-  // 1. Botão: "Já criei a conta no Notion"
+  // 1. Botão: "Pedir Ajuda (/help)"
+  if (interaction.isButton() && interaction.customId === 'notion_pendente_ajuda') {
+    const { abrirModalSuporte } = require('./suporteDuvidas');
+    return abrirModalSuporte(interaction, 'notion_pendencias');
+  }
+
+  // 2. Botão: "Já criei a conta no Notion"
   if (interaction.isButton() && interaction.customId === 'notion_pendente_criar') {
     await interaction.deferReply({ ephemeral: true });
     const membro = await db.getMembro(interaction.user.id);
@@ -61,7 +78,9 @@ async function handleNotionPendenciasInteraction(interaction) {
 
     const res = await adicionarMembroWorkspace(emailAlvo);
     if (res.sucesso) {
-      await db.atualizarStatusNotionWorkspace(interaction.user.id, 'liberado');
+      await db.atualizarStatusNotionWorkspace(interaction.user.id, 'liberado', {
+        tentativas_notion: 0,
+      });
       const linkNotion = config.notionHomeUrl ? `\n\n📌 **Acesse a página central do CyberGuard:** ${config.notionHomeUrl}` : '';
       await interaction.editReply(
         `🎉 **Excelente! Sua conta no Notion foi localizada e seu acesso ao Workspace do CyberGuard foi liberado com sucesso!**${linkNotion}`
@@ -87,18 +106,32 @@ async function handleNotionPendenciasInteraction(interaction) {
         }
       }
     } else {
-      await interaction.editReply(
+      const tentativas = await db.incrementarTentativasNotion(interaction.user.id);
+      const atingiuLimite = tentativas >= 3;
+
+      let msgFalha =
         `⚠️ **Ainda não conseguimos localizar uma conta no Notion vinculada a \`${emailAlvo}\`.**\n\n` +
         `Por favor, certifique-se de que:\n` +
         `1. Você acessou https://www.notion.so e concluiu a criação da sua conta;\n` +
         `2. O e-mail utilizado no cadastro do Notion foi exatamente \`${emailAlvo}\`.\n\n` +
-        `Se você utilizou outro endereço de e-mail no Notion, clique no botão **"✏️ Mudar e-mail do Notion"** para atualizar!`
-      );
+        `Se você utilizou outro endereço de e-mail no Notion, clique no botão **"✏️ Mudar e-mail do Notion"** para atualizar!`;
+
+      if (atingiuLimite) {
+        msgFalha +=
+          `\n\n🆘 **Dificuldades para ativar sua conta?**\n` +
+          `Detectamos que já foram feitas ${tentativas} tentativas e a conta ainda não foi encontrada no Notion. ` +
+          `Você pode clicar no botão **"🆘 Pedir Ajuda (/help)"** abaixo ou digitar o comando \`/help\` no Discord para solicitar auxílio diretamente à liderança do projeto!`;
+      }
+
+      await interaction.editReply({
+        content: msgFalha,
+        components: [criarBotoesPendenciaNotion(atingiuLimite)],
+      });
     }
     return true;
   }
 
-  // 2. Botão: "Mudar e-mail do Notion"
+  // 3. Botão: "Mudar e-mail do Notion"
   if (interaction.isButton() && interaction.customId === 'notion_pendente_mudar') {
     const membro = await db.getMembro(interaction.user.id);
     const emailAtual = membro?.email_notion || membro?.email || '';
@@ -111,7 +144,6 @@ async function handleNotionPendenciasInteraction(interaction) {
       .setCustomId('novo_email_notion')
       .setLabel('Novo e-mail vinculado ao Notion')
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder('seuemail@example.com')
       .setValue(emailAtual)
       .setRequired(true);
 
@@ -120,7 +152,7 @@ async function handleNotionPendenciasInteraction(interaction) {
     return true;
   }
 
-  // 3. Submissão do Modal: "Mudar E-mail do Notion"
+  // 4. Submissão do Modal: "Mudar E-mail do Notion"
   if (interaction.isModalSubmit() && interaction.customId === 'notion_modal_mudar_email') {
     await interaction.deferReply({ ephemeral: true });
     const novoEmail = interaction.fields.getTextInputValue('novo_email_notion').trim().toLowerCase();
@@ -152,7 +184,9 @@ async function handleNotionPendenciasInteraction(interaction) {
 
     const res = await adicionarMembroWorkspace(novoEmail);
     if (res.sucesso) {
-      await db.atualizarStatusNotionWorkspace(interaction.user.id, 'liberado');
+      await db.atualizarStatusNotionWorkspace(interaction.user.id, 'liberado', {
+        tentativas_notion: 0,
+      });
       const linkNotion = config.notionHomeUrl ? `\n\n📌 **Acesse a página central do CyberGuard:** ${config.notionHomeUrl}` : '';
       await interaction.editReply(
         `✅ **E-mail atualizado para \`${novoEmail}\` e acesso ao Workspace do Notion liberado com sucesso!** 🎉${linkNotion}`
@@ -178,13 +212,24 @@ async function handleNotionPendenciasInteraction(interaction) {
         }
       }
     } else {
+      const tentativas = await db.incrementarTentativasNotion(interaction.user.id);
+      const atingiuLimite = tentativas >= 3;
+
+      let msg =
+        `✅ **E-mail do Notion atualizado com sucesso para \`${novoEmail}\`!**\n` +
+        `⚠️ Porém, ainda não encontramos nenhuma conta criada no Notion com esse endereço.\n\n` +
+        `Por favor, acesse https://www.notion.so e cadastre-se com \`${novoEmail}\`.\n` +
+        `Assim que terminar, clique no botão **"✅ Já criei a conta no Notion"** abaixo para ativar seu acesso.`;
+
+      if (atingiuLimite) {
+        msg +=
+          `\n\n🆘 **Precisa de auxílio da equipe?**\n` +
+          `Você já realizou ${tentativas} tentativas. Se preferir, clique no botão **"🆘 Pedir Ajuda (/help)"** abaixo ou digite o comando \`/help\` para abrir um chamado com a liderança.`;
+      }
+
       await interaction.editReply({
-        content:
-          `✅ **E-mail do Notion atualizado com sucesso para \`${novoEmail}\`!**\n` +
-          `⚠️ Porém, ainda não encontramos nenhuma conta criada no Notion com esse endereço.\n\n` +
-          `Por favor, acesse https://www.notion.so e cadastre-se com \`${novoEmail}\`.\n` +
-          `Assim que terminar, clique no botão **"✅ Já criei a conta no Notion"** abaixo para ativar seu acesso.`,
-        components: [criarBotoesPendenciaNotion()],
+        content: msg,
+        components: [criarBotoesPendenciaNotion(atingiuLimite)],
       });
     }
     return true;
@@ -206,7 +251,9 @@ async function verificarLembretesPendentesNotion(client) {
       // 1. Antes de mandar lembrete, verifica silenciosamente se ele já criou a conta no Notion
       const resWorkspace = await adicionarMembroWorkspace(emailAlvo);
       if (resWorkspace.sucesso) {
-        await db.atualizarStatusNotionWorkspace(membro.discord_id, 'liberado');
+        await db.atualizarStatusNotionWorkspace(membro.discord_id, 'liberado', {
+          tentativas_notion: 0,
+        });
         const usuario = await client.users.fetch(membro.discord_id).catch(() => null);
         if (usuario) {
           const linkNotion = config.notionHomeUrl ? `\n\n📌 **Acesse a página central:** ${config.notionHomeUrl}` : '';
@@ -226,21 +273,33 @@ async function verificarLembretesPendentesNotion(client) {
         continue;
       }
 
-      // 2. Se ainda não criou a conta, envia o lembrete de 24 horas com os botões
+      // 2. Se ainda não criou a conta, incrementa tentativas e envia o lembrete de 24 horas
+      const tentativas = await db.incrementarTentativasNotion(membro.discord_id);
+      const atingiuLimite = tentativas >= 3;
+
       const usuario = await client.users.fetch(membro.discord_id).catch(() => null);
       if (!usuario) continue;
 
-      const row = criarBotoesPendenciaNotion();
+      const row = criarBotoesPendenciaNotion(atingiuLimite);
+      let msgLembrete =
+        `🔔 **Lembrete diário: Seu acesso ao Notion do CyberGuard ainda está pendente!**\n\n` +
+        `Olá, **${membro.nome_social || membro.nome}**!\n` +
+        `Notamos que você ainda não conseguiu ingressar no Workspace do Notion porque a conta vinculada ao e-mail \`${emailAlvo}\` ainda não foi criada no site do Notion.\n\n` +
+        `O Notion é essencial no CyberGuard para acompanhamento das atividades, sprints e documentos do seu setor.\n\n` +
+        `👉 **Passo a passo rápido:**\n` +
+        `1. Acesse https://www.notion.so e conclua seu cadastro gratuito com o e-mail \`${emailAlvo}\` (ou com outro);\n` +
+        `2. Clique em **"Já criei a conta no Notion"** abaixo para ativar seu acesso na hora.\n` +
+        `*(Se você se cadastrou com outro e-mail, clique em "Mudar e-mail do Notion").*`;
+
+      if (atingiuLimite) {
+        msgLembrete +=
+          `\n\n🆘 **Está travado ou com problemas para acessar?**\n` +
+          `Já foram realizadas ${tentativas} tentativas de localização da sua conta. ` +
+          `Você pode clicar no botão **"🆘 Pedir Ajuda (/help)"** abaixo ou digitar o comando \`/help\` no servidor para solicitar ajuda diretamente à coordenação/RH do projeto!`;
+      }
+
       await usuario.send({
-        content:
-          `🔔 **Lembrete diário: Seu acesso ao Notion do CyberGuard ainda está pendente!**\n\n` +
-          `Olá, **${membro.nome_social || membro.nome}**!\n` +
-          `Notamos que você ainda não conseguiu ingressar no Workspace do Notion porque a conta vinculada ao e-mail \`${emailAlvo}\` ainda não foi criada no site do Notion.\n\n` +
-          `O Notion é essencial no CyberGuard para acompanhamento das atividades, sprints e documentos do seu setor.\n\n` +
-          `👉 **Passo a passo rápido:**\n` +
-          `1. Acesse https://www.notion.so e conclua seu cadastro gratuito com o e-mail \`${emailAlvo}\` (ou com outro);\n` +
-          `2. Clique em **"Já criei a conta no Notion"** abaixo para ativar seu acesso na hora.\n` +
-          `*(Se você se cadastrou com outro e-mail, clique em "Mudar e-mail do Notion").*`,
+        content: msgLembrete,
         components: [row],
       }).catch((errDm) => {
         console.warn(`[notion-pendencias] Falha ao enviar DM de lembrete para ${membro.discord_id}:`, errDm.message);
