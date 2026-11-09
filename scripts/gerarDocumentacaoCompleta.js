@@ -382,6 +382,14 @@ async function gerarDocumentacaoCompleta() {
   doc.listaItem('• Administração & Presidência: Renan Cáceres Anselmo e André Queiroz atuam como Workspace Owners / Administradores gerais.', { nivel: 2, marcador: '-' });
   doc.listaItem('• Membros Acadêmicos: integrantes ativos distribuídos entre as 7 áreas operacionais (Social Media & Copy, Recursos Humanos, Design, Educacional, Hardware Hacking, Hacking Ético e Desenvolvimento), com controle de regularização de termos assinados e revogação automática de contas desligadas.', { nivel: 2, marcador: '-' });
 
+  doc.subsecao('10.4. Guardião de Fluxos, Documentação & Tutoriais de Novos Módulos (Doc & Flow Guardian)');
+  doc.paragrafo(
+    'O Doc & Flow Guardian (scripts/doc-flow-guardian.js, .agents/skills/doc-flow-guardian e .agents/hooks/stop-lgpd-deploy.js) é a infraestrutura de governança contínua de documentação do bot, operando de forma integrada aos agentes de IA e aos hooks de pré-deploy:'
+  );
+  doc.listaItem('Monitoramento de Fluxos: detecta alterações em comandos slash, botões interativos, modais e coletores, exigindo a atualização síncrona do README.md, do catálogo /documentacao e dos manuais operacionais.');
+  doc.listaItem('Fábrica de Tutoriais para Novos Módulos: provê comandos automatizados (npm run docs:tutorial) para gerar o manual padrão em Markdown (docs/manuais/Tutorial_<Modulo>.md) e o snippet correspondente para o seletor do Discord.');
+  doc.listaItem('Auditoria Determinística (npm run docs:guard): valida se 100% dos diretórios em commands/ e rotinas em src/ possuem manuais e regras associadas, barrando encerramentos de turnos ou commits que deixem módulos órfãos.');
+
   // =========================================================================
   // SEÇÃO 11: REFERÊNCIA CONSOLIDADA (BANCO DE DADOS, CRONS E VARIÁVEIS)
   // =========================================================================
@@ -426,6 +434,7 @@ async function gerarDocumentacaoCompleta() {
       ['Limpeza de Backups de Áudio', '0 4 * * * (diário às 04:00) + boot', 'Remove pastas de áudio de reuniões com mais de 7 dias ou cuja ata já expirou (audio_expira_em).'],
       ['Cron de Advertências', '0 6 * * * (diário às 06:00)', 'Marca como "sem_resposta" advertências sem manifestação há > 7 dias e expira advertências vigentes há > 90 dias.'],
       ['Cron de Lembretes do Termo', '0 9 * * * (diário às 09:00)', 'Envia lembretes em DM para assinatura do Termo Gov.br e alerta o RH sobre prazos vencidos (> 7 dias).'],
+      ['Auditoria LGPD & Doc Guardian', 'Pré-deploy / Hook Stop (.agents/hooks/)', 'Verifica conformidade estrita com a LGPD e audita sincronização de documentação antes de qualquer commit ou deploy PM2.'],
     ]
   );
 
