@@ -1,5 +1,7 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const cron = require('node-cron');
 const {
   ActionRowBuilder,
@@ -85,6 +87,15 @@ async function handleNotionPendenciasInteraction(interaction) {
       await interaction.editReply(
         `🎉 **Excelente! Sua conta no Notion foi localizada e seu acesso ao Workspace do CyberGuard foi liberado com sucesso!**${linkNotion}`
       );
+
+      const tutorialNotionPath = path.resolve(__dirname, '../docs/manuais/Tutorial_Acesso_Workspace_Notion.pdf');
+      if (fs.existsSync(tutorialNotionPath)) {
+        await interaction.followUp({
+          content: '📖 Segue em anexo o guia em PDF mostrando como alternar para o Workspace do CyberGuard no menu inferior esquerdo:',
+          files: [{ attachment: tutorialNotionPath, name: 'tutorial_acesso_workspace_notion.pdf' }],
+          ephemeral: true,
+        }).catch(() => {});
+      }
 
       try {
         if (interaction.message && interaction.message.editable) {
@@ -257,10 +268,18 @@ async function verificarLembretesPendentesNotion(client) {
         const usuario = await client.users.fetch(membro.discord_id).catch(() => null);
         if (usuario) {
           const linkNotion = config.notionHomeUrl ? `\n\n📌 **Acesse a página central:** ${config.notionHomeUrl}` : '';
-          await usuario.send(
-            `🎉 **Olá, ${membro.nome_social || membro.nome}!**\n` +
-            `Detectamos que você concluiu seu cadastro no Notion! Seu acesso ao Workspace do CyberGuard foi liberado automaticamente com sucesso.${linkNotion}`
-          ).catch(() => {});
+          const tutorialNotionPath = path.resolve(__dirname, '../docs/manuais/Tutorial_Acesso_Workspace_Notion.pdf');
+          const filesNotion = fs.existsSync(tutorialNotionPath)
+            ? [{ attachment: tutorialNotionPath, name: 'tutorial_acesso_workspace_notion.pdf' }]
+            : [];
+
+          await usuario.send({
+            content:
+              `🎉 **Olá, ${membro.nome_social || membro.nome}!**\n` +
+              `Detectamos que você concluiu seu cadastro no Notion! Seu acesso ao Workspace do CyberGuard foi liberado automaticamente com sucesso.${linkNotion}\n\n` +
+              `*(Enviamos em anexo um tutorial rápido em PDF mostrando como alternar para o Workspace pelo menu no canto inferior esquerdo).*`,
+            files: filesNotion,
+          }).catch(() => {});
         }
         if (config.channelRhId) {
           const canalRh = await client.channels.fetch(config.channelRhId).catch(() => null);

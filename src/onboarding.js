@@ -401,7 +401,10 @@ async function coletarEmailNotion(dm, userId, respostas) {
   if (interacao.customId === 'notion_email_mesmo') {
     respostas.email_notion = respostas.email;
     await interacao.update({
-      content: `Acesso ao Notion configurado para o mesmo e-mail: **${respostas.email_notion}**`,
+      content:
+        `Acesso ao Notion configurado para o mesmo e-mail: **${respostas.email_notion}**\n` +
+        `💡 *Dica: Assim que sua entrada for aprovada, você terá acesso ao Workspace oficial do CyberGuard! ` +
+        `Você poderá alternar para ele a qualquer momento pelo menu no canto inferior esquerdo do Notion, sem depender de links externos.*`,
       components: [],
     });
     return respostas.email_notion;
@@ -422,7 +425,11 @@ async function coletarEmailNotion(dm, userId, respostas) {
     }
     if (validators.validarEmail(resposta)) {
       respostas.email_notion = resposta;
-      await dm.send(`Acesso ao Notion configurado para o e-mail: **${respostas.email_notion}**`);
+      await dm.send(
+        `Acesso ao Notion configurado para o e-mail: **${respostas.email_notion}**\n` +
+        `💡 *Dica: Assim que sua entrada for aprovada, você terá acesso ao Workspace oficial do CyberGuard! ` +
+        `Você poderá alternar para ele a qualquer momento pelo menu no canto inferior esquerdo do Notion, sem depender de links externos.*`
+      );
       return respostas.email_notion;
     }
     await dm.send('Por favor, informe um endereço de e-mail válido para a sua conta do Notion.');
@@ -863,7 +870,7 @@ async function executarColetaDados(member, dm, respostasIniciais = {}) {
   const nomeRef = respostas.nome_social || respostas.nome || user.username;
   await dm.send(
     `Obrigado, **${nomeRef}**! Seus dados foram criptografados e enviados para análise do RH. ` +
-      'Assim que forem aprovados, você receberá o link da comunidade e o termo para assinar.'
+      'Assim que forem aprovados, você receberá o termo para assinar e o tutorial em PDF de acesso ao Workspace do Notion!'
   );
 
   await enviarParaAprovacaoRH(member.guild, user.id, respostas);

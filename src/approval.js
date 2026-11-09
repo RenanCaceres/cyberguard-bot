@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const config = require('./config');
 const db = require('./db');
@@ -354,6 +355,19 @@ async function handleAprovacaoInteraction(interaction) {
     });
   } catch (err) {
     console.error('Erro ao enviar o tutorial de assinatura gov.br:', err);
+  }
+
+  const tutorialNotionPath = path.resolve(__dirname, '../docs/manuais/Tutorial_Acesso_Workspace_Notion.pdf');
+  if (notionWorkspaceLiberado && fs.existsSync(tutorialNotionPath)) {
+    try {
+      await usuarioDiscord.send({
+        content:
+          '📖 **Acesso ao Notion:** Segue em anexo o tutorial em PDF com o passo a passo ilustrado para você localizar e alternar para o Workspace do CyberGuard no menu inferior esquerdo, sem depender de links externos:',
+        files: [{ attachment: tutorialNotionPath, name: 'tutorial_acesso_workspace_notion.pdf' }],
+      });
+    } catch (errNotionPdf) {
+      console.warn('Erro ao enviar tutorial do Notion em PDF:', errNotionPdf.message);
+    }
   }
 
   if (!notionWorkspaceLiberado && emailNotion) {
