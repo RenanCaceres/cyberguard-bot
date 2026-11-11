@@ -189,13 +189,75 @@ client.on('voiceStateUpdate', (oldState, newState) => {
   reuniaoCommand.handleVoiceStateUpdate(oldState, newState);
 });
 
-client.on('guildMemberUpdate', (oldMember, newMember) => {
+client.on('guildMemberUpdate', async (oldMember, newMember) => {
   try {
     if (hierarquia.cargosRelevantesMudaram(oldMember, newMember)) {
       hierarquia.agendarAtualizacaoHierarquia(newMember.guild);
     }
+
+    // Se o membro acabou de receber o cargo de Líderes manualmente no Discord, atualiza papel e envia novo Termo de Líder
+    const nomeRoleLider = (config.roleLiderNome || 'Líderes').toLowerCase();
+    const tinhaLider = oldMember.roles?.cache?.some((r) => r.name.toLowerCase() === nomeRoleLider);
+    const temLiderAgora = newMember.roles?.cache?.some((r) => r.name.toLowerCase() === nomeRoleLider);
+
+    if (!tinhaLider && temLiderAgora) {
+      const registro = await db.getMembro(newMember.id);
+      const jaAprovadoHaMaisDe1Min =
+        registro &&
+        ['concluido', 'aguardando_assinatura'].includes(registro.status) &&
+        registro.papel !== 'lider' &&
+        registro.nome &&
+        registro.ra &&
+        (!registro.data_aprovacao || Date.now() - new Date(registro.data_aprovacao).getTime() > 60_000);
+
+      if (jaAprovadoHaMaisDe1Min) {
+        const fs = require('fs');
+        const path = require('path');
+        const { gerarTermo } = require('./termService');
+        const { normalizarNomeSetor } = require('./atividadesVoluntariado');
+
+        const dataLimite = new Date();
+        dataLimite.setDate(dataLimite.getDate() + 7);
+        await db.atualizarStatus(newMember.id, 'aguardando_assinatura', {
+          data_limite_assinatura: dataLimite,
+          lembrete_resolvido_manualmente: false,
+          papel: 'lider',
+        });
+
+        const membroAtualizado = await db.getMembro(newMember.id);
+        const caminhoPdf = await gerarTermo(membroAtualizado, { client, ehLider: true });
+        const nomeExibicao = membroAtualizado.nome_social || membroAtualizado.nome;
+        const setorCanonic = normalizarNomeSetor(membroAtualizado.area_interesse);
+        const caminhoTutorial = path.join(__dirname, '..', 'docs', 'Como Assinar Documento Pelo Gov.pdf');
+
+        const arquivos = [
+          {
+            attachment: caminhoPdf,
+            name: `Termo_Voluntariado_Lider_${nomeExibicao.replace(/\s+/g, '_')}.pdf`,
+          },
+        ];
+        if (fs.existsSync(caminhoTutorial)) {
+          arquivos.push({
+            attachment: caminhoTutorial,
+            name: 'Como_Assinar_Documento_Pelo_Gov.pdf',
+          });
+        }
+
+        await newMember.send({
+          content:
+            `👑 Olá, **${nomeExibicao}**! Parabéns pela liderança do setor **${setorCanonic}**!\n\n` +
+            `Como o seu cargo de **Líder** foi atribuído no servidor, geramos automaticamente o seu novo **Termo de Adesão ao Voluntariado** atualizado com o plano de trabalho e cronograma de **Líder de ${setorCanonic}**.\n\n` +
+            `Por gentileza, preencha a **Data** na página 3, assine digitalmente via **Gov.br** sobre a linha **"Voluntário(a)"** e envie o PDF assinado aqui mesmo na DM em até **7 dias** para substituir a versão anterior.`,
+          files: arquivos,
+        }).catch((errDm) => console.error('[index] Erro ao enviar termo de promoção a líder na DM:', errDm.message));
+
+        try {
+          if (fs.existsSync(caminhoPdf)) fs.unlinkSync(caminhoPdf);
+        } catch {}
+      }
+    }
   } catch (err) {
-    console.error('Erro ao verificar mudança de cargos para a hierarquia:', err);
+    console.error('Erro ao verificar mudança de cargos para a hierarquia/liderança:', err);
   }
 });
 

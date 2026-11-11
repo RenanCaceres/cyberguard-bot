@@ -80,7 +80,7 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
   - Card interativo no canal restrito do RH com CPF mascarado (`***.222.333-**`), alerta automático caso o candidato possua passagens anteriores na tabela `historico_recusas` e sanitização automática do card após a decisão (ocultando endereço, telefone e CPF do chat).
   - Três opções de deliberação rápida:
     - **`✅ Aprovar (Membro)`**: Homologa o voluntário regular, atribui os cargos de membro e área, e gera o Termo de Adesão com o plano de trabalho técnico de membro.
-    - **`👑 Aprovar como Líder`**: Atribui imediatamente o cargo de liderança (`Líderes`), envia boas-vindas executivas e gera o Termo com o plano de trabalho e cronograma executivo de líder.
+    - **`👑 Aprovar como Líder`**: Atribui imediatamente o cargo de liderança (`Líderes`), envia boas-vindas executivas e gera o Termo com o plano de trabalho e cronograma executivo de líder (além de detectar automaticamente promoções posteriores ao cargo `Líderes` no Discord via `guildMemberUpdate`, emitindo e enviando na DM o novo Termo de Líder do respectivo setor).
     - **`❌ Rejeitar`**: Abre janela de 5 minutos para coleta do motivo interno, notifica cordialmente o candidato, realiza o desligamento (`kick`) e arquiva em `historico_recusas`.
 - **Monitoramento e Renovação Semestral Automática (`src/renovacaoTermo.js`)**:
   - Rotina em segundo plano (executada diariamente e na inicialização) que audita os termos cuja data de assinatura completou 6 meses.

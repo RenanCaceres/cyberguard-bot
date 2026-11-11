@@ -84,7 +84,7 @@ const MODULOS = {
       '• **13 Etapas na DM:** Nome, CPF mascarado, RA, Curso, Endereço, Contatos e Seleção entre os 7 setores operacionais.',
       '• **Modelos Setoriais e Papéis:** Matrizes de atividades customizadas para cada setor, diferenciando Membro regular de Líder.',
       '• **Vigência Semestral (6 meses):** Início e fim calculados em 6 meses com cronograma dinâmico (x nos meses 1 a 6).',
-      '• **Aprovação pelo RH:** Botões dedicados "Aprovar (Membro)" ou "Aprovar como Líder" (atribui cargo de liderança e termo executivo).',
+      '• **Aprovação e Promoção a Líder:** Botões "Aprovar (Membro)" ou "Aprovar como Líder", além de emissão automática do Termo de Líder na DM ao atribuir o cargo "Líderes" no Discord.',
       '• **Renovação Semestral Automática:** Alerta no RH aos 6 meses de assinatura com botões de emissão direta e Modal de edição de atividades.',
       '• **Assinatura Gov.br & Sincronização Drive:** Obrigatória sobre a linha "Voluntário(a)" com validação ICP-Brasil; ao subir versão co-assinada pela coordenação no Google Drive, o bot identifica o aluno (RA/Nome) e substitui o arquivo anterior automaticamente.',
       '• **Trilha de Entusiastas:** Usuários que entram por convites de comunidade recebem cargo direto sem termo.',
