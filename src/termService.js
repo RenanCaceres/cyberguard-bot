@@ -132,14 +132,8 @@ async function gerarTermo(membro, opcoes = {}) {
     } catch {}
   }
 
-  // 2. Data de referência para os 6 meses de vigência do termo
-  let dataReferencia = opcoes.dataReferencia || new Date();
-  if (!opcoes.dataReferencia && membro.data_inicio) {
-    const partes = String(membro.data_inicio).split('/');
-    if (partes.length === 3) {
-      dataReferencia = new Date(parseInt(partes[2], 10), parseInt(partes[1], 10) - 1, parseInt(partes[0], 10));
-    }
-  }
+  // 2. Data de referência para os 6 meses de vigência do termo (sempre o mês/ano da emissão atual, salvo override explícito)
+  const dataReferencia = opcoes.dataReferencia || new Date();
 
   // 3. Atualizar XML com as atividades do setor e cronograma semestral
   const docXmlFile = zip.file('word/document.xml');
