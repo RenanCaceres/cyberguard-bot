@@ -236,13 +236,21 @@ async function gerarTermo(membro, opcoes = {}) {
     },
   });
 
+  let periodoFormatado = String(membro.periodo || '').trim();
+  if (periodoFormatado) {
+    periodoFormatado = periodoFormatado.replace(/\s*(?:per[íi]odo|semestre)$/i, '').trim();
+    if (/^\d+$/.test(periodoFormatado)) {
+      periodoFormatado = `${periodoFormatado}°`;
+    }
+  }
+
   doc.render({
     nome: membro.nome,
     nome_social: membro.nome_social || '',
     ra: membro.ra,
     curso: membro.curso,
-    periodo: membro.periodo,
-    período: membro.periodo,
+    periodo: periodoFormatado || membro.periodo,
+    período: periodoFormatado || membro.periodo,
     cpf: membro.cpf,
     data_nascimento: membro.data_nascimento,
     nacionalidade: membro.nacionalidade,

@@ -36,7 +36,12 @@ function validarRAOuMatricula(valor) {
 }
 
 function naoVazio(valor) {
-  return valor.trim().length > 0;
+  return Boolean(valor && valor.trim().length > 0);
+}
+
+function validarPeriodo(valor) {
+  if (!valor || typeof valor !== 'string') return false;
+  return /^(?:1[0-2]|[1-9])\s*(?:[º°ª]?\s*(?:per[íi]odo|semestre)?)?$/i.test(valor.trim());
 }
 
 function validarEmail(valor) {
@@ -49,6 +54,7 @@ module.exports = {
   validarEndereco,
   validarRA,
   validarRAOuMatricula,
+  validarPeriodo,
   validarEmail,
   naoVazio,
 };

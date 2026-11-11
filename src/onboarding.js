@@ -80,7 +80,8 @@ const PERGUNTAS = [
   {
     campo: 'periodo',
     texto: 'Qual seu **período/semestre atual**? (ex: 5°)',
-    validator: validators.naoVazio,
+    validator: validators.validarPeriodo,
+    erro: 'Período inválido. Informe o número do seu período atual de 1 a 12 (ex: 5°).',
   },
   {
     campo: 'ra',
@@ -808,6 +809,38 @@ async function executarColetaDados(member, dm, respostasIniciais = {}) {
     const escolha = await pedirConfirmacao(dm, user.id, respostas);
 
     if (escolha === 'confirmar_dados') {
+      const camposObrigatorios = [
+        'nome',
+        'data_nascimento',
+        'nacionalidade',
+        'cpf',
+        'curso',
+        'periodo',
+        'ra',
+        'endereco',
+        'cidade',
+        'estado',
+        'telefone',
+        'email',
+        'area_interesse',
+      ];
+      const faltando = camposObrigatorios.find(
+        (c) => !respostas[c] || String(respostas[c]).trim().length === 0
+      );
+      if (faltando) {
+        await dm.send(`⚠️ O campo **${LABELS[faltando] || faltando}** está em branco. Por favor, preencha-o antes de confirmar:`);
+        if (faltando === 'area_interesse') {
+          respostas.area_interesse = await coletarAreaInteresse(dm, user.id);
+          await db.salvarProgressoOnboarding(user.id, { area_interesse: respostas.area_interesse });
+        } else {
+          const pergFaltando = PERGUNTAS.find((p) => p.campo === faltando);
+          if (pergFaltando) {
+            await coletarPerguntaTexto(dm, user.id, pergFaltando, respostas);
+            await db.salvarProgressoOnboarding(user.id, { [faltando]: respostas[faltando] });
+          }
+        }
+        continue;
+      }
       confirmado = true;
       break;
     }
