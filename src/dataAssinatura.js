@@ -333,8 +333,17 @@ async function extrairMetadadosPdfjs(caminhoPdf) {
       if (/^DIREC$/i.test(item.texto)) direc = item;
     }
 
-    if (voluntario && (coordenacao || direc)) {
-      const yMin = coordenacao ? coordenacao.y + 7 : voluntario.y - 40;
+    const itensProxPagina = i < documento.numPages ? paginasItens[i].itens : [];
+    let coordenacaoProx = null;
+    let direcProx = null;
+    for (const item of itensProxPagina) {
+      if (item.x < 50 || item.x > 120) continue;
+      if (/^Coordena[cç][aã]o da a[cç][aã]o$/i.test(item.texto)) coordenacaoProx = item;
+      if (/^DIREC$/i.test(item.texto)) direcProx = item;
+    }
+
+    if (voluntario && (coordenacao || direc || coordenacaoProx || direcProx)) {
+      const yMin = coordenacao ? coordenacao.y + 7 : Math.max(20, voluntario.y - 45);
       const yMax = voluntario.y + 32;
       areaEsperada = {
         pageIndex,
