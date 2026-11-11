@@ -68,12 +68,27 @@ async function concluirTermoAssinado({ membro, caminhoArquivo, nomeOriginal, cli
     const nomeArquivo = `termo_assinado_${raFormatado}_${nomeFormatado}.pdf`;
     caminhoPermanente = path.join(pastaDestino, nomeArquivo);
 
+    // Remove eventuais versões anteriores do mesmo aluno na pasta local antes de gravar o novo
+    try {
+      const raLimpo = String(membro.ra || '').replace(/\D/g, '');
+      const existentes = fs.readdirSync(pastaDestino);
+      for (const arq of existentes) {
+        if (arq === nomeArquivo || !arq.toLowerCase().endsWith('.pdf')) continue;
+        if (
+          (raLimpo.length >= 5 && arq.includes(raLimpo)) ||
+          arq.toLowerCase().includes(nomeFormatado.toLowerCase())
+        ) {
+          fs.unlinkSync(path.join(pastaDestino, arq));
+        }
+      }
+    } catch {}
+
     fs.copyFileSync(caminhoArquivo, caminhoPermanente);
   } catch (errSalvar) {
     console.error('Erro ao salvar cópia permanente do termo assinado:', errSalvar);
   }
 
-  // 3. Salvar no Google Drive
+  // 3. Salvar no Google Drive (substituindo versão anterior do mesmo aluno, se existir)
   let driveUpload = null;
   try {
     const nomeUpload = caminhoPermanente
@@ -84,6 +99,8 @@ async function concluirTermoAssinado({ membro, caminhoArquivo, nomeOriginal, cli
       caminhoArquivo: caminhoPermanente || caminhoArquivo,
       nomeArquivo: nomeUpload,
       area: membro.area_interesse,
+      ra: membro.ra,
+      nomeAluno: membro.nome,
     });
     if (driveUpload) {
       const nomeRef = membro.nome_social || membro.nome;

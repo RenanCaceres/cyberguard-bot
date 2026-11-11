@@ -140,10 +140,36 @@ function criarMultipartBody(boundary, metadata, fileBuffer, mimeType) {
 }
 
 /**
- * Envia um arquivo para uma pasta no Google Drive. Se já existir um arquivo com o mesmo nome,
- * atualiza o conteúdo do arquivo existente.
+ * Normaliza texto para comparação de nomes de alunos.
  */
-async function uploadArquivo({ caminhoArquivo, buffer, nomeArquivo, pastaDestinoId, mimeType = 'application/pdf' }) {
+function normalizarChaveTexto(str) {
+  return String(str || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function normalizarRaChave(ra) {
+  const limpo = String(ra || '').replace(/\D/g, '').replace(/^0+/, '');
+  return limpo.length >= 5 ? limpo : '';
+}
+
+/**
+ * Envia um arquivo para uma pasta no Google Drive. Se já existir um arquivo com o mesmo nome
+ * (ou pertencente ao mesmo aluno por RA/nome quando informado), atualiza o arquivo existente
+ * e remove duplicatas antigas.
+ */
+async function uploadArquivo({
+  caminhoArquivo,
+  buffer,
+  nomeArquivo,
+  pastaDestinoId,
+  mimeType = 'application/pdf',
+  raAluno = null,
+  nomeAluno = null,
+}) {
   if (!pastaDestinoId) {
     throw new Error('ID da pasta de destino no Google Drive não informado.');
   }
@@ -152,24 +178,63 @@ async function uploadArquivo({ caminhoArquivo, buffer, nomeArquivo, pastaDestino
   const token = await obterToken();
   const nomeFinal = nomeArquivo || (caminhoArquivo ? path.basename(caminhoArquivo) : 'arquivo.pdf');
 
-  // Verifica se o arquivo já existe na pasta
-  const q = `'${pastaDestinoId}' in parents and name = '${nomeFinal.replace(/'/g, "\\'")}' and trashed = false`;
-  const urlBusca = `${DRIVE_API}/files?q=${encodeURIComponent(q)}&fields=files(id,name,size,webViewLink)&spaces=drive`;
-
-  const resBusca = await fetch(urlBusca, {
-    headers: { Authorization: `Bearer ${token}` },
-    signal: AbortSignal.timeout(20000),
-  });
-
   let existenteId = null;
-  if (resBusca.ok) {
-    const dataBusca = await resBusca.json();
-    if (dataBusca.files && dataBusca.files.length > 0) {
-      existenteId = dataBusca.files[0].id;
+  const duplicadosParaRemover = [];
+
+  const raLimpo = normalizarRaChave(raAluno);
+  const nomeLimpo = normalizarChaveTexto(nomeAluno);
+
+  if (raLimpo || nomeLimpo) {
+    // Lista todos os arquivos da pasta para identificar versões anteriores do mesmo aluno
+    const qTodos = `'${pastaDestinoId}' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed = false`;
+    const urlTodos = `${DRIVE_API}/files?q=${encodeURIComponent(qTodos)}&pageSize=200&fields=files(id,name,size,webViewLink,modifiedTime)&spaces=drive`;
+    const resTodos = await fetch(urlTodos, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(20000),
+    });
+
+    if (resTodos.ok) {
+      const dataTodos = await resTodos.json();
+      const candidatos = (dataTodos.files || []).filter((f) => {
+        if (f.name === nomeFinal) return true;
+        const nArq = normalizarChaveTexto(f.name);
+        if (raLimpo && f.name.replace(/\D/g, '').includes(raLimpo)) return true;
+        if (nomeLimpo && nomeLimpo.split(' ').length >= 2 && nArq.includes(nomeLimpo)) return true;
+        return false;
+      });
+
+      if (candidatos.length > 0) {
+        existenteId = candidatos[0].id;
+        for (let i = 1; i < candidatos.length; i++) {
+          duplicadosParaRemover.push(candidatos[i].id);
+        }
+      }
+    }
+  }
+
+  if (!existenteId) {
+    // Fallback: busca por nome exato
+    const q = `'${pastaDestinoId}' in parents and name = '${nomeFinal.replace(/'/g, "\\'")}' and trashed = false`;
+    const urlBusca = `${DRIVE_API}/files?q=${encodeURIComponent(q)}&fields=files(id,name,size,webViewLink)&spaces=drive`;
+
+    const resBusca = await fetch(urlBusca, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(20000),
+    });
+
+    if (resBusca.ok) {
+      const dataBusca = await resBusca.json();
+      if (dataBusca.files && dataBusca.files.length > 0) {
+        existenteId = dataBusca.files[0].id;
+        for (let i = 1; i < dataBusca.files.length; i++) {
+          duplicadosParaRemover.push(dataBusca.files[i].id);
+        }
+      }
     }
   }
 
   const boundary = `-------CyberGuardBoundary${Date.now()}`;
+  let resultado;
 
   if (existenteId) {
     // Atualiza arquivo existente
@@ -192,7 +257,7 @@ async function uploadArquivo({ caminhoArquivo, buffer, nomeArquivo, pastaDestino
     }
 
     const data = await resUpdate.json();
-    return { id: data.id, name: data.name, webViewLink: data.webViewLink, atualizado: true };
+    resultado = { id: data.id, name: data.name, webViewLink: data.webViewLink, atualizado: true };
   } else {
     // Cria novo arquivo
     const metadata = {
@@ -218,15 +283,25 @@ async function uploadArquivo({ caminhoArquivo, buffer, nomeArquivo, pastaDestino
     }
 
     const data = await resUpload.json();
-    return { id: data.id, name: data.name, webViewLink: data.webViewLink, atualizado: false };
+    resultado = { id: data.id, name: data.name, webViewLink: data.webViewLink, atualizado: false };
   }
+
+  for (const dupId of duplicadosParaRemover) {
+    await fetch(`${DRIVE_API}/files/${dupId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15000),
+    }).catch(() => {});
+  }
+
+  return resultado;
 }
 
 /**
  * Envia um Termo de Voluntariado assinado para a pasta do Google Drive,
- * criando/alocando automaticamente na subpasta da respectiva área.
+ * criando/alocando automaticamente na subpasta da respectiva área e substituindo versão anterior do aluno.
  */
-async function fazerUploadTermo({ caminhoArquivo, buffer, nomeArquivo, area }) {
+async function fazerUploadTermo({ caminhoArquivo, buffer, nomeArquivo, area, ra = null, nomeAluno = null }) {
   const pastaRaizTermos = config.googleDrive?.termosFolderId;
   if (!pastaRaizTermos) {
     console.warn('[driveService] GOOGLE_DRIVE_TERMOS_FOLDER_ID não configurado. Upload ignorado.');
@@ -246,6 +321,8 @@ async function fazerUploadTermo({ caminhoArquivo, buffer, nomeArquivo, area }) {
     buffer,
     nomeArquivo,
     pastaDestinoId,
+    raAluno: ra,
+    nomeAluno,
   });
 }
 
