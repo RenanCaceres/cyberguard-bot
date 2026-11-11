@@ -278,10 +278,25 @@ function normalizarNomeSetor(nome) {
   const clean = nome.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
   if (clean.includes('hardware')) return 'Hardware Hacking';
-  if (clean.includes('hack') || clean.includes('etico')) return 'Hacking Ético';
+  if (
+    clean.includes('hack') ||
+    clean.includes('etico') ||
+    clean.includes('red') ||
+    clean.includes('blue') ||
+    clean.includes('observat')
+  ) {
+    return 'Hacking Ético';
+  }
   if (clean.includes('design') || clean.includes('desing')) return 'Design';
   if (clean.includes('copy') || clean.includes('social') || clean.includes('comunic')) return 'Copy';
-  if (clean.includes('dev') || clean.includes('software') || clean.includes('program')) return 'Desenvolvimento';
+  if (
+    clean.includes('desenv') ||
+    clean.includes('dev') ||
+    clean.includes('software') ||
+    clean.includes('program')
+  ) {
+    return 'Desenvolvimento';
+  }
   if (clean.includes('educ') || clean.includes('pedag') || clean.includes('aula')) return 'Educacional';
   if (clean.includes('rh') || clean.includes('humano') || clean.includes('pessoas')) return 'Recursos Humanos';
 

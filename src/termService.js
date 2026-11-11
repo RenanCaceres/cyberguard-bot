@@ -185,10 +185,39 @@ async function gerarTermo(membro, opcoes = {}) {
       }
     }
 
+    let areaSetor = membro.area_interesse;
+    if ((!areaSetor || areaSetor === 'Líderes') && opcoes.client) {
+      try {
+        for (const guild of opcoes.client.guilds.cache.values()) {
+          const gm = guild.members.cache.get(membro.discord_id);
+          if (gm && gm.roles?.cache) {
+            const roleSetor = gm.roles.cache.find((r) => {
+              const n = (r.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+              return (
+                n.includes('hardware') ||
+                n.includes('hack') ||
+                n.includes('etico') ||
+                n.includes('design') ||
+                n.includes('copy') ||
+                n.includes('social') ||
+                n.includes('desenv') ||
+                n.includes('educ') ||
+                n.includes('humano')
+              );
+            });
+            if (roleSetor) {
+              areaSetor = roleSetor.name;
+              break;
+            }
+          }
+        }
+      } catch {}
+    }
+
     const { aplicarAtividadesECronogramaNoXml } = require('./atividadesVoluntariado');
     xml = aplicarAtividadesECronogramaNoXml(
       xml,
-      membro.area_interesse,
+      areaSetor,
       ehLider,
       dataReferencia,
       opcoes.atividadesCustomizadas || membro.atividades_customizadas
