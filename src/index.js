@@ -6,6 +6,7 @@ const { handleAprovacaoInteraction } = require('./approval');
 const { handleMensagemDM, handleRevisaoTermoInteraction } = require('./recepcaoTermo');
 const { iniciarLembretes, handleResolverLembrete } = require('./reminders');
 const { iniciarMonitoramentoRenovacao, handleRenovacaoTermoInteraction } = require('./renovacaoTermo');
+const { iniciarMonitoramentoDriveTermos } = require('./driveService');
 const { iniciarLembretesNotion, handleNotionPendenciasInteraction } = require('./notionPendencias');
 const { processarMembrosPendentes, processarSaidasPerdidas } = require('./catchUp');
 const { postarCartao } = require('./cartaoServidor');
@@ -55,6 +56,7 @@ client.once('ready', async () => {
   iniciarLembretes(client);
   iniciarLembretesNotion(client);
   iniciarMonitoramentoRenovacao(client);
+  iniciarMonitoramentoDriveTermos();
   iniciarCronAdvertencias(client);
   iniciarCronDeclaracoes(client);
   iniciarLimpezaBackups();

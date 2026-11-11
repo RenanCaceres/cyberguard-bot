@@ -2,8 +2,20 @@
 
 const fs = require('fs');
 const path = require('path');
+const cron = require('node-cron');
 const { JWT, OAuth2Client } = require('google-auth-library');
 const config = require('./config');
+
+if (typeof Promise.withResolvers === 'undefined') {
+  Promise.withResolvers = function () {
+    let resolve, reject;
+    const promise = new Promise((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  };
+}
 
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
 const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
@@ -445,6 +457,407 @@ async function verificarAcessoDrive() {
   }
 }
 
+/**
+ * Extrai metadados do aluno (Nome, RA) da página 1 do Termo de Voluntariado em PDF
+ * e contabiliza quantas assinaturas digitais ICP-Brasil (/ByteRange) o arquivo possui.
+ */
+async function extrairMetadadosTermoPdf(buffer, nomeArquivoFallback = '') {
+  const numAssinaturas = (buffer.toString('latin1').match(/\/ByteRange\s*\[/g) || []).length;
+  let nome = '';
+  let ra = '';
+
+  try {
+    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const doc = await pdfjsLib.getDocument({
+      data: new Uint8Array(buffer),
+      useSystemFonts: true,
+      disableFontFace: true,
+      verbosity: 0,
+    }).promise;
+
+    const page = await doc.getPage(1);
+    const content = await page.getTextContent();
+    const texto = content.items.map((i) => i.str).join(' ');
+
+    const matchRa = texto.match(/RA:\s*(?:a)?(\d{5,10})/i);
+    if (matchRa) {
+      ra = normalizarRaChave(matchRa[1]);
+    }
+
+    const matchNome =
+      texto.match(/Dados do\(a\) Volunt[áa]rio\(a\)\s*Nome:\s*(.+?)\s*Data nascimento:/i) ||
+      texto.match(/Volunt[áa]rio\(a\)[\s\S]{0,60}?Nome:\s*(.+?)\s*Data nascimento:/i);
+    if (matchNome) {
+      nome = matchNome[1].trim();
+    }
+  } catch (err) {
+    console.warn(`[driveService] Aviso ao ler texto do PDF (${nomeArquivoFallback}):`, err.message);
+  }
+
+  if (!nome && nomeArquivoFallback) {
+    const limpo = nomeArquivoFallback
+      .replace(/\.pdf$/i, '')
+      .replace(/^Termo[_\s-]*(?:Voluntariado|Assinado)[_\s-]*/i, '')
+      .replace(/[_\s-]*(?:assinado|signed|\d{10,}|\d+)$/gi, '')
+      .replace(/_/g, ' ')
+      .trim();
+    if (limpo) nome = limpo;
+  }
+
+  return {
+    nome,
+    nomeChave: normalizarChaveTexto(nome),
+    ra,
+    numAssinaturas,
+  };
+}
+
+async function baixarArquivoDrive(fileId, token) {
+  const res = await fetch(`${DRIVE_API}/files/${fileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(45000),
+  });
+  if (!res.ok) {
+    throw new Error(`Falha ao baixar arquivo ${fileId} do Drive (${res.status})`);
+  }
+  const ab = await res.arrayBuffer();
+  return Buffer.from(ab);
+}
+
+let sincronizandoDrive = false;
+const CAMINHO_CACHE_META_DRIVE = path.join(__dirname, '..', 'temp', 'drive_termos_meta_cache.json');
+
+function carregarCacheMetaDrive() {
+  try {
+    if (fs.existsSync(CAMINHO_CACHE_META_DRIVE)) {
+      return JSON.parse(fs.readFileSync(CAMINHO_CACHE_META_DRIVE, 'utf8'));
+    }
+  } catch {}
+  return {};
+}
+
+function salvarCacheMetaDrive(cache) {
+  try {
+    const dir = path.dirname(CAMINHO_CACHE_META_DRIVE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(CAMINHO_CACHE_META_DRIVE, JSON.stringify(cache, null, 2), 'utf8');
+  } catch {}
+}
+
+/**
+ * Sincroniza local `docs/Termos-Voluntarios-Assinados/<Subpasta>/` com o PDF vencedor do aluno,
+ * removendo versões antigas duplicadas daquele mesmo aluno na pasta local.
+ */
+function atualizarTermoLocalSincronizado({ subpastaNome, nomeArquivo, buffer, nomeChave, ra }) {
+  try {
+    const dirSetor = path.join(__dirname, '..', 'docs', 'Termos-Voluntarios-Assinados', subpastaNome);
+    if (!fs.existsSync(dirSetor)) {
+      fs.mkdirSync(dirSetor, { recursive: true });
+    }
+
+    const arquivosLocais = fs.readdirSync(dirSetor).filter((f) => f.toLowerCase().endsWith('.pdf'));
+    for (const arq of arquivosLocais) {
+      if (arq === nomeArquivo) continue;
+      const arqChave = normalizarChaveTexto(arq);
+      const mesmoRa = ra && arq.replace(/\D/g, '').includes(ra);
+      const mesmoNome = nomeChave && nomeChave.split(' ').length >= 2 && arqChave.includes(nomeChave);
+      if (mesmoRa || mesmoNome) {
+        try {
+          fs.unlinkSync(path.join(dirSetor, arq));
+        } catch {}
+      }
+    }
+
+    fs.writeFileSync(path.join(dirSetor, nomeArquivo), buffer);
+  } catch (err) {
+    console.warn('[driveService] Aviso ao atualizar cópia local do termo:', err.message);
+  }
+}
+
+/**
+ * Varre a pasta de Termos Assinados no Google Drive (raiz e subpastas de setores).
+ * Quando um novo PDF é enviado (ex: versão co-assinada pela coordenadora do projeto),
+ * identifica automaticamente o aluno pelo conteúdo do PDF (RA / Nome na Página 1) e
+ * substitui a versão anterior daquele aluno, mantendo apenas o PDF atualizado/co-assinado.
+ */
+async function sincronizarSubstituicoesDrive() {
+  if (sincronizandoDrive) return { ignorado: true, motivo: 'Sincronização já em andamento' };
+
+  const pastaRaizTermos = config.googleDrive?.termosFolderId;
+  if (!pastaRaizTermos || !obterAuth()) {
+    return { ignorado: true, motivo: 'Drive não configurado' };
+  }
+
+  sincronizandoDrive = true;
+  const substituidos = [];
+
+  try {
+    const token = await obterToken();
+    const metaCache = carregarCacheMetaDrive();
+    let cacheAlterado = false;
+
+    // 1. Lista todos os itens na raiz da pasta de Termos
+    const qRaiz = `'${pastaRaizTermos}' in parents and trashed = false`;
+    const resRaiz = await fetch(
+      `${DRIVE_API}/files?q=${encodeURIComponent(qRaiz)}&pageSize=200&fields=files(id,name,mimeType,size,modifiedTime,webViewLink)&spaces=drive`,
+      { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(25000) }
+    );
+    if (!resRaiz.ok) {
+      throw new Error(`Erro ao listar pasta raiz de termos (${resRaiz.status})`);
+    }
+    const dataRaiz = await resRaiz.json();
+    const itensRaiz = dataRaiz.files || [];
+
+    const subpastas = itensRaiz.filter((f) => f.mimeType === 'application/vnd.google-apps.folder');
+    const pdfsRaiz = itensRaiz.filter((f) => f.mimeType === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
+
+    // 2. Lista os PDFs dentro de cada subpasta de setor
+    const arquivosPorSubpasta = new Map();
+    for (const sp of subpastas) {
+      folderCache.set(`${pastaRaizTermos}:${sp.name}`, sp.id);
+      const qSub = `'${sp.id}' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed = false`;
+      const resSub = await fetch(
+        `${DRIVE_API}/files?q=${encodeURIComponent(qSub)}&pageSize=200&fields=files(id,name,mimeType,size,modifiedTime,webViewLink)&spaces=drive`,
+        { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(25000) }
+      );
+      if (resSub.ok) {
+        const dataSub = await resSub.json();
+        const pdfs = (dataSub.files || []).filter(
+          (f) => f.mimeType === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
+        );
+        arquivosPorSubpasta.set(sp.name, { folderId: sp.id, files: pdfs });
+      }
+    }
+
+    // Helper para obter metadados (com cache por fileId + modifiedTime)
+    async function obterMetaArquivo(file, forcarBuffer = false) {
+      const chaveCache = `${file.id}:${file.modifiedTime}`;
+      if (!forcarBuffer && metaCache[chaveCache]) {
+        return { ...metaCache[chaveCache], buffer: null };
+      }
+      const buffer = await baixarArquivoDrive(file.id, token);
+      const meta = await extrairMetadadosTermoPdf(buffer, file.name);
+      metaCache[chaveCache] = meta;
+      cacheAlterado = true;
+      return { ...meta, buffer };
+    }
+
+    // 3. Processa eventuais PDFs soltos na raiz (identifica o setor do aluno e move/substitui na subpasta)
+    if (pdfsRaiz.length > 0) {
+      let membrosDb = [];
+      try {
+        const db = require('./db');
+        membrosDb = await db.listarTodosMembros();
+      } catch {}
+
+      for (const arqRaiz of pdfsRaiz) {
+        try {
+          const infoRaiz = await obterMetaArquivo(arqRaiz, true);
+          let subpastaAlvo = null;
+
+          // Procura se o aluno já possui arquivo em alguma subpasta
+          for (const [nomeSp, dadosSp] of arquivosPorSubpasta.entries()) {
+            for (const fSub of dadosSp.files) {
+              const infoSub = await obterMetaArquivo(fSub, false);
+              const mesmoRa = infoRaiz.ra && infoSub.ra && infoRaiz.ra === infoSub.ra;
+              const mesmoNome = infoRaiz.nomeChave && infoSub.nomeChave && infoRaiz.nomeChave === infoSub.nomeChave;
+              if (mesmoRa || mesmoNome) {
+                subpastaAlvo = nomeSp;
+                break;
+              }
+            }
+            if (subpastaAlvo) break;
+          }
+
+          // Se não achou na subpasta, consulta o banco de dados de membros
+          if (!subpastaAlvo && membrosDb.length > 0) {
+            const mEncontrado = membrosDb.find((m) => {
+              const mRa = normalizarRaChave(m.ra);
+              const mNome = normalizarChaveTexto(m.nome);
+              return (infoRaiz.ra && mRa === infoRaiz.ra) || (infoRaiz.nomeChave && mNome === infoRaiz.nomeChave);
+            });
+            if (mEncontrado) {
+              subpastaAlvo = normalizarAreaSubpasta(mEncontrado.area_interesse);
+            }
+          }
+
+          if (!subpastaAlvo) subpastaAlvo = 'Geral';
+
+          const pastaDestinoId = await obterOuCriarSubpasta(pastaRaizTermos, subpastaAlvo);
+          const nomeLimpoArquivo = infoRaiz.nome
+            ? `Termo_Assinado_${infoRaiz.nome.replace(/[^a-zA-ZÀ-ÿ0-9]/g, '_').replace(/_+/g, '_')}.pdf`
+            : arqRaiz.name;
+
+          await uploadArquivo({
+            buffer: infoRaiz.buffer,
+            nomeArquivo: nomeLimpoArquivo,
+            pastaDestinoId,
+            raAluno: infoRaiz.ra,
+            nomeAluno: infoRaiz.nome,
+          });
+
+          atualizarTermoLocalSincronizado({
+            subpastaNome: subpastaAlvo,
+            nomeArquivo: nomeLimpoArquivo,
+            buffer: infoRaiz.buffer,
+            nomeChave: infoRaiz.nomeChave,
+            ra: infoRaiz.ra,
+          });
+
+          // Remove o PDF avulso da raiz após alocar na subpasta correta
+          await fetch(`${DRIVE_API}/files/${arqRaiz.id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(15000),
+          }).catch(() => {});
+
+          substituidos.push({
+            aluno: infoRaiz.nome || arqRaiz.name,
+            ra: infoRaiz.ra,
+            subpasta: subpastaAlvo,
+            origem: 'raiz->subpasta',
+            assinaturas: infoRaiz.numAssinaturas,
+          });
+          console.log(
+            `[driveService] Termo na raiz identificado (${infoRaiz.nome || arqRaiz.name} | RA: ${infoRaiz.ra || 'N/A'}) -> substituído na subpasta ${subpastaAlvo}.`
+          );
+        } catch (errRaizItem) {
+          console.error(`[driveService] Erro ao processar PDF da raiz (${arqRaiz.name}):`, errRaizItem.message);
+        }
+      }
+    }
+
+    // 4. Dentro de cada subpasta de setor, agrupa por aluno (RA ou Nome) e substitui duplicatas mantendo o co-assinado / mais recente
+    for (const [nomeSp, dadosSp] of arquivosPorSubpasta.entries()) {
+      const { files } = dadosSp;
+      if (!files || files.length < 2) continue;
+
+      const enriquecidos = [];
+      for (const f of files) {
+        try {
+          const meta = await obterMetaArquivo(f, false);
+          enriquecidos.push({ file: f, meta });
+        } catch (errMeta) {
+          console.warn(`[driveService] Erro ao ler metadados de ${f.name}:`, errMeta.message);
+        }
+      }
+
+      // Agrupa arquivos que pertencem ao mesmo aluno (por RA ou por Nome completo normalizado)
+      const grupos = [];
+      for (const item of enriquecidos) {
+        let grupoExistente = grupos.find((g) => {
+          if (item.meta.ra && g.ra && item.meta.ra === g.ra) return true;
+          if (item.meta.nomeChave && g.nomeChave && item.meta.nomeChave === g.nomeChave) return true;
+          return false;
+        });
+
+        if (!grupoExistente) {
+          grupoExistente = {
+            ra: item.meta.ra || '',
+            nomeChave: item.meta.nomeChave || '',
+            nome: item.meta.nome || item.file.name,
+            itens: [],
+          };
+          grupos.push(grupoExistente);
+        } else {
+          if (!grupoExistente.ra && item.meta.ra) grupoExistente.ra = item.meta.ra;
+          if (!grupoExistente.nomeChave && item.meta.nomeChave) grupoExistente.nomeChave = item.meta.nomeChave;
+        }
+        grupoExistente.itens.push(item);
+      }
+
+      for (const grupo of grupos) {
+        if (grupo.itens.length < 2) continue;
+
+        // Ordena: maior número de assinaturas digitais (co-assinado pela coordenadora = 2) primeiro;
+        // em caso de empate, o arquivo enviado/modificado mais recentemente vence.
+        grupo.itens.sort((a, b) => {
+          if (b.meta.numAssinaturas !== a.meta.numAssinaturas) {
+            return b.meta.numAssinaturas - a.meta.numAssinaturas;
+          }
+          return new Date(b.file.modifiedTime) - new Date(a.file.modifiedTime);
+        });
+
+        const vencedor = grupo.itens[0];
+        const perdedores = grupo.itens.slice(1);
+
+        try {
+          const bufferVencedor = await baixarArquivoDrive(vencedor.file.id, token);
+          atualizarTermoLocalSincronizado({
+            subpastaNome: nomeSp,
+            nomeArquivo: vencedor.file.name,
+            buffer: bufferVencedor,
+            nomeChave: grupo.nomeChave,
+            ra: grupo.ra,
+          });
+        } catch (errSyncLocal) {
+          console.warn(`[driveService] Aviso ao baixar vencedor (${vencedor.file.name}):`, errSyncLocal.message);
+        }
+
+        for (const p of perdedores) {
+          try {
+            const resDel = await fetch(`${DRIVE_API}/files/${p.file.id}`, {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${token}` },
+              signal: AbortSignal.timeout(15000),
+            });
+            if (resDel.ok || resDel.status === 404) {
+              console.log(
+                `[driveService] Substituição automática (${nomeSp}): mantido "${vencedor.file.name}" (${vencedor.meta.numAssinaturas} assinatura(s)) e removido anterior "${p.file.name}" (${p.meta.numAssinaturas} assinatura(s)) do aluno ${grupo.nome}.`
+              );
+              substituidos.push({
+                aluno: grupo.nome,
+                ra: grupo.ra,
+                subpasta: nomeSp,
+                mantido: vencedor.file.name,
+                assinaturasMantido: vencedor.meta.numAssinaturas,
+                removido: p.file.name,
+                assinaturasRemovido: p.meta.numAssinaturas,
+              });
+            }
+          } catch (errDel) {
+            console.error(`[driveService] Falha ao remover duplicata ${p.file.name}:`, errDel.message);
+          }
+        }
+      }
+    }
+
+    if (cacheAlterado) {
+      salvarCacheMetaDrive(metaCache);
+    }
+
+    return { ok: true, substituidos };
+  } catch (err) {
+    console.error('[driveService] Erro na sincronização de termos do Drive:', err.message);
+    return { ok: false, erro: err.message, substituidos };
+  } finally {
+    sincronizandoDrive = false;
+  }
+}
+
+let cronDriveIniciado = false;
+
+/**
+ * Inicia o monitoramento periódico da pasta de Termos no Google Drive
+ * para identificar e substituir automaticamente termos co-assinados recém-enviados.
+ */
+function iniciarMonitoramentoDriveTermos() {
+  if (cronDriveIniciado) return;
+  cronDriveIniciado = true;
+
+  setTimeout(() => {
+    sincronizarSubstituicoesDrive().catch((err) =>
+      console.error('[driveService] Erro na varredura inicial do Drive:', err.message)
+    );
+  }, 15000);
+
+  cron.schedule('*/2 * * * *', () => {
+    sincronizarSubstituicoesDrive().catch((err) =>
+      console.error('[driveService] Erro no cron de sincronização do Drive:', err.message)
+    );
+  });
+}
+
 module.exports = {
   fazerUploadTermo,
   fazerUploadDeclaracao,
@@ -453,4 +866,7 @@ module.exports = {
   obterOuCriarSubpasta,
   verificarAcessoDrive,
   normalizarAreaSubpasta,
+  extrairMetadadosTermoPdf,
+  sincronizarSubstituicoesDrive,
+  iniciarMonitoramentoDriveTermos,
 };
