@@ -88,6 +88,7 @@ const MODULOS = {
       '• **Renovação Semestral Automática:** Alerta no RH aos 6 meses de assinatura com botões de emissão direta e Modal de edição de atividades.',
       '• **Assinatura Gov.br & Sincronização Drive:** Obrigatória sobre a linha "Voluntário(a)" com validação ICP-Brasil; ao subir versão co-assinada pela coordenação no Google Drive, o bot identifica o aluno (RA/Nome) e substitui o arquivo anterior automaticamente.',
       '• **Trilha de Entusiastas:** Usuários que entram por convites de comunidade recebem cargo direto sem termo.',
+      '• **Reentrada de Ex-Membros & Resiliência:** Preserva histórico de dados criptografados, elimina concorrência de botões e retoma o cadastro automaticamente.',
     ],
   },
   reuniao: {

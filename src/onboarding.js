@@ -12,6 +12,13 @@ const { mascararCPF } = require('./cryptoUtils');
 
 const sessoesAtivas = new Set();
 const coletoresAtivos = new Set();
+const interacoesTratadas = new Set();
+
+function marcarInteracaoTratada(interactionId) {
+  if (!interactionId) return;
+  interacoesTratadas.add(interactionId);
+  setTimeout(() => interacoesTratadas.delete(interactionId), 5 * 60 * 1000).unref?.();
+}
 
 async function buscarMembroGuild(client, userId) {
   try {
@@ -625,35 +632,44 @@ async function apresentarDocumentacaoVoluntariado(dm, userId) {
     components: [row],
   });
 
-  coletoresAtivos.add(userId);
   let interacao;
   try {
+    coletoresAtivos.add(userId);
     interacao = await dm.awaitMessageComponent({
       filter: (i) =>
         i.user.id === userId &&
         (i.customId === 'voluntariado_prosseguir' || i.customId === 'voluntariado_cancelar'),
       time: 24 * 60 * 60 * 1000,
     });
+    marcarInteracaoTratada(interacao.id);
+
+    if (interacao.customId === 'voluntariado_cancelar') {
+      try {
+        await interacao.update({
+          content:
+            '❌ **Onboarding cancelado.** Se tiver qualquer dúvida sobre o projeto ou a privacidade dos seus dados, entre em contato com a equipe de RH (Renan ou Conrado) no servidor!',
+          embeds: [],
+          components: [],
+        });
+      } catch (errUpdate) {
+        if (errUpdate.code !== 10062 && errUpdate.code !== 40060) throw errUpdate;
+      }
+      return false;
+    }
+
+    try {
+      await interacao.update({
+        content: '👍 **Informações compreendidas!** A seguir, leia o Termo de Ciência da LGPD para confirmar seu aceite e iniciar o cadastro:',
+        embeds: [],
+        components: [],
+      });
+    } catch (errUpdate) {
+      if (errUpdate.code !== 10062 && errUpdate.code !== 40060) throw errUpdate;
+    }
+    return true;
   } finally {
     coletoresAtivos.delete(userId);
   }
-
-  if (interacao.customId === 'voluntariado_cancelar') {
-    await interacao.update({
-      content:
-        '❌ **Onboarding cancelado.** Se tiver qualquer dúvida sobre o projeto ou a privacidade dos seus dados, entre em contato com a equipe de RH (Renan ou Conrado) no servidor!',
-      embeds: [],
-      components: [],
-    });
-    return false;
-  }
-
-  await interacao.update({
-    content: '👍 **Informações compreendidas!** A seguir, leia o Termo de Ciência da LGPD para confirmar seu aceite e iniciar o cadastro:',
-    embeds: [],
-    components: [],
-  });
-  return true;
 }
 
 async function solicitarTermoCiencia(dm, userId) {
@@ -693,36 +709,45 @@ async function solicitarTermoCiencia(dm, userId) {
     components: [row],
   });
 
-  coletoresAtivos.add(userId);
   let interacao;
   try {
+    coletoresAtivos.add(userId);
     interacao = await dm.awaitMessageComponent({
       filter: (i) => i.user.id === userId && (i.customId === 'lgpd_aceitar' || i.customId === 'lgpd_recusar'),
       time: 24 * 60 * 60 * 1000,
     });
+    marcarInteracaoTratada(interacao.id);
+
+    if (interacao.customId === 'lgpd_recusar') {
+      try {
+        await interacao.update({
+          content:
+            '❌ **Termo de Ciência recusado.** Como os dados solicitados são estritamente necessários para a emissão do Termo de Adesão ao Serviço Voluntário e registros acadêmicos na UTFPR, o cadastro não pôde ser prosseguido. Caso mude de ideia, entre em contato com o RH (Renan ou Conrado).',
+          embeds: [],
+          components: [],
+        });
+      } catch (errUpdate) {
+        if (errUpdate.code !== 10062 && errUpdate.code !== 40060) throw errUpdate;
+      }
+      return false;
+    }
+
+    try {
+      await interacao.update({
+        content:
+          '✅ **Termo de Ciência e Privacidade aceito!** Vamos iniciar o preenchimento dos seus dados cadastrais para o Termo de Adesão.\n' +
+          '💡 *Dica: se tiver qualquer dúvida ou se o bot parar de responder normalmente, digite `/help` a qualquer momento para abrir um chamado para a liderança.*',
+        embeds: [],
+        components: [],
+      });
+    } catch (errUpdate) {
+      if (errUpdate.code !== 10062 && errUpdate.code !== 40060) throw errUpdate;
+    }
+    await db.registrarAceiteTermoCiencia(userId);
+    return true;
   } finally {
     coletoresAtivos.delete(userId);
   }
-
-  if (interacao.customId === 'lgpd_recusar') {
-    await interacao.update({
-      content:
-        '❌ **Termo de Ciência recusado.** Como os dados solicitados são estritamente necessários para a emissão do Termo de Adesão ao Serviço Voluntário e registros acadêmicos na UTFPR, o cadastro não pôde ser prosseguido. Caso mude de ideia, entre em contato com o RH (Renan ou Conrado).',
-      embeds: [],
-      components: [],
-    });
-    return false;
-  }
-
-  await interacao.update({
-    content:
-      '✅ **Termo de Ciência e Privacidade aceito!** Vamos iniciar o preenchimento dos seus dados cadastrais para o Termo de Adesão.\n' +
-      '💡 *Dica: se tiver qualquer dúvida ou se o bot parar de responder normalmente, digite `/help` a qualquer momento para abrir um chamado para a liderança.*',
-    embeds: [],
-    components: [],
-  });
-  await db.registrarAceiteTermoCiencia(userId);
-  return true;
 }
 
 async function executarColetaDados(member, dm, respostasIniciais = {}) {
@@ -948,6 +973,23 @@ async function tratarErroOnboarding(member, user, err) {
     }
   } else {
     console.error('Erro no onboarding de', user.id, err);
+    try {
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('onboarding_reiniciar')
+          .setLabel('🔄 Continuar Cadastro')
+          .setStyle(ButtonStyle.Primary)
+      );
+      const dm = await user.createDM();
+      await dm.send({
+        content:
+          '⚠️ **Ocorreu uma instabilidade na conexão durante o seu cadastro.**\n' +
+          'Seus dados já preenchidos estão seguros! Clique no botão abaixo para continuar de onde você parou, ou envie `/help` se precisar de suporte da liderança.',
+        components: [row],
+      });
+    } catch (errAviso) {
+      console.error('Não consegui avisar usuário sobre erro no onboarding:', errAviso.message);
+    }
   }
 }
 
@@ -1032,7 +1074,7 @@ async function handleOnboardingInteraction(interaction) {
   if (!interaction.isButton() && !interaction.isStringSelectMenu()) return false;
   if (interaction.replied || interaction.deferred) return false;
 
-  const { customId, user } = interaction;
+  const { customId, user, id } = interaction;
   const orphanOnboardingIds = [
     'voluntariado_prosseguir',
     'voluntariado_cancelar',
@@ -1043,26 +1085,36 @@ async function handleOnboardingInteraction(interaction) {
 
   if (!orphanOnboardingIds.includes(customId)) return false;
 
-  // Se já há um coletor ativo ouvindo este usuário, deixa o awaitMessageComponent tratar
-  if (coletoresAtivos.has(user.id)) {
+  if (interacoesTratadas.has(id)) {
+    return true;
+  }
+
+  // Se já há um coletor ativo ouvindo este usuário ou sessão em andamento, deixa o fluxo ativo tratar
+  if (coletoresAtivos.has(user.id) || (sessoesAtivas.has(user.id) && customId !== 'onboarding_reiniciar')) {
     return false;
   }
+
+  marcarInteracaoTratada(id);
 
   // Não há coletor ativo (tempo expirou ou bot reiniciou)
   try {
     if (customId === 'voluntariado_prosseguir') {
-      await interaction.update({
-        content: '👍 **Informações compreendidas!** A seguir, leia o Termo de Ciência da LGPD para confirmar seu aceite e iniciar o cadastro:',
-        embeds: [],
-        components: [],
-      });
+      try {
+        await interaction.update({
+          content: '👍 **Informações compreendidas!** A seguir, leia o Termo de Ciência da LGPD para confirmar seu aceite e iniciar o cadastro:',
+          embeds: [],
+          components: [],
+        });
+      } catch (errUpdate) {
+        if (errUpdate.code !== 10062 && errUpdate.code !== 40060) throw errUpdate;
+      }
 
       const member = await buscarMembroGuild(interaction.client, user.id);
       if (!member) {
         await interaction.followUp({
           content: '⚠️ Não foi possível localizar seu usuário no servidor da CyberGuard. Por favor, entre em contato com o RH.',
           ephemeral: true,
-        });
+        }).catch(() => null);
         return true;
       }
 
@@ -1073,22 +1125,32 @@ async function handleOnboardingInteraction(interaction) {
     }
 
     if (customId === 'voluntariado_cancelar') {
-      await interaction.update({
-        content:
-          '❌ **Onboarding cancelado.** Se tiver qualquer dúvida sobre o projeto ou a privacidade dos seus dados, entre em contato com a equipe de RH (Renan ou Conrado) no servidor!',
-        embeds: [],
-        components: [],
-      });
+      try {
+        await interaction.update({
+          content:
+            '❌ **Onboarding cancelado.** Se tiver qualquer dúvida sobre o projeto ou a privacidade dos seus dados, entre em contato com a equipe de RH (Renan ou Conrado) no servidor!',
+          embeds: [],
+          components: [],
+        });
+      } catch (errUpdate) {
+        if (errUpdate.code !== 10062 && errUpdate.code !== 40060) throw errUpdate;
+      }
       await encerrarOnboardingCancelado(user.id);
       return true;
     }
 
     if (customId === 'lgpd_aceitar') {
-      await interaction.update({
-        content: '✅ **Termo de Ciência e Privacidade aceito!** Vamos iniciar o preenchimento dos seus dados cadastrais para o Termo de Adesão.',
-        embeds: [],
-        components: [],
-      });
+      try {
+        await interaction.update({
+          content:
+            '✅ **Termo de Ciência e Privacidade aceito!** Vamos iniciar o preenchimento dos seus dados cadastrais para o Termo de Adesão.\n' +
+            '💡 *Dica: se tiver qualquer dúvida ou se o bot parar de responder normalmente, digite `/help` a qualquer momento para abrir um chamado para a liderança.*',
+          embeds: [],
+          components: [],
+        });
+      } catch (errUpdate) {
+        if (errUpdate.code !== 10062 && errUpdate.code !== 40060) throw errUpdate;
+      }
       await db.registrarAceiteTermoCiencia(user.id);
 
       const member = await buscarMembroGuild(interaction.client, user.id);
@@ -1101,24 +1163,33 @@ async function handleOnboardingInteraction(interaction) {
     }
 
     if (customId === 'lgpd_recusar') {
-      await interaction.update({
-        content:
-          '❌ **Termo de Ciência recusado.** Como os dados solicitados são estritamente necessários para a emissão do Termo de Adesão ao Serviço Voluntário e registros acadêmicos na UTFPR, o cadastro não pôde ser prosseguido. Caso mude de ideia, entre em contato com o RH (Renan ou Conrado).',
-        embeds: [],
-        components: [],
-      });
+      try {
+        await interaction.update({
+          content:
+            '❌ **Termo de Ciência recusado.** Como os dados solicitados são estritamente necessários para a emissão do Termo de Adesão ao Serviço Voluntário e registros acadêmicos na UTFPR, o cadastro não pôde ser prosseguido. Caso mude de ideia, entre em contato com o RH (Renan ou Conrado).',
+          embeds: [],
+          components: [],
+        });
+      } catch (errUpdate) {
+        if (errUpdate.code !== 10062 && errUpdate.code !== 40060) throw errUpdate;
+      }
       await encerrarOnboardingCancelado(user.id);
       return true;
     }
 
     if (customId === 'onboarding_reiniciar') {
-      await interaction.update({
-        content: '🔄 **Continuando seu cadastro de onde você parou...**',
-        components: [],
-      });
+      try {
+        await interaction.update({
+          content: '🔄 **Continuando seu cadastro de onde você parou...**',
+          components: [],
+        });
+      } catch (errUpdate) {
+        if (errUpdate.code !== 10062 && errUpdate.code !== 40060) throw errUpdate;
+      }
       const member = await buscarMembroGuild(interaction.client, user.id);
       if (!member) return true;
       sessoesAtivas.delete(user.id);
+      coletoresAtivos.delete(user.id);
       iniciarOnboarding(member).catch((err) =>
         console.error('[onboarding] Erro ao reiniciar onboarding:', err)
       );

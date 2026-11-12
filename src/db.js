@@ -335,7 +335,8 @@ function criarMembro(discordId) {
       `INSERT INTO membros (discord_id, status, saida_processada) VALUES ($1, 'coletando_dados', false)
        ON CONFLICT (discord_id) DO UPDATE SET
          status = CASE
-           WHEN membros.status IN ('rejeitado', 'abandonado', 'coletando_dados') THEN 'coletando_dados'
+           WHEN membros.status IN ('rejeitado', 'abandonado', 'coletando_dados', 'concluido')
+                OR membros.saida_processada = true THEN 'coletando_dados'
            ELSE membros.status
          END,
          saida_processada = false

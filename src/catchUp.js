@@ -36,7 +36,10 @@ async function processarMembrosPendentes(membrosAtuais) {
       if (temAlgumCargo) continue;
 
       const registro = await db.getMembro(membro.id);
-      const precisaOnboarding = !registro || !STATUS_JA_PROCESSADO.includes(registro.status);
+      const precisaOnboarding =
+        !registro ||
+        !STATUS_JA_PROCESSADO.includes(registro.status) ||
+        (registro.status === 'concluido' && (registro.saida_processada || !temAlgumCargo));
       if (precisaOnboarding) {
         pendentes.push(membro);
       }
