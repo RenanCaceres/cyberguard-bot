@@ -1059,6 +1059,7 @@ async function listarAvisosEventosParaMembro(discordId, setoresDoMembro = [], li
   const { rows } = await pool.query(
     `SELECT * FROM avisos_eventos
      WHERE escopo = 'todos'
+        OR autor_id = $1
         OR destinatarios_ids @> to_jsonb($1::text)
         OR (escopo = 'setor' AND setor_alvo = ANY($2::text[]))
      ORDER BY criado_em DESC
