@@ -49,42 +49,51 @@ Abra [README.md](file:///home/renan/Documentos/GitHub/cyberguard-bot/README.md):
 - Localize a seção correspondente em `### ⚡ Funcionalidades Principais`.
 - Atualize a tabela de comandos, o passo a passo operacional e as regras de negócio.
 
-### Passo 4: Atualizar Manuais e Scripts de Documentação
-Se a mudança for substancial:
-- Atualize os scripts geradores de manuais correspondentes em `scripts/` (ex: `gerarManuais.js`, `gerarManualAvisos.js`, etc.).
+### Passo 4: Atualizar Manuais PDF e Scripts de Documentação
+Se a mudança alterar regras ou fluxos de um módulo existente:
+- Atualize o script gerador de PDF correspondente em `scripts/` (ex: `gerarManuais.js`, `gerarManualAvisos.js`, `gerarDocumentacaoCompleta.js`) e execute-o para regerar o arquivo `.pdf` em `docs/manuais/`.
+- Para tutoriais gerados a partir de Markdown, recompile imediatamente para PDF via `npm run docs:pdf`.
 - Se necessário, atualize diagramas em `scripts/fluxosCanvas.js` ou simulações em `scripts/simulacoesCanvas.js`.
 
 ---
 
-## 🚀 Procedimento 2: Criação de Tutorial para Novo Módulo
+## 🚀 Procedimento 2: Criação de Tutorial em PDF para Novo Módulo
+
+> **Regra Obrigatória:** Toda documentação e tutorial em `docs/manuais/` **DEVE ser gerada em formato `.pdf`**. Nunca entregue apenas `.md` nem aponte `pdfPrincipal` para um arquivo `.md`.
 
 Quando um novo módulo for implementado:
 
-### Passo 1: Executar o Gerador de Tutorial
-Execute o utilitário do Guardian:
+### Passo 1: Gerar o Tutorial diretamente em PDF (ou compilar de um Markdown rico)
+**Opção A — Gerar scaffold direto em PDF:**
 ```bash
 node scripts/doc-flow-guardian.js --tutorial <id_do_modulo> --titulo "<Título do Módulo>" --subtitulo "<Descrição curta>" --comandos "/cmd1,/cmd2"
 ```
-Isso gerará o scaffold completo em `docs/manuais/Tutorial_<id_do_modulo>.md`.
+Isso gera automaticamente `docs/manuais/Tutorial_<id_do_modulo>.pdf` utilizando o motor institucional `DocBuilder` (`scripts/pdfDocBuilder.js` + `scripts/mdToPdf.js`).
 
-### Passo 2: Detalhar o Tutorial
-Abra o arquivo gerado em `docs/manuais/Tutorial_<id_do_modulo>.md` e complemente com:
-1. **Visão Geral e Objetivos:** Contexto e relevância para o projeto.
-2. **Matriz de Permissões:** Quem tem acesso (Voluntário, Líder, RH, Presidência).
-3. **Fluxograma Operacional Mermaid:** Representação visual do fluxo de interação.
-4. **Passo a Passo Detalhado:** Instruções claras com prints ou exemplos de mensagens do Discord.
-5. **Comandos e Parâmetros:** Tabela completa com tipos, opções e obrigatoriedade.
-6. **Salvaguardas LGPD e Segurança:** Princípios de minimização, retenção, efemeridade e criptografia AES-256-GCM.
+**Opção B — Redigir um rascunho detalhado em Markdown e compilar para PDF (recomendado para módulos ricos):**
+1. Elabore um rascunho temporário (ou em `docs/manuais/Tutorial_<id_do_modulo>.md`) com:
+   - **Visão Geral e Objetivos:** Contexto e relevância para o projeto.
+   - **Matriz de Permissões:** Quem tem acesso (Voluntário, Líder, RH, Presidência).
+   - **Fluxograma Operacional Mermaid:** Representação visual do fluxo (convertida automaticamente em etapas estruturadas no PDF).
+   - **Passo a Passo Detalhado:** Instruções claras para membros e liderança.
+   - **Comandos e Parâmetros:** Tabela completa com tipos, opções e obrigatoriedade.
+   - **Salvaguardas LGPD e Segurança:** Minimização, retenção, efemeridade e criptografia AES-256-GCM.
+2. Converta imediatamente para PDF (removendo o `.md` intermediário):
+   ```bash
+   npm run docs:pdf
+   # ou especificando origem:
+   node scripts/doc-flow-guardian.js --tutorial <id_do_modulo> --from-md <caminho.md>
+   ```
 
-### Passo 3: Registrar no Catálogo `/documentacao`
-Insira o novo objeto em `MODULOS` dentro de [commands/documentacao/documentacaoCommand.js](file:///home/renan/Documentos/GitHub/cyberguard-bot/commands/documentacao/documentacaoCommand.js):
+### Passo 2: Registrar no Catálogo `/documentacao` (sempre apontando para `.pdf`)
+Insira o novo objeto em `MODULOS` dentro de [commands/documentacao/documentacaoCommand.js](file:///home/renan/Documentos/GitHub/cyberguard-bot/commands/documentacao/documentacaoCommand.js) e adicione a opção correspondente no `addChoices` do `/documentacao`:
 ```javascript
   novoModulo: {
     id: 'novoModulo',
     titulo: '✨ Título do Módulo',
     subtitulo: 'Descrição sucinta para exibição no menu select.',
     cor: 0x3b82f6,
-    pdfPrincipal: 'Tutorial_novoModulo.md',
+    pdfPrincipal: 'Tutorial_novoModulo.pdf',
     comandos: ['/comando1', '/comando2'],
     regras: [
       '• Regra de acesso e permissão.',
@@ -94,10 +103,9 @@ Insira o novo objeto em `MODULOS` dentro de [commands/documentacao/documentacaoC
   },
 ```
 
-### Passo 4: Adicionar ao README.md
-No [README.md](file:///home/renan/Documentos/GitHub/cyberguard-bot/README.md):
-- Adicione o link e resumo na seção de funcionalidades principais.
-- Adicione a tabela de comandos do novo módulo e o fluxo passo a passo.
+### Passo 3: Adicionar ao README.md e Documentação Completa
+- No [README.md](file:///home/renan/Documentos/GitHub/cyberguard-bot/README.md): adicione a seção na lista de funcionalidades, tabela de comandos e referência na lista de manuais PDF.
+- Em [scripts/gerarDocumentacaoCompleta.js](file:///home/renan/Documentos/GitHub/cyberguard-bot/scripts/gerarDocumentacaoCompleta.js): inclua o novo módulo/comando/tabela e regenere `Documentacao_Completa_CyberGuard_Bot.pdf` (`node scripts/gerarDocumentacaoCompleta.js`).
 
 ---
 

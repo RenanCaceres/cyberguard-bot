@@ -386,16 +386,16 @@ async function gerarDocumentacaoCompleta() {
   doc.paragrafo(
     'O Doc & Flow Guardian (scripts/doc-flow-guardian.js, .agents/skills/doc-flow-guardian e .agents/hooks/stop-lgpd-deploy.js) é a infraestrutura de governança contínua de documentação do bot, operando de forma integrada aos agentes de IA e aos hooks de pré-deploy:'
   );
-  doc.listaItem('Monitoramento de Fluxos: detecta alterações em comandos slash, botões interativos, modais e coletores, exigindo a atualização síncrona do README.md, do catálogo /documentacao e dos manuais operacionais.');
-  doc.listaItem('Fábrica de Tutoriais para Novos Módulos: provê comandos automatizados (npm run docs:tutorial) para gerar o manual padrão em Markdown (docs/manuais/Tutorial_<Modulo>.md) e o snippet correspondente para o seletor do Discord.');
-  doc.listaItem('Auditoria Determinística (npm run docs:guard): valida se 100% dos diretórios em commands/ e rotinas em src/ possuem manuais e regras associadas, barrando encerramentos de turnos ou commits que deixem módulos órfãos.');
+  doc.listaItem('Monitoramento de Fluxos: detecta alterações em comandos slash, botões interativos, modais e coletores, exigindo a atualização síncrona do README.md, do catálogo /documentacao e dos manuais operacionais em PDF.');
+  doc.listaItem('Fábrica de Tutoriais em PDF para Novos Módulos: provê comandos automatizados (npm run docs:tutorial e npm run docs:pdf) para gerar diretamente o manual padronizado em PDF (docs/manuais/Tutorial_<Modulo>.pdf) e o snippet correspondente para o seletor do Discord.');
+  doc.listaItem('Auditoria Determinística (npm run docs:guard): valida se 100% dos diretórios em commands/ e rotinas em src/ possuem manuais em PDF e regras associadas, barrando encerramentos de turnos ou commits com documentação pendente ou fora do padrão PDF.');
 
   // =========================================================================
   // SEÇÃO 11: REFERÊNCIA CONSOLIDADA (BANCO DE DADOS, CRONS E VARIÁVEIS)
   // =========================================================================
   doc.novaPagina();
   doc.secao('11', 'Referência Consolidada: Banco de Dados, Crons e Variáveis (.env)');
-  doc.subsecao('11.1. Esquema Relacional PostgreSQL (14 Tabelas)');
+  doc.subsecao('11.1. Esquema Relacional PostgreSQL (15 Tabelas)');
   doc.tabela(
     [
       { nome: 'Tabela SQL', largura: 135 },
@@ -417,6 +417,7 @@ async function gerarDocumentacaoCompleta() {
       ['atas_reuniao', 'PK id, IDX guild_id, finalizado_em', 'Atas geradas pelo Gemini AI, transcrição, participantes JSONB, caminho do PDF e controle de backup de áudio (7 dias).'],
       ['duvidas_suporte', 'PK id, UNIQUE codigo', 'Protocolos #DUVIDA-XXXX de suporte com a liderança, assunto, dúvida, remetente, status e trâmite por e-mail/DM.'],
       ['avisos_eventos', 'PK id, IDX setor, data_evento', 'Registro de avisos oficiais, threads privadas vinculadas, eventos no Google Calendar e status de entrega.'],
+      ['links_encurtados', 'PK id, IDX discord_id', 'Cache e histórico de links encurtados (is.gd / TinyURL), canal_id e origem (auto ou comando).'],
     ]
   );
 
@@ -461,6 +462,7 @@ async function gerarDocumentacaoCompleta() {
       ['/painel-avisos [canal]', 'Líderes, RH & Admin', 'Publica painel de comunicados restritos por setor e agendamento de reuniões no Google Calendar.'],
       ['/painel-duvidas', 'Administrator (Guild)', 'Publica o painel interativo fixo de atendimento, regras regimentais e tira-dúvidas no canal #dúvidas.'],
       ['/documentacao', 'Qualquer Membro', 'Abre a central interativa de manuais operacionais em PDF, simulações visuais e assistente de dúvidas com IA.'],
+      ['/encurtar ...', 'Membro / Liderança', 'Encurta URLs manualmente (is.gd/TinyURL), exibe histórico, status e configura exceções no servidor.'],
     ]
   );
 

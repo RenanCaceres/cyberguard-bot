@@ -168,13 +168,14 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
 ---
 
 ### 🤖 10. Agente Guardião de Fluxos, Documentação & Novos Módulos (Doc & Flow Guardian)
-- **Sincronização Contínua de Fluxos**: Agente inteligente integrado (`doc-flow-guardian`) e hook automatizado que monitora alterações em comandos slash, botões, modais, coletores e regras de negócio, assegurando que o `README.md`, o catálogo interativo do `/documentacao` e os manuais técnicos nunca fiquem desatualizados.
-- **Geração Automática de Tutoriais para Novos Módulos**: Sempre que um novo módulo funcional é adicionado ao projeto (`commands/<novo-modulo>/` ou `src/<novo-modulo>.js`), o agente gera um tutorial completo e ilustrado em `docs/manuais/Tutorial_<Modulo>.md`, cadastra o módulo no seletor do `/documentacao` e documenta as permissões de acesso.
-- **Auditoria de Cobertura via CLI (`npm run docs:guard`)**: Verificação determinística que valida se 100% dos comandos possuem documentação, regras e manuais associados antes de cada commit/deploy.
+- **Sincronização Contínua de Fluxos**: Agente inteligente integrado (`doc-flow-guardian`) e hook automatizado que monitora alterações em comandos slash, botões, modais, coletores e regras de negócio, assegurando que o `README.md`, o catálogo interativo do `/documentacao` e os manuais técnicos em PDF nunca fiquem desatualizados.
+- **Geração Automática de Tutoriais em PDF para Novos Módulos**: Sempre que um novo módulo funcional é adicionado ao projeto (`commands/<novo-modulo>/` ou `src/<novo-modulo>.js`), o agente gera um tutorial completo diretamente em PDF (`docs/manuais/Tutorial_<Modulo>.pdf`), cadastra o módulo no seletor do `/documentacao` e documenta as permissões de acesso.
+- **Auditoria de Cobertura via CLI (`npm run docs:guard`)**: Verificação determinística que valida se 100% dos comandos possuem documentação em PDF, regras e manuais associados antes de cada commit/deploy.
 - **Comandos Utilitários do Guardian**:
-  - `npm run docs:status`: Exibe a matriz de cobertura de documentação de todos os módulos.
-  - `npm run docs:guard`: Audita alterações de fluxos e mapeamentos de novos comandos.
-  - `npm run docs:tutorial`: Cria scaffolds e tutoriais padronizados para novos módulos.
+  - `npm run docs:status`: Exibe a matriz de cobertura de documentação PDF de todos os módulos.
+  - `npm run docs:guard`: Audita alterações de fluxos, mapeamentos de novos comandos e conformidade estrita com o formato PDF.
+  - `npm run docs:tutorial`: Cria tutoriais padronizados diretamente em PDF para novos módulos.
+  - `npm run docs:pdf`: Converte/compila arquivos Markdown de documentação em PDFs institucionais A4 (`docs/manuais/*.pdf`).
 
 ---
 
@@ -186,7 +187,7 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
   - **`/encurtar historico`**: Lista os últimos 10 links encurtados do próprio usuário ou de todo o servidor (Liderança/RH/Admin) com totais e cache em PostgreSQL (`links_encurtados`).
   - **`/encurtar status`**: Mostra status, tamanho mínimo, canais/domínios ignorados e estatísticas.
   - **`/encurtar configurar`**: Permite à Liderança/RH/Admin ativar ou desativar o encurtamento automático e gerenciar exceções por canal diretamente pelo Discord.
-- **Tutorial Dedicado**: [`docs/manuais/Tutorial_encurtador.md`](docs/manuais/Tutorial_encurtador.md).
+- **Tutorial Dedicado (PDF)**: [`docs/manuais/Tutorial_encurtador.pdf`](docs/manuais/Tutorial_encurtador.pdf).
 
 ---
 
@@ -388,7 +389,8 @@ A pasta `docs/manuais/` (e `docs/`) conta com a documentação técnica completa
 - 📢 **`Manual_Lider_Avisos_Google_Calendar.pdf`**: Guia operacional para líderes emitirem comunicados restritos por setor em tópicos privados e agendarem reuniões sincronizadas com o Google Calendar (API v3 & RFC 5545).
 - 📬 **`Manual_Membro_Avisos_Google_Calendar.pdf`**: Manual do integrante sobre tópicos privados de avisos, notificações na DM/e-mail, convites de reuniões no Google Calendar e consulta em `Meus Avisos`.
 - 🛡️ **`Manual_Membro_Central_Suporte_Duvidas.pdf`**: Guia da central de apoio e dúvidas `#dúvidas`, consulta a manuais em PDF, tira-dúvidas com IA Gemini e chamados à liderança com protocolo `#DUVIDA-XXXX`.
-- 🤖 **`Tutorial_<Modulo>.md`** *(em `docs/manuais/`)*: Padrão automatizado de tutoriais para novos módulos e fluxos do bot, gerado sob demanda via `npm run docs:tutorial` com conformidade estrita à LGPD e diagramas operacionais.
+- 🔗 **`Tutorial_encurtador.pdf`**: Tutorial operacional do módulo `/encurtar` (encurtamento automático via `is.gd`/`TinyURL`, histórico, exceções de canal e travas anti-SSRF).
+- 🤖 **`Tutorial_Doc_Flow_Guardian.pdf` / `Tutorial_<Modulo>.pdf`** *(em `docs/manuais/`)*: Padrão automatizado de tutoriais **em PDF** para novos módulos e fluxos do bot, gerado sob demanda via `npm run docs:tutorial` ou `npm run docs:pdf` com conformidade estrita à LGPD.
 
 ---
 

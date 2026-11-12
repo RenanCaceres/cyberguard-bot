@@ -2,20 +2,21 @@
 'use strict';
 
 /**
- * CyberGuard Bot — Guardião de Fluxos, Documentação & Novos Módulos
+ * CyberGuard Bot — Guardião de Fluxos, Documentação PDF & Novos Módulos
  *
  * Responsável por:
  *  1. Auditar se alterações de código em commands/ ou src/ impactaram fluxos sem
- *     a devida atualização da documentação (README.md, commands/documentacao/documentacaoCommand.js, docs/manuais/).
- *  2. Identificar novos módulos e comandos criados, verificando se possuem tutorial dedicado
+ *     a devida atualização da documentação (README.md, commands/documentacao/documentacaoCommand.js, docs/manuais/*.pdf).
+ *  2. Identificar novos módulos e comandos criados, verificando se possuem tutorial dedicado em PDF
  *     e inclusão no catálogo interativo do Discord (/documentacao).
- *  3. Gerar scaffolds e tutoriais completos para novos módulos (--tutorial <modulo>).
- *  4. Exibir o status de cobertura de documentação de todos os módulos (--status).
+ *  3. Gerar tutoriais completos diretamente em PDF (--tutorial <modulo> ou --pdf <arquivo.md>).
+ *  4. Bloquear referências a documentação não-PDF em MODULOS ou arquivos .md soltos em docs/manuais/.
  */
 
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const { converterMarkdownParaPdf, converterArquivoMdParaPdf } = require('./mdToPdf');
 
 const ROOT = path.resolve(__dirname, '..');
 const DOC_COMMAND_FILE = path.join(ROOT, 'commands', 'documentacao', 'documentacaoCommand.js');
@@ -40,6 +41,7 @@ function obterModulosRegistrados() {
       const tituloMatch = corpo.match(/titulo:\s*['"`](.*?)['"`]/);
       const subtituloMatch = corpo.match(/subtitulo:\s*['"`](.*?)['"`]/);
       const pdfPrincipalMatch = corpo.match(/pdfPrincipal:\s*['"`](.*?)['"`]/);
+      const pdfSecundarioMatch = corpo.match(/pdfSecundario:\s*['"`](.*?)['"`]/);
       const comandosMatch = corpo.match(/comandos:\s*\[([\s\S]*?)\]/);
 
       let comandos = [];
@@ -55,11 +57,12 @@ function obterModulosRegistrados() {
         titulo: tituloMatch ? tituloMatch[1] : id,
         subtitulo: subtituloMatch ? subtituloMatch[1] : '',
         pdfPrincipal: pdfPrincipalMatch ? pdfPrincipalMatch[1] : '',
+        pdfSecundario: pdfSecundarioMatch ? pdfSecundarioMatch[1] : '',
         comandos,
       };
     }
     return modulos;
-  } catch (err) {
+  } catch {
     return {};
   }
 }
@@ -70,6 +73,14 @@ function listarDiretoriosComandos() {
   return fs
     .readdirSync(dir, { withFileTypes: true })
     .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+}
+
+function listarArquivosMdEmManuais() {
+  if (!fs.existsSync(MANUAIS_DIR)) return [];
+  return fs
+    .readdirSync(MANUAIS_DIR, { withFileTypes: true })
+    .filter((d) => d.isFile() && /\.md$/i.test(d.name))
     .map((d) => d.name);
 }
 
@@ -93,11 +104,14 @@ function obterEstadoGit() {
 function verificarCoberturaModulos() {
   const modulos = obterModulosRegistrados();
   const cmds = listarDiretoriosComandos();
+  const arquivosMdManuais = listarArquivosMdEmManuais();
   const relatorio = {
     modulos,
     comandosTotal: cmds.length,
     comandosNaoMapeados: [],
     manuaisAusentes: [],
+    manuaisNaoPdf: [],
+    arquivosMdManuais,
     pendenciasReadme: [],
   };
 
@@ -126,14 +140,21 @@ function verificarCoberturaModulos() {
     }
   });
 
-  // Checa se os PDFs ou tutoriais dos módulos existem
+  // Checa se os PDFs dos módulos existem e estão estritamente em formato .pdf
   Object.values(modulos).forEach((mod) => {
-    if (mod.pdfPrincipal) {
-      const caminhoPdf = path.join(MANUAIS_DIR, mod.pdfPrincipal);
-      const caminhoDocs = path.join(ROOT, 'docs', mod.pdfPrincipal);
-      const caminhoTutorialMd = path.join(MANUAIS_DIR, `Tutorial_${mod.id}.md`);
-      if (!fs.existsSync(caminhoPdf) && !fs.existsSync(caminhoDocs) && !fs.existsSync(caminhoTutorialMd)) {
-        relatorio.manuaisAusentes.push({ modulo: mod.id, arquivo: mod.pdfPrincipal });
+    const refs = [mod.pdfPrincipal, mod.pdfSecundario].filter(Boolean);
+    if (refs.length === 0) {
+      relatorio.manuaisAusentes.push({ modulo: mod.id, arquivo: `Tutorial_${mod.id}.pdf` });
+    }
+
+    for (const arquivo of refs) {
+      if (!/\.pdf$/i.test(arquivo)) {
+        relatorio.manuaisNaoPdf.push({ modulo: mod.id, arquivo });
+      }
+      const caminhoPdf = path.join(MANUAIS_DIR, arquivo);
+      const caminhoDocs = path.join(ROOT, 'docs', arquivo);
+      if (!fs.existsSync(caminhoPdf) && !fs.existsSync(caminhoDocs)) {
+        relatorio.manuaisAusentes.push({ modulo: mod.id, arquivo });
       }
     }
 
@@ -169,24 +190,8 @@ function auditarAlteracoesFluxo() {
   };
 }
 
-function gerarTutorialScaffold(moduloId, opcoes = {}) {
-  const id = String(moduloId).toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
-  if (!id) {
-    console.error('❌ [DOC-GUARDIAN] Nome de módulo inválido.');
-    process.exit(1);
-  }
-
-  const titulo = opcoes.titulo || `Módulo ${id.charAt(0).toUpperCase() + id.slice(1)}`;
-  const subtitulo = opcoes.subtitulo || `Guia e tutorial completo para utilização do módulo ${id}.`;
-  const comandosStr = opcoes.comandos || `/${id}`;
-  const comandos = comandosStr.split(',').map((c) => (c.startsWith('/') ? c.trim() : `/${c.trim()}`));
-
-  if (!fs.existsSync(MANUAIS_DIR)) {
-    fs.mkdirSync(MANUAIS_DIR, { recursive: true });
-  }
-
-  const tutorialPath = path.join(MANUAIS_DIR, `Tutorial_${id}.md`);
-  const tutorialMd = `# 📘 Tutorial Oficial • ${titulo}
+function montarMarkdownPadraoTutorial(id, titulo, subtitulo, comandos) {
+  return `# 📘 Tutorial Oficial • ${titulo}
 **CyberGuard Bot • Guia Operacional e Instruções de Uso**
 
 > **Objetivo:** ${subtitulo}  
@@ -257,17 +262,57 @@ ${comandos.map((cmd) => `| \`${cmd}\` | N/A | Executa as ações do módulo ${ti
 
 *Documento gerado automaticamente pelo CyberGuard Doc & Flow Guardian.*
 `;
+}
 
-  fs.writeFileSync(tutorialPath, tutorialMd, 'utf8');
-  console.log(`✅ [DOC-GUARDIAN] Tutorial criado em: ${path.relative(ROOT, tutorialPath)}`);
+async function gerarTutorialScaffold(moduloId, opcoes = {}) {
+  const id = String(moduloId).toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
+  if (!id) {
+    console.error('❌ [DOC-GUARDIAN] Nome de módulo inválido.');
+    process.exit(1);
+  }
 
-  // Modelo de snippet para commands/documentacao/documentacaoCommand.js
+  const titulo = opcoes.titulo || `Módulo ${id.charAt(0).toUpperCase() + id.slice(1)}`;
+  const subtitulo = opcoes.subtitulo || `Guia e tutorial completo para utilização do módulo ${id}.`;
+  const comandosStr = opcoes.comandos || `/${id}`;
+  const comandos = comandosStr.split(',').map((c) => (c.startsWith('/') ? c.trim() : `/${c.trim()}`));
+
+  if (!fs.existsSync(MANUAIS_DIR)) {
+    fs.mkdirSync(MANUAIS_DIR, { recursive: true });
+  }
+
+  const tutorialPdfPath = path.join(MANUAIS_DIR, `Tutorial_${id}.pdf`);
+  let conteudoMd = '';
+
+  if (opcoes.fromMd) {
+    const mdOrigem = path.resolve(opcoes.fromMd);
+    if (!fs.existsSync(mdOrigem)) {
+      console.error(`❌ [DOC-GUARDIAN] Arquivo Markdown fonte não encontrado: ${mdOrigem}`);
+      process.exit(1);
+    }
+    conteudoMd = fs.readFileSync(mdOrigem, 'utf8');
+  } else {
+    conteudoMd = montarMarkdownPadraoTutorial(id, titulo, subtitulo, comandos);
+  }
+
+  await converterMarkdownParaPdf(conteudoMd, tutorialPdfPath, {
+    titulo: `Tutorial Oficial - ${titulo}`,
+    subtitulo: 'CyberGuard Bot - Guia Operacional e Instruções de Uso',
+  });
+  console.log(`✅ [DOC-GUARDIAN] Tutorial PDF gerado em: ${path.relative(ROOT, tutorialPdfPath)}`);
+
+  if (opcoes.keepMd) {
+    const tutorialMdPath = path.join(MANUAIS_DIR, `Tutorial_${id}.md`);
+    fs.writeFileSync(tutorialMdPath, conteudoMd, 'utf8');
+    console.log(`ℹ️  [DOC-GUARDIAN] Fonte Markdown mantida em: ${path.relative(ROOT, tutorialMdPath)}`);
+  }
+
+  // Modelo de snippet para commands/documentacao/documentacaoCommand.js (sempre .pdf)
   const snippetModulo = `  ${id}: {
     id: '${id}',
     titulo: '${titulo}',
     subtitulo: '${subtitulo}',
     cor: 0x3b82f6,
-    pdfPrincipal: 'Tutorial_${id}.md',
+    pdfPrincipal: 'Tutorial_${id}.pdf',
     comandos: [${comandos.map((c) => `'${c}'`).join(', ')}],
     regras: [
       '• **Acesso:** Permissões segmentadas entre Integrantes, Líderes e RH.',
@@ -280,43 +325,101 @@ ${comandos.map((cmd) => `| \`${cmd}\` | N/A | Executa as ações do módulo ${ti
   console.log('\n📋 [DOC-GUARDIAN] Snippet sugerido para MODULOS em commands/documentacao/documentacaoCommand.js:');
   console.log(snippetModulo);
 
-  return { tutorialPath, snippetModulo };
+  return { tutorialPdfPath, snippetModulo };
+}
+
+async function compilarMarkdownParaPdf({ arquivoMd, keepMd = false }) {
+  if (arquivoMd) {
+    const mdPath = path.resolve(arquivoMd);
+    const baseName = path.basename(mdPath).replace(/\.md$/i, '.pdf');
+    const estaEmManuais = path.dirname(mdPath) === MANUAIS_DIR;
+    const pdfDest = estaEmManuais ? mdPath.replace(/\.md$/i, '.pdf') : path.join(MANUAIS_DIR, baseName);
+
+    await converterArquivoMdParaPdf(mdPath, pdfDest);
+    console.log(`✅ [DOC-GUARDIAN] PDF gerado: ${path.relative(ROOT, pdfDest)}`);
+    if (!keepMd && estaEmManuais && fs.existsSync(mdPath)) {
+      fs.unlinkSync(mdPath);
+      console.log(`🧹 [DOC-GUARDIAN] Removido Markdown intermediário: ${path.relative(ROOT, mdPath)}`);
+    }
+    return [pdfDest];
+  }
+
+  // Sem arquivo específico: compila todos os .md de docs/manuais/
+  const mds = listarArquivosMdEmManuais();
+  if (mds.length === 0) {
+    console.log('✅ [DOC-GUARDIAN] Nenhum arquivo .md pendente em docs/manuais/ (todos já estão em PDF).');
+    return [];
+  }
+
+  const gerados = [];
+  for (const nomeMd of mds) {
+    const mdPath = path.join(MANUAIS_DIR, nomeMd);
+    const pdfPath = mdPath.replace(/\.md$/i, '.pdf');
+    await converterArquivoMdParaPdf(mdPath, pdfPath);
+    gerados.push(pdfPath);
+    console.log(`✅ [DOC-GUARDIAN] Compilado para PDF: ${path.relative(ROOT, pdfPath)}`);
+    if (!keepMd) {
+      fs.unlinkSync(mdPath);
+      console.log(`🧹 [DOC-GUARDIAN] Removido Markdown intermediário: ${path.relative(ROOT, mdPath)}`);
+    }
+  }
+  return gerados;
 }
 
 function exibirStatus() {
-  const { modulos, comandosTotal, comandosNaoMapeados, manuaisAusentes, pendenciasReadme } =
-    verificarCoberturaModulos();
+  const {
+    modulos,
+    comandosTotal,
+    comandosNaoMapeados,
+    manuaisAusentes,
+    manuaisNaoPdf,
+    arquivosMdManuais,
+    pendenciasReadme,
+  } = verificarCoberturaModulos();
 
   console.log('\n================================================================');
-  console.log('🛡️  CYBERGUARD BOT — STATUS DE DOCUMENTAÇÃO E MÓDULOS');
+  console.log('🛡️  CYBERGUARD BOT — STATUS DE DOCUMENTAÇÃO PDF E MÓDULOS');
   console.log('================================================================\n');
 
   console.log(`📦 Total de diretórios de comandos: ${comandosTotal}`);
   console.log(`📚 Módulos registrados em /documentacao: ${Object.keys(modulos).length}\n`);
 
-  console.log('📋 Cobertura dos Módulos:');
+  console.log('📋 Cobertura dos Módulos (Formato Obrigatório: PDF):');
   Object.values(modulos).forEach((m) => {
+    const ehPdf = m.pdfPrincipal && /\.pdf$/i.test(m.pdfPrincipal);
     const temManual = m.pdfPrincipal
       ? fs.existsSync(path.join(MANUAIS_DIR, m.pdfPrincipal)) ||
-        fs.existsSync(path.join(ROOT, 'docs', m.pdfPrincipal)) ||
-        fs.existsSync(path.join(MANUAIS_DIR, `Tutorial_${m.id}.md`))
+        fs.existsSync(path.join(ROOT, 'docs', m.pdfPrincipal))
       : false;
-    const iconeManual = temManual ? '✅' : '⚠️ ';
+    const iconeManual = ehPdf && temManual ? '✅' : '⚠️ ';
+    const statusDesc = !ehPdf ? 'Formato inválido (deve ser .pdf)' : temManual ? 'PDF OK' : 'PDF Ausente';
     console.log(`  ${iconeManual} [${m.id}] ${m.titulo}`);
     console.log(`     Comandos: ${m.comandos.join(', ') || 'N/A'}`);
-    console.log(`     Manual/Tutorial: ${m.pdfPrincipal || 'Tutorial_' + m.id + '.md'} (${temManual ? 'OK' : 'Ausente'})\n`);
+    console.log(`     Manual/Tutorial: ${m.pdfPrincipal || `Tutorial_${m.id}.pdf`} (${statusDesc})\n`);
   });
 
   if (comandosNaoMapeados.length > 0) {
     console.log('⚠️  Comandos sem módulo vinculado no catálogo /documentacao:');
     comandosNaoMapeados.forEach((c) => console.log(`   - commands/${c}`));
-    console.log('   💡 Dica: Adicione o comando ao módulo correspondente ou crie um novo módulo.\n');
+    console.log('   💡 Dica: Execute node scripts/doc-flow-guardian.js --tutorial <modulo> para gerar o PDF.\n');
   } else {
     console.log('✅ Todos os comandos estão mapeados em módulos da documentação.\n');
   }
 
+  if (manuaisNaoPdf.length > 0) {
+    console.log('⚠️  Módulos apontando para arquivo que NÃO é PDF em MODULOS:');
+    manuaisNaoPdf.forEach((p) => console.log(`   - [${p.modulo}] pdfPrincipal: ${p.arquivo}`));
+    console.log('');
+  }
+
+  if (arquivosMdManuais.length > 0) {
+    console.log('⚠️  Arquivos .md não compilados para PDF em docs/manuais/:');
+    arquivosMdManuais.forEach((f) => console.log(`   - docs/manuais/${f}`));
+    console.log('   💡 Dica: Execute npm run docs:pdf para converter para PDF.\n');
+  }
+
   if (manuaisAusentes.length > 0) {
-    console.log('⚠️  Manuais/Tutoriais pendentes de criação em docs/manuais/:');
+    console.log('⚠️  Manuais/Tutoriais PDF pendentes de criação em docs/manuais/:');
     manuaisAusentes.forEach((p) => console.log(`   - Módulo: ${p.modulo} -> Arquivo: ${p.arquivo}`));
     console.log('');
   }
@@ -331,7 +434,7 @@ function exibirStatus() {
 }
 
 function executarCheck(modoQuiet = false) {
-  const { comandosNaoMapeados, manuaisAusentes } = verificarCoberturaModulos();
+  const { comandosNaoMapeados, manuaisAusentes, manuaisNaoPdf, arquivosMdManuais } = verificarCoberturaModulos();
   const { arquivosCodigo, docAlterada, temModificacoes } = auditarAlteracoesFluxo();
 
   let temProblema = false;
@@ -339,9 +442,36 @@ function executarCheck(modoQuiet = false) {
 
   if (comandosNaoMapeados.length > 0) {
     mensagensAviso.push(
-      `Novo(s) comando(s) ou módulo(s) detectado(s) sem tutorial ou registro em commands/documentacao/documentacaoCommand.js:\n` +
+      `Novo(s) comando(s) ou módulo(s) detectado(s) sem tutorial PDF ou registro em commands/documentacao/documentacaoCommand.js:\n` +
         comandosNaoMapeados.map((c) => `  - commands/${c}`).join('\n') +
-        `\n  -> Execute: node scripts/doc-flow-guardian.js --tutorial <modulo> para gerar o tutorial.`
+        `\n  -> Execute: node scripts/doc-flow-guardian.js --tutorial <modulo> para gerar o tutorial em PDF.`
+    );
+    temProblema = true;
+  }
+
+  if (manuaisNaoPdf.length > 0) {
+    mensagensAviso.push(
+      `Módulo(s) em commands/documentacao/documentacaoCommand.js referenciando arquivo que NÃO é .pdf:\n` +
+        manuaisNaoPdf.map((p) => `  - [${p.modulo}] ${p.arquivo}`).join('\n') +
+        `\n  -> Toda documentação de módulo deve ser gerada e referenciada em formato .pdf.`
+    );
+    temProblema = true;
+  }
+
+  if (manuaisAusentes.length > 0) {
+    mensagensAviso.push(
+      `Manual(is) PDF ausente(s) em docs/manuais/:\n` +
+        manuaisAusentes.map((p) => `  - [${p.modulo}] ${p.arquivo}`).join('\n') +
+        `\n  -> Gere o arquivo PDF correspondente com \`npm run docs:tutorial\` ou \`npm run docs:pdf\`.`
+    );
+    temProblema = true;
+  }
+
+  if (arquivosMdManuais.length > 0) {
+    mensagensAviso.push(
+      `Arquivo(s) .md em docs/manuais/ devem ser convertidos para PDF:\n` +
+        arquivosMdManuais.map((f) => `  - docs/manuais/${f}`).join('\n') +
+        `\n  -> Execute \`npm run docs:pdf\` para converter automaticamente para PDF.`
     );
     temProblema = true;
   }
@@ -350,43 +480,54 @@ function executarCheck(modoQuiet = false) {
     mensagensAviso.push(
       `Alterações de código detectadas em arquivos de comandos/serviços sem atualização correspondente de documentação:\n` +
         arquivosCodigo.map((d) => `  - ${d.file}`).join('\n') +
-        `\n  -> Se algum fluxo, parâmetro ou comportamento mudou, certifique-se de atualizar README.md, commands/documentacao/documentacaoCommand.js ou os manuais em docs/manuais/.`
+        `\n  -> Se algum fluxo, parâmetro ou comportamento mudou, atualize README.md, commands/documentacao/documentacaoCommand.js e gere/atualize o PDF correspondente em docs/manuais/.`
     );
   }
 
   if (!modoQuiet) {
     if (mensagensAviso.length > 0) {
-      console.warn('\n⚠️  [DOC-GUARDIAN] ALERTAS DE FLUXO & DOCUMENTAÇÃO:');
+      console.warn('\n⚠️  [DOC-GUARDIAN] ALERTAS DE FLUXO & DOCUMENTAÇÃO PDF:');
       mensagensAviso.forEach((msg) => console.warn(`\n${msg}`));
       console.warn('');
     } else {
-      console.log('✅ [DOC-GUARDIAN] Documentação e fluxos sincronizados (100% em conformidade).');
+      console.log('✅ [DOC-GUARDIAN] Documentação PDF e fluxos sincronizados (100% em conformidade).');
     }
   }
 
   return { ok: !temProblema, avisos: mensagensAviso };
 }
 
-function main() {
+async function main() {
   const args = process.argv.slice(2);
   const modoStatus = args.includes('--status');
   const modoCheck = args.includes('--check');
   const modoQuiet = args.includes('--quiet');
+  const keepMd = args.includes('--keep-md');
   const indexTutorial = args.indexOf('--tutorial');
+  const indexPdf = args.indexOf('--pdf');
 
   if (indexTutorial !== -1 && args[indexTutorial + 1]) {
     const moduloId = args[indexTutorial + 1];
     let titulo = '';
     let subtitulo = '';
     let comandos = '';
+    let fromMd = '';
 
     for (let i = 0; i < args.length; i++) {
       if (args[i] === '--titulo' && args[i + 1]) titulo = args[i + 1];
       if (args[i] === '--subtitulo' && args[i + 1]) subtitulo = args[i + 1];
       if (args[i] === '--comandos' && args[i + 1]) comandos = args[i + 1];
+      if (args[i] === '--from-md' && args[i + 1]) fromMd = args[i + 1];
     }
 
-    gerarTutorialScaffold(moduloId, { titulo, subtitulo, comandos });
+    await gerarTutorialScaffold(moduloId, { titulo, subtitulo, comandos, fromMd, keepMd });
+    process.exit(0);
+  }
+
+  if (indexPdf !== -1) {
+    const proximoArg = args[indexPdf + 1];
+    const arquivoMd = proximoArg && !proximoArg.startsWith('--') ? proximoArg : '';
+    await compilarMarkdownParaPdf({ arquivoMd, keepMd });
     process.exit(0);
   }
 
@@ -406,7 +547,10 @@ function main() {
 }
 
 if (require.main === module) {
-  main();
+  main().catch((err) => {
+    console.error('❌ [DOC-GUARDIAN] Erro inesperado:', err);
+    process.exit(1);
+  });
 }
 
 module.exports = {
@@ -414,5 +558,6 @@ module.exports = {
   verificarCoberturaModulos,
   auditarAlteracoesFluxo,
   gerarTutorialScaffold,
+  compilarMarkdownParaPdf,
   executarCheck,
 };

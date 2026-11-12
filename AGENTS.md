@@ -31,19 +31,23 @@ Toda tarefa, comando ou alteração executada neste repositório **DEVE** cumpri
   3. `node deploy-commands.js` (automaticamente sempre que `deploy-commands.js` ou `commands/**` forem alterados);
   4. Sincronização segura de novas chaves do `.env`, atualização do Git (`origin/main`) no servidor de produção (`~/cyberguard-bot`) e `pm2 restart cyberguard-bot --update-env`.
 
-## 3. Sincronização de Fluxos, Documentação & Tutoriais de Novos Módulos (Doc & Flow Guardian)
+## 3. Sincronização de Fluxos, Documentação em PDF & Tutoriais de Novos Módulos (Doc & Flow Guardian)
+- **Formato Obrigatório em PDF**:
+  - Toda documentação e tutorial gerado para os módulos em `docs/manuais/` **DEVE ser produzido em formato PDF** (`Tutorial_<Modulo>.pdf`, `Manual_*.pdf`, `Documentacao_Completa_CyberGuard_Bot.pdf`).
+  - Nunca deixe arquivos `.md` sem compilação em `docs/manuais/` nem referencie arquivos `.md` em `pdfPrincipal` dentro de `commands/documentacao/documentacaoCommand.js`.
+  - Sempre que redigir ou alterar um tutorial em Markdown, converta-o imediatamente para PDF com `node scripts/doc-flow-guardian.js --pdf` (ou `npm run docs:pdf`) ou gere diretamente via `node scripts/doc-flow-guardian.js --tutorial <modulo>`.
 - **Alteração de Fluxo da Aplicação**:
   - Sempre que qualquer fluxo de interação (comandos slash, botões, modais, seletores, coletores) ou regras de negócio em `commands/` ou `src/` forem alterados, mantenha a documentação estritamente sincronizada:
     - Atualize a tabela de comandos, permissões e passos operacionais no `README.md`;
     - Atualize o objeto `MODULOS` em `commands/documentacao/documentacaoCommand.js` (regras, subtítulo e lista de comandos);
-    - Atualize manuais correspondentes em `docs/manuais/`.
+    - Atualize os manuais **em PDF** correspondentes em `docs/manuais/` (e `scripts/gerarDocumentacaoCompleta.js` quando aplicável).
 - **Criação de Novo Módulo**:
   - Sempre que um novo módulo funcional for criado (ex: novo diretório em `commands/` ou novo serviço em `src/`):
-    - Crie o tutorial completo em `docs/manuais/Tutorial_<Modulo>.md` (utilize o assistente `node scripts/doc-flow-guardian.js --tutorial <modulo>`);
-    - Registre o módulo no catálogo interativo do `/documentacao` (`commands/documentacao/documentacaoCommand.js`);
+    - Crie o tutorial completo **em PDF** em `docs/manuais/Tutorial_<Modulo>.pdf` (utilize `node scripts/doc-flow-guardian.js --tutorial <modulo>` ou `--from-md <arquivo.md>`);
+    - Registre o módulo no catálogo interativo do `/documentacao` (`commands/documentacao/documentacaoCommand.js`) apontando `pdfPrincipal` para `'Tutorial_<Modulo>.pdf'`;
     - Adicione a seção correspondente com comandos, matriz de permissões e fluxos no `README.md`.
 - **Validação de Documentação**:
-  - Valide a cobertura com:
+  - Valide a cobertura e o formato PDF com:
     ```bash
     node scripts/doc-flow-guardian.js --check
     ```

@@ -162,7 +162,7 @@ const MODULOS = {
     titulo: '🔗 Encurtador de Links',
     subtitulo: 'Encurtamento automático de URLs no chat e comando dedicado /encurtar via is.gd e TinyURL.',
     cor: 0x0ea5e9,
-    pdfPrincipal: 'Tutorial_encurtador.md',
+    pdfPrincipal: 'Tutorial_encurtador.pdf',
     comandos: ['/encurtar link', '/encurtar historico', '/encurtar status', '/encurtar configurar'],
     regras: [
       '• **Encurtamento Automático:** Links longos enviados no chat são encurtados, repostados com nome/avatar do autor e a mensagem original é removida.',

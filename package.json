@@ -11,7 +11,8 @@
     "deploy": "bash scripts/auto-deploy.sh",
     "docs:guard": "node scripts/doc-flow-guardian.js --check",
     "docs:status": "node scripts/doc-flow-guardian.js --status",
-    "docs:tutorial": "node scripts/doc-flow-guardian.js --tutorial"
+    "docs:tutorial": "node scripts/doc-flow-guardian.js --tutorial",
+    "docs:pdf": "node scripts/doc-flow-guardian.js --pdf"
   },
   "dependencies": {
     "@discordjs/voice": "^0.19.2",
