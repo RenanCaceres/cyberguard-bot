@@ -302,6 +302,23 @@ async function initSchema() {
   `);
   await pool.query('CREATE INDEX IF NOT EXISTS idx_avisos_eventos_criado_em ON avisos_eventos (criado_em DESC)');
 
+  // --- Encurtador de Links ---
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS links_encurtados (
+      id SERIAL PRIMARY KEY,
+      discord_id TEXT NOT NULL,
+      canal_id TEXT,
+      url_original TEXT NOT NULL,
+      url_encurtada TEXT NOT NULL,
+      provedor TEXT NOT NULL DEFAULT 'is.gd',
+      origem TEXT NOT NULL DEFAULT 'comando' CHECK (origem IN ('auto', 'comando')),
+      apelido TEXT,
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_links_encurtados_discord_id ON links_encurtados (discord_id, criado_em DESC)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_links_encurtados_original ON links_encurtados (url_original)');
+
   // Migra automaticamente quaisquer dados sensíveis ainda em texto puro para AES-256-GCM (LGPD Art. 46)
   await criptografarDadosLegadosBanco();
 }
@@ -1127,6 +1144,73 @@ async function salvarAtividadesCustomizadas(discordId, atividades) {
   );
 }
 
+async function registrarLinkEncurtado({
+  discordId,
+  canalId = null,
+  urlOriginal,
+  urlEncurtada,
+  provedor = 'is.gd',
+  origem = 'comando',
+  apelido = null,
+}) {
+  const { rows } = await pool.query(
+    `INSERT INTO links_encurtados
+      (discord_id, canal_id, url_original, url_encurtada, provedor, origem, apelido)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING *`,
+    [String(discordId), canalId ? String(canalId) : null, urlOriginal, urlEncurtada, provedor, origem, apelido]
+  );
+  return rows[0];
+}
+
+async function buscarLinkEncurtadoCache(urlOriginal) {
+  const { rows } = await pool.query(
+    `SELECT url_encurtada, provedor
+     FROM links_encurtados
+     WHERE url_original = $1 AND apelido IS NULL
+     ORDER BY criado_em DESC
+     LIMIT 1`,
+    [urlOriginal]
+  );
+  return rows[0] || null;
+}
+
+async function listarLinksEncurtadosDoUsuario(discordId, limite = 10) {
+  const { rows } = await pool.query(
+    `SELECT * FROM links_encurtados
+     WHERE discord_id = $1
+     ORDER BY criado_em DESC
+     LIMIT $2`,
+    [String(discordId), Math.max(1, Math.min(25, Number(limite) || 10))]
+  );
+  return rows;
+}
+
+async function listarLinksEncurtadosRecentes(limite = 10) {
+  const { rows } = await pool.query(
+    `SELECT * FROM links_encurtados
+     ORDER BY criado_em DESC
+     LIMIT $1`,
+    [Math.max(1, Math.min(25, Number(limite) || 10))]
+  );
+  return rows;
+}
+
+async function obterEstatisticasEncurtador(discordId = null) {
+  const filtro = discordId ? 'WHERE discord_id = $1' : '';
+  const params = discordId ? [String(discordId)] : [];
+  const { rows } = await pool.query(
+    `SELECT
+       COUNT(*)::int AS total,
+       COUNT(*) FILTER (WHERE origem = 'auto')::int AS total_auto,
+       COUNT(*) FILTER (WHERE origem = 'comando')::int AS total_comando
+     FROM links_encurtados
+     ${filtro}`,
+    params
+  );
+  return rows[0] || { total: 0, total_auto: 0, total_comando: 0 };
+}
+
 module.exports = {
   pool,
   initSchema,
@@ -1195,4 +1279,10 @@ module.exports = {
   listarMembrosNotionPendente,
   atualizarStatusNotionWorkspace,
   incrementarTentativasNotion,
+  // encurtador de links
+  registrarLinkEncurtado,
+  buscarLinkEncurtadoCache,
+  listarLinksEncurtadosDoUsuario,
+  listarLinksEncurtadosRecentes,
+  obterEstatisticasEncurtador,
 };

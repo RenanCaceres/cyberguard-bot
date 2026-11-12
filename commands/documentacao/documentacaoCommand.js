@@ -157,6 +157,20 @@ const MODULOS = {
       '• **Meus Avisos & Eventos:** Consulta rápida e confidencial do histórico pelo integrante.',
     ],
   },
+  encurtador: {
+    id: 'encurtador',
+    titulo: '🔗 Encurtador de Links',
+    subtitulo: 'Encurtamento automático de URLs no chat e comando dedicado /encurtar via is.gd e TinyURL.',
+    cor: 0x0ea5e9,
+    pdfPrincipal: 'Tutorial_encurtador.md',
+    comandos: ['/encurtar link', '/encurtar historico', '/encurtar status', '/encurtar configurar'],
+    regras: [
+      '• **Encurtamento Automático:** Links longos enviados no chat são encurtados, repostados com nome/avatar do autor e a mensagem original é removida.',
+      '• **Filtros Inteligentes:** Ignora DMs, bots, blocos de código, links do Discord, GIFs, encurtadores conhecidos e URLs curtas (< 28 chars).',
+      '• **Provedores & Cache:** Usa `is.gd` (com suporte a apelido) e fallback automático para `TinyURL`, com cache em PostgreSQL.',
+      '• **Segurança:** Bloqueia IPs internos/privados e impede disparo indevido de `@everyone`/`@here` ao repostar.',
+    ],
+  },
   completa: {
     id: 'completa',
     titulo: '📘 Documentação Técnica e Operacional Completa',
@@ -225,20 +239,24 @@ function construirPainelModulo(moduloKey) {
   const attachments = [];
 
   // Anexo de Imagem de Simulação de Uso
-  const caminhoSimulacao = path.resolve(__dirname, '../../docs/simulacoes', mod.simulacao);
-  if (fs.existsSync(caminhoSimulacao)) {
-    attachments.push(new AttachmentBuilder(caminhoSimulacao, { name: mod.simulacao }));
-    embed.setImage(`attachment://${mod.simulacao}`);
+  if (mod.simulacao) {
+    const caminhoSimulacao = path.resolve(__dirname, '../../docs/simulacoes', mod.simulacao);
+    if (fs.existsSync(caminhoSimulacao)) {
+      attachments.push(new AttachmentBuilder(caminhoSimulacao, { name: mod.simulacao }));
+      embed.setImage(`attachment://${mod.simulacao}`);
+    }
   }
 
   // Anexo do Manual em PDF Principal
-  const caminhoPdf = path.resolve(__dirname, '../../docs/manuais', mod.pdfPrincipal);
-  if (fs.existsSync(caminhoPdf)) {
-    attachments.push(new AttachmentBuilder(caminhoPdf, { name: mod.pdfPrincipal }));
-    embed.addFields({
-      name: '📄 Manual Oficial Anexado',
-      value: `O arquivo **${mod.pdfPrincipal}** foi anexado diretamente a esta mensagem para download e consulta off-line.`,
-    });
+  if (mod.pdfPrincipal) {
+    const caminhoPdf = path.resolve(__dirname, '../../docs/manuais', mod.pdfPrincipal);
+    if (fs.existsSync(caminhoPdf)) {
+      attachments.push(new AttachmentBuilder(caminhoPdf, { name: mod.pdfPrincipal }));
+      embed.addFields({
+        name: '📄 Manual Oficial Anexado',
+        value: `O arquivo **${mod.pdfPrincipal}** foi anexado diretamente a esta mensagem para download e consulta off-line.`,
+      });
+    }
   }
 
   // Anexo do Manual Secundário (ex.: Liderança)
@@ -288,6 +306,7 @@ module.exports = {
           { name: '🔒 Portal LGPD & Meus Dados', value: 'meusdados' },
           { name: '🛡️ Central de Apoio & Dúvidas', value: 'suporte' },
           { name: '📢 Central de Avisos & Agenda Google Calendar', value: 'avisos' },
+          { name: '🔗 Encurtador de Links', value: 'encurtador' },
           { name: '📘 Documentação Completa do Sistema (v2.0)', value: 'completa' }
         )
     )

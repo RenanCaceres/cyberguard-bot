@@ -23,8 +23,10 @@ const painelDuvidasCommand = require('../commands/painel-duvidas/painelDuvidasCo
 const painelAvisosCommand = require('../commands/painel-avisos/painelAvisosCommand');
 const helpCommand = require('../commands/help/helpCommand');
 const ajudaCommand = require('../commands/ajuda/ajudaCommand');
+const encurtarCommand = require('../commands/encurtar/encurtarCommand');
 const suporteDuvidas = require('./suporteDuvidas');
 const avisos = require('./avisos');
+const encurtador = require('./encurtador');
 const { iniciarLimpezaBackups } = require('../commands/reuniao/limpezaBackup');
 const { handleAdvertenciaInteraction, iniciarCronAdvertencias } = require('./advertencias');
 const { iniciarCronDeclaracoes } = require('./declaracaoEmail');
@@ -164,6 +166,11 @@ client.on('interactionCreate', async (interaction) => {
   if (interaction.isChatInputCommand() && (interaction.commandName === 'help' || interaction.commandName === 'ajuda')) {
     const cmd = interaction.commandName === 'help' ? helpCommand : ajudaCommand;
     cmd.execute(interaction).catch((err) => console.error(`Erro no comando /${interaction.commandName}:`, err));
+    return;
+  }
+
+  if (interaction.isChatInputCommand() && interaction.commandName === 'encurtar') {
+    encurtarCommand.execute(interaction).catch((err) => console.error('Erro no comando /encurtar:', err));
     return;
   }
 
@@ -401,6 +408,12 @@ client.on('guildMemberRemove', async (member) => {
 client.on('messageCreate', async (message) => {
   kovLogs.handleMessage(client, message);
   if (message.author.bot) return;
+
+  if (message.guild) {
+    encurtador
+      .handleMensagemLink(client, message)
+      .catch((err) => console.error('[encurtador] Erro ao encurtar link automático:', err));
+  }
 
   // Atendimento a pedidos de ajuda em Mensagens Diretas (DM)
   if (message.channel.type === 1) { // 1 = DM

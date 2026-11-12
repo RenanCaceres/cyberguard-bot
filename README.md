@@ -178,6 +178,18 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
 
 ---
 
+### 🔗 11. Encurtador Automático de Links & Módulo `/encurtar` (`encurtador`)
+- **Encurtamento Automático em Tempo Real (`src/encurtador.js`)**: Sempre que um membro publica uma URL longa (`>= 28` caracteres) nos canais do servidor, o bot encurta via **is.gd** (com fallback automático para **TinyURL**), reposta a mensagem via Webhook preservando nome, avatar e anexos do autor, e remove a mensagem original.
+- **Filtros Inteligentes & Segurança**: Ignora DMs, bots, blocos de código (`` `...` `` e `` ```...``` ``), links do Discord (`discord.com`, `discord.gg`, CDN), GIFs/mídias (`tenor.com`, `giphy.com`), encurtadores conhecidos, IPs privados/locais (anti-SSRF) e bloqueia disparo indevido de `@everyone`/`@here` ao repostar.
+- **Comandos Dedicados (`/encurtar`)**:
+  - **`/encurtar link`**: Encurta manualmente qualquer URL (com suporte a apelido personalizado de 5 a 30 caracteres e opção de exibição privada ou pública).
+  - **`/encurtar historico`**: Lista os últimos 10 links encurtados do próprio usuário ou de todo o servidor (Liderança/RH/Admin) com totais e cache em PostgreSQL (`links_encurtados`).
+  - **`/encurtar status`**: Mostra status, tamanho mínimo, canais/domínios ignorados e estatísticas.
+  - **`/encurtar configurar`**: Permite à Liderança/RH/Admin ativar ou desativar o encurtamento automático e gerenciar exceções por canal diretamente pelo Discord.
+- **Tutorial Dedicado**: [`docs/manuais/Tutorial_encurtador.md`](docs/manuais/Tutorial_encurtador.md).
+
+---
+
 # 🏗️ Arquitetura do Sistema
 
 ```mermaid
@@ -294,6 +306,10 @@ flowchart TD
 | `/painel-avisos` | Líderes, RH & Admin | Publica ou atualiza o painel de Avisos e Agendamento de Eventos (Google Calendar) |
 | `/painel-duvidas` | Administrador | Publica ou atualiza o painel interativo de atendimento e dúvidas com botões de regras, IA e liderança |
 | `/documentacao` | Qualquer Membro | Central interativa de manuais, simulações visuais em Canvas, PDFs oficiais e assistente de dúvidas com IA (Gemini) |
+| `/encurtar link` | Qualquer Membro | Encurta uma URL manualmente via `is.gd` / `TinyURL` com apelido opcional e resposta efêmera ou pública |
+| `/encurtar historico` | Membros & Liderança/RH | Consulta os últimos 10 links encurtados (próprios ou globais para Liderança/RH/Admin) |
+| `/encurtar status` | Qualquer Membro | Exibe as configurações atuais, canais ignorados e estatísticas do encurtador |
+| `/encurtar configurar` | Liderança, RH & Admin | Ativa/desativa o encurtamento automático no chat ou adiciona/remove canais ignorados |
 
 ---
 
@@ -349,6 +365,10 @@ flowchart TD
 | `GOOGLE_DRIVE_DECLARACOES_FOLDER_ID` | `1PastaDeclaracoesId...` | ID da pasta no Google Drive para declarações de voluntariado assinadas |
 | `IMAP_HOST` / `IMAP_PORT` | `imap.gmail.com` / `993` | Servidor e porta IMAP TLS para leitura autônoma das declarações assinadas |
 | `IMAP_USER` / `IMAP_PASS` | `bot@utfpr...`, `app-pass` | Credenciais IMAP/SMTP da conta institucional do bot |
+| `ENCURTADOR_AUTO` | `true` | Ativa (`true`) ou desativa (`false`) o encurtamento automático de links no chat |
+| `ENCURTADOR_MIN_TAMANHO` | `28` | Tamanho mínimo da URL (em caracteres) para ser elegível ao encurtamento automático |
+| `ENCURTADOR_CANAIS_IGNORADOS` | `""` | Lista separada por vírgula de IDs de canais onde o encurtamento automático não atua |
+| `ENCURTADOR_DOMINIOS_IGNORADOS` | `""` | Lista separada por vírgula de domínios adicionais ignorados pelo encurtamento automático |
 
 ---
 

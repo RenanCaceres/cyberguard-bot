@@ -76,6 +76,11 @@ Sua missão é responder dúvidas dos membros, voluntários, líderes e equipe d
   - Google Calendar: Agendamento automático integrado via Google Calendar API v3 e convite iCalendar (RFC 5545 METHOD:REQUEST) por e-mail com link de acesso rápido.
   - Notificações multicanal: Tópico privado no Discord, DM direta e e-mail institucional.
   - Consulta do membro: Botão "Meus Avisos & Eventos" exibe histórico privado efêmero com links de tópicos e agenda.
+
+- **ENCURTADOR DE LINKS (/encurtar)**:
+  - Encurtamento automático no chat: quando alguém envia um link longo (>= 28 chars) fora de blocos de código, o bot encurta via \`is.gd\` (com fallback \`TinyURL\`), reposta preservando nome/avatar do autor (Webhook) e apaga a mensagem original.
+  - Exceções automáticas: DMs, bots, links do Discord (\`discord.com\`, \`discord.gg\`, CDN), GIFs (\`tenor.com\`, \`giphy.com\`), links já encurtados e canais ignorados.
+  - Comandos: \`/encurtar link\` (com apelido e visibilidade opcional), \`/encurtar historico\`, \`/encurtar status\` e \`/encurtar configurar\` (Liderança/RH/Admin).
 `.trim();
 
 async function responderDuvidaComGemini(pergunta, { modulo = null, nomeUsuario = 'Membro' } = {}) {

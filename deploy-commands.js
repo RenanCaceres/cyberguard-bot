@@ -16,6 +16,7 @@ const painelDuvidasCommand = require('./commands/painel-duvidas/painelDuvidasCom
 const painelAvisosCommand = require('./commands/painel-avisos/painelAvisosCommand');
 const helpCommand = require('./commands/help/helpCommand');
 const ajudaCommand = require('./commands/ajuda/ajudaCommand');
+const encurtarCommand = require('./commands/encurtar/encurtarCommand');
 
 const comandos = [
   reuniaoCommand.data.toJSON(),
@@ -34,6 +35,7 @@ const comandos = [
   painelAvisosCommand.data.toJSON(),
   helpCommand.data.toJSON(),
   ajudaCommand.data.toJSON(),
+  encurtarCommand.data.toJSON(),
 ];
 
 const rest = new REST({ version: '10' }).setToken(config.discordToken);

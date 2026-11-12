@@ -135,4 +135,16 @@ module.exports = {
   emailSuporteAdmin: process.env.EMAIL_SUPORTE_ADMIN || process.env.EMAIL_DESTINATARIOS || '',
   canalAvisosId: process.env.CANAL_AVISOS_ID || '',
   googleCalendarId: process.env.GOOGLE_CALENDAR_ID || 'primary',
+  encurtador: {
+    autoAtivo: process.env.ENCURTADOR_AUTO !== 'false',
+    minTamanho: Math.max(15, parseInt(process.env.ENCURTADOR_MIN_TAMANHO || '28', 10) || 28),
+    canaisIgnorados: (process.env.ENCURTADOR_CANAIS_IGNORADOS || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+    dominiosIgnorados: (process.env.ENCURTADOR_DOMINIOS_IGNORADOS || '')
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+  },
 };
