@@ -89,6 +89,7 @@ const MODULOS = {
       '• **Assinatura Gov.br & Sincronização Drive:** Obrigatória sobre a linha "Voluntário(a)" com validação ICP-Brasil; ao subir versão co-assinada pela coordenação no Google Drive, o bot identifica o aluno (RA/Nome) e substitui o arquivo anterior automaticamente.',
       '• **Trilha de Entusiastas:** Usuários que entram por convites de comunidade recebem cargo direto sem termo.',
       '• **Reentrada de Ex-Membros & Resiliência:** Preserva histórico de dados criptografados, elimina concorrência de botões e retoma o cadastro automaticamente.',
+      '• **Governança de Saídas e Cartões:** O cartão de despedida e revogações no Notion são emitidos exclusivamente para membros que foram formalmente aprovados, suprimindo mensagens para usuários sem aprovação.',
     ],
   },
   reuniao: {

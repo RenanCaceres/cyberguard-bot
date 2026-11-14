@@ -135,7 +135,7 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
 
 ### 👥 6. Hierarquia Visual, Cartões & Governança de Saídas
 - **Organograma Dinâmico Renderizado (`2400px`)**: Geração de imagem gráfica com `@napi-rs/canvas` refletindo a estrutura viva do servidor (Presidente, Vice-Presidente, Líderes destacados com estrela dourada e membros dos 7 times: *Social Media & Copy*, *Recursos Humanos*, *Design*, *Educacional*, *Hardware Hacking*, *Hacking Ético* — unificando Red Team e Blue Team — e *Desenvolvimento*), com conectores ortogonais que não cruzam sobre os cards.
-- **Cartões de Boas-Vindas e Despedida**: Geração automática de cards ilustrados (`1000x320px`) em eventos de aprovação e saída.
+- **Cartões de Boas-Vindas e Despedida**: Geração automática de cards ilustrados (`1000x320px`) em eventos de aprovação e saída (o cartão de saída é disparado exclusivamente para quem foi de fato aprovado como membro, suprimindo mensagens indevidas para desistências em onboarding ou visitantes).
 - **Reconciliação de Saídas e Integração Notion**: Detecção de saídas ocorridas até mesmo com o bot offline (`catchUp.js`), atualizando o status do integrante no banco de Membros do Notion exclusivamente para **`Inativo`** (`Ativo` / `Inativo`) e revogando imediatamente o acesso do e-mail no Workspace do Notion.
 
 ---

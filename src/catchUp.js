@@ -118,6 +118,44 @@ async function processarSaidasPerdidas(client, membrosAtuais) {
       const nome =
         registro.nome_social || registro.nome || (usuario ? usuario.username : registro.discord_id);
 
+      const ehMembroAprovado = Boolean(
+        registro &&
+          (registro.data_aprovacao ||
+            ['concluido', 'aguardando_assinatura', 'revisao_manual'].includes(registro.status))
+      );
+
+      if (!ehMembroAprovado) {
+        if (registro.status !== 'concluido') {
+          try {
+            await db.registrarRecusa({
+              discordId: registro.discord_id,
+              nome: registro.nome_social || registro.nome,
+              ra: registro.ra,
+              tipo: 'abandonado',
+              motivo: `Saiu do servidor antes de ser aprovado como membro (status: ${registro.status}) — detectado retroativamente no boot`,
+            });
+            if (registro.nome || registro.ra) {
+              await db.atualizarStatus(registro.discord_id, 'abandonado', { saida_processada: true });
+            } else {
+              await db.removerMembro(registro.discord_id);
+            }
+          } catch (errArquivo) {
+            console.error('Erro ao arquivar abandono retroativo de', registro.discord_id, errArquivo);
+          }
+        }
+
+        try {
+          await db.marcarSaidaProcessada(registro.discord_id);
+        } catch (errMarcar) {
+          console.error('Erro ao marcar saída como processada:', errMarcar);
+        }
+
+        console.log(
+          `[catchUp] Membro não aprovado ${registro.discord_id} (${nome}) saiu. Cartão de saída retroativo suprimido.`
+        );
+        continue;
+      }
+
       if (registro.status !== 'concluido') {
         try {
           await db.registrarRecusa({
@@ -155,12 +193,10 @@ async function processarSaidasPerdidas(client, membrosAtuais) {
         console.error('Erro ao registrar saída retroativa no Notion:', errNotion.message);
       }
 
-      if (registro.status === 'concluido') {
-        try {
-          await db.marcarSaidaProcessada(registro.discord_id);
-        } catch (errMarcar) {
-          console.error('Erro ao marcar saída retroativa como processada:', errMarcar);
-        }
+      try {
+        await db.marcarSaidaProcessada(registro.discord_id);
+      } catch (errMarcar) {
+        console.error('Erro ao marcar saída retroativa como processada:', errMarcar);
       }
 
       // Espaça as postagens pra não estourar rate limit do canal.

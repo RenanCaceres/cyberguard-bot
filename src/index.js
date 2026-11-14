@@ -276,6 +276,76 @@ client.on('guildMemberRemove', async (member) => {
         ? (registro.nome_social || registro.nome)
         : member.user.username;
 
+    // Dispara o cartão de despedida e revogações no Notion exclusivamente
+    // para pessoas que de fato foram aprovadas como membros do projeto.
+    const ehMembroAprovado =
+      Boolean(
+        registro &&
+          (registro.data_aprovacao ||
+            ['concluido', 'aguardando_assinatura', 'revisao_manual'].includes(registro.status))
+      ) ||
+      Boolean(
+        member.roles?.cache?.some((r) => {
+          const nomeLower = r.name.toLowerCase();
+          const roleAprovado = (config.roleAprovadoNome || '').toLowerCase();
+          if (roleAprovado && nomeLower === roleAprovado) return true;
+          const nomesRelevantes = new Set([
+            'social media & copy',
+            'recursos humanos',
+            'design',
+            'hardware hacking',
+            'hacking ético',
+            'hacking etico',
+            'red team',
+            'blue team',
+            'educacional',
+            'desenvolvimento',
+            (config.roleLiderNome || 'líderes').toLowerCase(),
+          ]);
+          if (nomesRelevantes.has(nomeLower)) return true;
+          const idsRelevantes = new Set(
+            [
+              config.roleHackingEticoId,
+              config.roleEducacionalId,
+              config.roleDesenvolvimentoId,
+            ].filter(Boolean)
+          );
+          if (idsRelevantes.has(r.id)) return true;
+          return false;
+        })
+      );
+
+    if (!ehMembroAprovado) {
+      if (registro && registro.status !== 'concluido') {
+        try {
+          await db.registrarRecusa({
+            discordId: member.id,
+            nome: registro.nome_social || registro.nome,
+            ra: registro.ra,
+            tipo: 'abandonado',
+            motivo: `Saiu do servidor antes de ser aprovado como membro (status: ${registro.status})`,
+          });
+          // Mantém os dados arquivados (criptografados) no banco caso já tenham sido preenchidos
+          if (registro.nome || registro.ra) {
+            await db.atualizarStatus(member.id, 'abandonado', { saida_processada: true });
+          } else {
+            await db.removerMembro(member.id);
+          }
+        } catch (errArquivo) {
+          console.error('Erro ao arquivar abandono ao sair do servidor:', errArquivo);
+        }
+      }
+      if (registro) {
+        try {
+          await db.marcarSaidaProcessada(member.id);
+        } catch {}
+      }
+      console.log(
+        `[saida] Usuário ${member.user?.tag || member.id} saiu do servidor sem ter sido aprovado como membro. Cartão de saída e revogações suprimidos.`
+      );
+      return;
+    }
+
     if (registro && registro.status !== 'concluido') {
       try {
         await db.registrarRecusa({
@@ -393,7 +463,7 @@ client.on('guildMemberRemove', async (member) => {
       }
     }
 
-    if (registro && registro.status === 'concluido') {
+    if (registro) {
       try {
         await db.marcarSaidaProcessada(member.id);
       } catch (errMarcar) {
