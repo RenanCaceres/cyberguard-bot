@@ -151,7 +151,7 @@ const LABELS = {
 function ehComandoAjuda(texto) {
   if (!texto || typeof texto !== 'string') return false;
   const t = texto.trim().toLowerCase();
-  return (
+  if (
     t === '/help' ||
     t === 'help' ||
     t === '/ajuda' ||
@@ -161,8 +161,13 @@ function ehComandoAjuda(texto) {
     t === 'suporte' ||
     t === '/suporte' ||
     t === '!suporte' ||
-    t === 'socorro'
-  );
+    t === 'socorro' ||
+    t === 'duvida' ||
+    t === 'dúvida'
+  ) {
+    return true;
+  }
+  return /^(como\s+fa[çc]o|preciso\s+de\s+ajuda|estou\s+com\s+d[uú]vida|quero\s+ajuda|me\s+ajuda|bot\s+ajuda)/i.test(t);
 }
 
 async function enviarMensagemAjudaOnboarding(dm, userId) {

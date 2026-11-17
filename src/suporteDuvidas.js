@@ -166,8 +166,12 @@ async function garantirPainelDuvidas(client, canalIdCustom = null) {
 function iniciarColetorPrints(canal, sessao) {
   if (!canal || typeof canal.createMessageCollector !== 'function') return;
 
+  const { extrairAnexosMensagem } = require('./recepcaoTermo');
+
   const coletor = canal.createMessageCollector({
-    filter: (m) => m.author.id === sessao.userId && m.attachments.size > 0,
+    filter: (m) =>
+      m.author.id === sessao.userId &&
+      (m.attachments.size > 0 || (m.messageSnapshots && m.messageSnapshots.size > 0)),
     time: 90_000,
   });
 
@@ -176,7 +180,8 @@ function iniciarColetorPrints(canal, sessao) {
   coletor.on('collect', async (mensagem) => {
     if (sessao.finalizado) return;
 
-    for (const anexo of mensagem.attachments.values()) {
+    const anexos = extrairAnexosMensagem(mensagem);
+    for (const anexo of anexos) {
       if (sessao.arquivosAnexados.length >= 5) {
         await mensagem.reply('⚠️ Limite máximo de 5 prints atingido para este chamado. Clique no botão acima para concluir o envio.').catch(() => {});
         break;

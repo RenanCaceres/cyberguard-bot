@@ -161,6 +161,9 @@ Projetado para operar de ponta a ponta no servidor do Discord, o bot unifica a g
 ---
 
 ### 🛡️ 9. Central de Apoio & Dúvidas dos Membros com IA (Gemini)
+- **Módulo de Ajuda & Chamados Diretos (`/ajuda` e `/help`)**: Comandos slash universais disponíveis para qualquer integrante relatar problemas cadastrais, dúvidas sobre termos ou dificuldades técnicas diretamente à liderança.
+- **Atendimento e Orientação Inteligente por DM**: Detecção ativa de pedidos de auxílio via mensagem direta (digitando `ajuda`, `suporte`, `duvida` ou mencionando o bot). Se o membro estiver aguardando assinatura ou em qualquer etapa e enviar texto livre, o bot oferece orientações claras sobre como proceder e disponibiliza o botão interativo `🆘 Abrir Chamado de Suporte`.
+- **Suporte a Mensagens Encaminhadas (`HasSnapshot`)**: Extração e processamento transparente de arquivos ou comprovantes encaminhados via Discord (`messageSnapshots`), tanto no envio do Termo de Voluntariado quanto na anexação de prints de erro.
 - **Painel de Atendimento Permanente (`/painel-duvidas`)**: Interface fixa no canal `#dúvidas` com opções para download de manuais em PDF, tira-dúvidas inteligente com Inteligência Artificial e envio de chamados formais para a coordenação.
 - **Tira-Dúvidas com IA Gemini 3.8 Flash**: Respostas em segundos treinadas com todas as regras do CyberGuard, prazos regimentais, cargas horárias (4h/8h/10h) e conformidade LGPD.
 - **Abertura de Chamados com Protocolo (#DUVIDA-XXXX)**: Formulário interativo para envio de dúvidas diretamente para a liderança. O bot salva a solicitação em `duvidas_suporte` e dispara e-mail com protocolo para `EMAIL_SUPORTE_ADMIN`. Quando a coordenação responde, o integrante recebe a devolutiva diretamente na sua DM do Discord.

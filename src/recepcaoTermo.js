@@ -16,6 +16,38 @@ const { encaminharTermoAssinado } = require('./emailService');
 const { validarTermoDevolvido } = require('./dataAssinatura');
 const { fazerUploadTermo } = require('./driveService');
 
+const cooldownsRespostaDM = new Map();
+
+function estaEmCooldownResposta(userId, segundos = 8) {
+  const agora = Date.now();
+  const ultimo = cooldownsRespostaDM.get(userId) || 0;
+  return agora - ultimo < segundos * 1000;
+}
+
+function marcarCooldownResposta(userId) {
+  cooldownsRespostaDM.set(userId, Date.now());
+}
+
+/**
+ * Extrai anexos tanto do array direto message.attachments quanto de mensagens encaminhadas (messageSnapshots).
+ */
+function extrairAnexosMensagem(message) {
+  const anexos = [];
+  if (message.attachments && message.attachments.size > 0) {
+    anexos.push(...message.attachments.values());
+  }
+  if (message.messageSnapshots && message.messageSnapshots.size > 0) {
+    for (const snap of message.messageSnapshots.values()) {
+      if (snap.attachments && snap.attachments.size > 0) {
+        anexos.push(...snap.attachments.values());
+      } else if (snap.message?.attachments && snap.message.attachments.size > 0) {
+        anexos.push(...snap.message.attachments.values());
+      }
+    }
+  }
+  return anexos;
+}
+
 function temPermissaoRh(member) {
   if (!member) return false;
   if (member.permissions && member.permissions.has(PermissionsBitField.Flags.Administrator)) return true;
@@ -211,16 +243,95 @@ async function encaminharParaRevisaoManual(client, membro, caminhoArquivo, nomeO
 async function handleMensagemDM(message) {
   if (message.author.bot) return;
   if (message.channel.type !== 1) return; // 1 = DM
-  if (message.attachments.size === 0) return;
 
   const { estaEnviandoPrints } = require('./suporteDuvidas');
   if (estaEnviandoPrints(message.author.id)) return;
 
+  const anexos = extrairAnexosMensagem(message);
   const membro = await db.getMembro(message.author.id);
-  if (!membro) return;
+
+  if (!membro) {
+    if (anexos.length === 0) {
+      if (estaEmCooldownResposta(message.author.id)) return;
+      marcarCooldownResposta(message.author.id);
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('onboarding_abrir_suporte')
+          .setLabel('🆘 Abrir Chamado de Suporte')
+          .setStyle(ButtonStyle.Danger)
+          .setEmoji('🆘')
+      );
+
+      await message.reply({
+        content:
+          '👋 **Olá! Sou o assistente automatizado do CyberGuard.**\n\n' +
+          'Não encontrei um cadastro ativo vinculado à sua conta no momento.\n' +
+          '• Para iniciar seu cadastro no projeto, acesse o canal de boas-vindas do nosso servidor Discord;\n' +
+          '• Se você tiver qualquer dúvida ou precisar falar com a liderança, use o comando **/ajuda** no servidor ou clique no botão abaixo para abrir um chamado:',
+        components: [row],
+      });
+    }
+    return;
+  }
 
   if (membro.status === 'concluido') {
-    await message.reply('Seu termo de voluntariado já foi validado e seu cadastro no CyberGuard já está concluído! 🎉');
+    if (anexos.length > 0) {
+      await message.reply(
+        'Seu termo de voluntariado já foi validado e seu cadastro no CyberGuard já está concluído! 🎉 Caso precise de auxílio, use o comando **/ajuda** no servidor ou digite **`ajuda`** aqui na DM.'
+      );
+      return;
+    }
+
+    if (estaEmCooldownResposta(message.author.id)) return;
+    marcarCooldownResposta(message.author.id);
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('onboarding_abrir_suporte')
+        .setLabel('🆘 Abrir Chamado de Suporte')
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji('🆘')
+    );
+
+    await message.reply({
+      content:
+        '👋 **Olá!** Seu cadastro no CyberGuard já está **concluído** e seu termo foi validado com sucesso! 🎉\n\n' +
+        '💡 **Precisa de ajuda ou suporte?**\n' +
+        '• Digite **`ajuda`** aqui na DM ou use o comando **/ajuda** em qualquer canal do servidor para falar diretamente com a liderança;\n' +
+        '• Você também pode consultar tutoriais e manuais no canal **#dúvidas** do servidor;\n' +
+        '• Ou clique no botão abaixo para abrir uma solicitação de suporte diretamente:',
+      components: [row],
+    });
+    return;
+  }
+
+  if (membro.status === 'coletando_dados') {
+    if (anexos.length === 0) {
+      if (estaEmCooldownResposta(message.author.id)) return;
+      marcarCooldownResposta(message.author.id);
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('onboarding_reiniciar')
+          .setLabel('🔄 Continuar Cadastro')
+          .setStyle(ButtonStyle.Primary)
+          .setEmoji('🔄'),
+        new ButtonBuilder()
+          .setCustomId('onboarding_abrir_suporte')
+          .setLabel('🆘 Abrir Chamado de Suporte')
+          .setStyle(ButtonStyle.Danger)
+          .setEmoji('🆘')
+      );
+
+      await message.reply({
+        content:
+          '👋 **Central de Cadastro • CyberGuard**\n\n' +
+          'Seu cadastro ainda está em andamento. Clique em **"Continuar Cadastro"** abaixo para retomar de onde parou, ou em **"Abrir Chamado de Suporte"** se estiver enfrentando alguma dificuldade.\n\n' +
+          '💡 Você também pode digitar **`ajuda`** a qualquer momento para falar com a coordenação.',
+        components: [row],
+      });
+    }
     return;
   }
 
@@ -228,14 +339,68 @@ async function handleMensagemDM(message) {
     return;
   }
 
-  const anexo = message.attachments.first();
-  const extensao = path.extname(anexo.name).toLowerCase();
+  // Se o membro está aguardando assinatura ou em revisão manual mas não enviou nenhum anexo nem snapshot
+  if (anexos.length === 0) {
+    if (estaEmCooldownResposta(message.author.id)) return;
+    marcarCooldownResposta(message.author.id);
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('onboarding_abrir_suporte')
+        .setLabel('🆘 Abrir Chamado de Suporte')
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji('🆘')
+    );
+
+    if (membro.status === 'revisao_manual') {
+      await message.reply({
+        content:
+          '⏳ **Termo em Análise Manual pelo RH**\n\n' +
+          'Seu termo de voluntariado já foi recebido e está aguardando a conferência manual da equipe de Recursos Humanos.\n' +
+          'Assim que a equipe validar o documento, você receberá a confirmação por aqui!\n\n' +
+          '💡 **Precisa de suporte?** Se desejar falar com a liderança ou relatar alguma observação, use o comando **/ajuda** no servidor ou clique no botão abaixo:',
+        components: [row],
+      });
+      return;
+    }
+
+    await message.reply({
+      content:
+        '👋 **Olá! Sou o assistente automatizado do CyberGuard.**\n\n' +
+        'Identifiquei sua mensagem! Se você está tentando enviar o seu **Termo de Voluntariado assinado**, siga as orientações abaixo:\n\n' +
+        '📄 **Como enviar o seu termo:**\n' +
+        '1. O documento precisa ser enviado diretamente como anexo em formato **.pdf** aqui nesta conversa (evite colar links ou textos soltos);\n' +
+        '2. Certifique-se de que o PDF foi assinado digitalmente pelo portal **gov.br** (assinador.iti.br) e que o campo **"Data:"** foi devidamente preenchido antes da assinatura.\n\n' +
+        '💡 **Como utilizar o módulo de Ajuda & Suporte (/ajuda):**\n' +
+        '• **Dúvidas ou problemas com o arquivo?** Se você não souber como assinar, o bot rejeitou seu arquivo ou você precisa de auxílio da liderança, clique em **"Abrir Chamado de Suporte"** abaixo;\n' +
+        '• Você também pode digitar **`ajuda`** ou **`suporte`** a qualquer momento aqui na DM (ou usar o comando **/ajuda** no servidor) para relatar um problema e anexar prints;\n' +
+        '• Um chamado oficial com protocolo (#DUVIDA-XXXX) será gerado para a liderança e a resposta chegará diretamente aqui na sua DM!',
+      components: [row],
+    });
+    return;
+  }
+
+  const anexo = anexos[0];
+  const extensao = path.extname(anexo.name || '').toLowerCase();
 
   if (extensao !== '.pdf') {
-    await message.reply(
-      'Preciso que o termo assinado seja enviado em formato **.pdf** (o arquivo gerado pela assinatura ' +
-        'digital no gov.br). Envie o PDF assinado, não o Word ou imagem.'
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('onboarding_abrir_suporte')
+        .setLabel('🆘 Abrir Chamado de Suporte')
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji('🆘')
     );
+
+    await message.reply({
+      content:
+        '⚠️ **Arquivo em formato incompatível!**\n\n' +
+        'Preciso que o termo assinado seja enviado em formato **.pdf** (o arquivo gerado pela assinatura ' +
+        'digital no portal **gov.br**). Envie o arquivo PDF assinado, não o Word, imagem ou outro formato.\n\n' +
+        '💡 **Precisa de ajuda com o documento?**\n' +
+        'Se você tiver dificuldades para gerar ou assinar o PDF, clique em **"Abrir Chamado de Suporte"** abaixo ou use o comando **/ajuda** no servidor para falar com a liderança.',
+      components: [row],
+    });
     return;
   }
 
@@ -257,11 +422,22 @@ async function handleMensagemDM(message) {
       });
       await encaminharParaRevisaoManual(message.client, membro, caminhoLocal, anexo.name, validacao.motivo);
 
-      await message.reply(
-        `Recebi seu termo de voluntariado! Porém, não foi possível confirmar alguns metadados técnicos automaticamente:\n` +
-          `> *${validacao.motivo}*\n\n` +
-          `Encaminhei o documento para a equipe do Recursos Humanos conferir. Aguarde a confirmação por aqui!`
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('onboarding_abrir_suporte')
+          .setLabel('🆘 Abrir Chamado de Suporte')
+          .setStyle(ButtonStyle.Danger)
+          .setEmoji('🆘')
       );
+
+      await message.reply({
+        content:
+          `Recebi seu termo de voluntariado! Porém, não foi possível confirmar alguns metadados técnicos automaticamente:\n` +
+          `> *${validacao.motivo}*\n\n` +
+          `Encaminhei o documento para a equipe do Recursos Humanos conferir manualmente. Aguarde a confirmação por aqui!\n\n` +
+          `💡 Se precisar de suporte adicional, clique em **"Abrir Chamado de Suporte"** abaixo ou use o comando **/ajuda**.`,
+        components: [row],
+      });
       return;
     }
 
@@ -278,11 +454,24 @@ async function handleMensagemDM(message) {
       .map((linha) => `> ${linha}`)
       .join('\n');
 
-    await message.reply(
-      `❌ **Não foi possível validar o seu Termo de Voluntariado pelo(s) seguinte(s) motivo(s):**\n\n` +
-        `${citacaoMotivo}\n\n` +
-        `Por favor, corrija o documento, assine novamente pelo portal **gov.br** e envie o PDF corrigido aqui nesta DM!`
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('onboarding_abrir_suporte')
+        .setLabel('🆘 Preciso de Ajuda / Suporte')
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji('🆘')
     );
+
+    await message.reply({
+      content:
+        `❌ **Não foi possível validar o seu Termo de Voluntariado pelo(s) seguinte(s) motivo(s):**\n\n` +
+        `${citacaoMotivo}\n\n` +
+        `Por favor, corrija o documento, assine novamente pelo portal **gov.br** e envie o PDF corrigido aqui nesta DM!\n\n` +
+        `💡 **Como utilizar o módulo de Ajuda se precisar:**\n` +
+        `• Caso você acredite que o documento está correto ou esteja com dúvidas sobre o erro apontado, clique em **"Preciso de Ajuda / Suporte"** abaixo para relatar à liderança;\n` +
+        `• Você também pode usar o comando **/ajuda** no servidor ou digitar **\`ajuda\`** nesta conversa para anexar prints e pedir auxílio.`,
+      components: [row],
+    });
     return;
   }
 
@@ -526,4 +715,5 @@ module.exports = {
   handleRevisaoTermoInteraction,
   encaminharParaRevisaoManual,
   concluirTermoAssinado,
+  extrairAnexosMensagem,
 };

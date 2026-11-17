@@ -127,13 +127,15 @@ const MODULOS = {
   suporte: {
     id: 'suporte',
     titulo: '🛡️ Central de Apoio & Dúvidas',
-    subtitulo: 'Manuais em PDF, tira-dúvidas com IA Gemini e suporte da Liderança via e-mail e DM.',
+    subtitulo: 'Manuais em PDF, tira-dúvidas com IA Gemini, chamados (/ajuda) e suporte da Liderança via e-mail e DM.',
     cor: 0x2f6fed,
     pdfPrincipal: 'Manual_Membro_Central_Suporte_Duvidas.pdf',
     simulacao: 'simulacao_suporte_painel.png',
-    comandos: ['/documentacao', '/painel-duvidas', 'Canal #dúvidas'],
+    comandos: ['/ajuda', '/help', '/painel-duvidas', '/documentacao', 'Canal #dúvidas', 'DM direta (ajuda/suporte)'],
     regras: [
       '• **Central Fixada:** Canal permanente #dúvidas para suporte e atendimento ao integrante.',
+      '• **Módulo /ajuda e /help:** Comandos slash diretos e atalho por DM para relatar dificuldades e dúvidas à coordenação.',
+      '• **Anexo de Imagens & Encaminhados:** Envio de até 5 prints comprobatórios com suporte a mensagens encaminhadas.',
       '• **Manuais em PDF:** Download imediato e ilustrado com diagramas e simulações do Discord.',
       '• **IA Gemini 3.8-Flash:** Respostas instantâneas treinadas com o regimento do CyberGuard e LGPD.',
       '• **Chamado para a Liderança:** Envio com protocolo oficial (#DUVIDA-XXXX) via SMTP.',

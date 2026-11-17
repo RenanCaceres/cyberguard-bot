@@ -487,7 +487,8 @@ client.on('messageCreate', async (message) => {
 
   // Atendimento a pedidos de ajuda em Mensagens Diretas (DM)
   if (message.channel.type === 1) { // 1 = DM
-    if (ehComandoAjuda(message.content)) {
+    const mencaoBot = Boolean(client.user && message.mentions.has(client.user));
+    if (ehComandoAjuda(message.content) || mencaoBot) {
       const { estaEnviandoPrints } = require('./suporteDuvidas');
       if (!estaEnviandoPrints(message.author.id)) {
         try {
@@ -512,9 +513,16 @@ client.on('messageCreate', async (message) => {
 
           await message.reply({
             content:
-              '👋 **Central de Suporte • CyberGuard**\n' +
-              'Identificamos que você solicitou ajuda! Se você teve algum problema durante o processo ou o bot não respondeu normalmente, clique em **"Abrir Chamado de Suporte"** abaixo para relatar o problema e anexar prints.\n' +
-              (membro && membro.status !== 'concluido' ? 'Ou se desejar retomar o seu cadastro de onde parou, clique em **"Continuar Cadastro"**.' : ''),
+              '👋 **Central de Atendimento & Suporte • CyberGuard**\n\n' +
+              'Identificamos sua solicitação de suporte! Nosso sistema permite que você tire dúvidas, reporte problemas e fale diretamente com a coordenação:\n\n' +
+              '💡 **Como utilizar o módulo de Suporte (/ajuda):**\n' +
+              '1. Clique em **"Abrir Chamado de Suporte"** abaixo (ou use o comando **/ajuda** no servidor a qualquer momento);\n' +
+              '2. Preencha o formulário informando o título do problema e a descrição detalhada do que ocorreu;\n' +
+              '3. Após o envio do formulário, você poderá anexar até 5 imagens/prints nesta mesma conversa para demonstrar o erro;\n' +
+              '4. Seu chamado receberá um protocolo oficial (**#DUVIDA-XXXX**) e será entregue por e-mail à liderança. A resposta chegará diretamente aqui na sua DM!\n\n' +
+              (membro && membro.status !== 'concluido'
+                ? '• Para continuar seu cadastro ou enviar documentos, clique em **"Continuar Cadastro"** ou anexe seu PDF aqui.'
+                : '• Para manuais oficiais, fluxogramas e regras completas, consulte o canal **#dúvidas** no servidor.'),
             components: [row],
           });
           return;
